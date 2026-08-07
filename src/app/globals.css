@@ -1,0 +1,652 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================================
+   MUSE SPARK DESIGN SYSTEM — Paper + Ink + Memphis
+   Exact tokens from the original Muse Spark designs
+   ============================================================ */
+
+:root {
+  --paper:    #FFFCF5;
+  --paper-2:  #F2EEE6;
+  --ink:      #10100F;
+  --cherry:   #FF4B5C;
+  --sun:      #FFD60A;
+  --mint:     #00E5A0;
+  --sky:      #5CC9FF;
+  --violet:   #7A5CFF;
+  --line:     2px solid #10100F;
+  --shadow-hard: 4px 4px 0px #10100F;
+  --shadow-hard-lg: 6px 6px 0px #10100F;
+  --radius-card: 16px;
+  --radius-btn: 12px;
+  --radius-pill: 999px;
+}
+
+/* ---- Base Reset ---- */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  background-color: var(--paper) !important;
+  color: var(--ink) !important;
+  font-family: 'Inter', sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Space Grotesk', sans-serif;
+  color: var(--ink);
+  line-height: 1.15;
+}
+
+button { cursor: pointer; }
+a { color: inherit; text-decoration: none; }
+
+/* ============================================================
+   CARDS
+   ============================================================ */
+.card {
+  background: var(--paper);
+  border: var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-hard);
+}
+
+.card-sm {
+  background: var(--paper);
+  border: 1.5px solid var(--ink);
+  border-radius: 12px;
+  box-shadow: 3px 3px 0px var(--ink);
+}
+
+.card-flat {
+  background: var(--paper-2);
+  border: var(--line);
+  border-radius: var(--radius-card);
+}
+
+/* ============================================================
+   BUTTONS
+   ============================================================ */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 24px;
+  border: var(--line);
+  border-radius: var(--radius-btn);
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+  box-shadow: var(--shadow-hard);
+  background: var(--paper);
+  color: var(--ink);
+}
+.btn:hover { transform: translate(-2px, -2px); box-shadow: 6px 6px 0px var(--ink); }
+.btn:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0px var(--ink); }
+
+.btn-primary {
+  background: var(--ink);
+  color: var(--paper);
+  border: var(--line);
+  box-shadow: var(--shadow-hard);
+}
+.btn-primary:hover { transform: translate(-2px, -2px); box-shadow: 6px 6px 0px var(--ink); }
+.btn-primary:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0px var(--ink); }
+
+.btn-cherry {
+  background: var(--cherry);
+  color: white;
+  border: var(--line);
+  box-shadow: var(--shadow-hard);
+}
+.btn-cherry:hover { transform: translate(-2px, -2px); box-shadow: 6px 6px 0px var(--ink); }
+
+.btn-sun {
+  background: var(--sun);
+  color: var(--ink);
+  border: var(--line);
+  box-shadow: var(--shadow-hard);
+}
+.btn-sun:hover { transform: translate(-2px, -2px); box-shadow: 6px 6px 0px var(--ink); }
+
+.btn-mint {
+  background: var(--mint);
+  color: var(--ink);
+  border: var(--line);
+  box-shadow: var(--shadow-hard);
+}
+
+.btn-violet {
+  background: var(--violet);
+  color: white;
+  border: var(--line);
+  box-shadow: var(--shadow-hard);
+}
+
+.btn-sm {
+  padding: 8px 16px;
+  font-size: 13px;
+  border-radius: 10px;
+}
+
+.btn-lg {
+  padding: 16px 36px;
+  font-size: 18px;
+  border-radius: 14px;
+}
+
+.btn:disabled, .btn-primary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none !important;
+  box-shadow: var(--shadow-hard) !important;
+}
+
+/* ============================================================
+   BADGES / PILLS
+   ============================================================ */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border: 1.5px solid var(--ink);
+  border-radius: var(--radius-pill);
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.badge-cherry { background: var(--cherry); color: white; border-color: var(--cherry); }
+.badge-sun    { background: var(--sun);    color: var(--ink); border-color: var(--sun); }
+.badge-mint   { background: var(--mint);   color: var(--ink); border-color: var(--mint); }
+.badge-sky    { background: var(--sky);    color: var(--ink); border-color: var(--sky); }
+.badge-violet { background: var(--violet); color: white;      border-color: var(--violet); }
+.badge-ink    { background: var(--ink);    color: var(--paper); }
+
+/* ============================================================
+   INPUTS
+   ============================================================ */
+.input {
+  width: 100%;
+  padding: 12px 16px;
+  background: var(--paper);
+  border: var(--line);
+  border-radius: var(--radius-btn);
+  font-family: 'Inter', sans-serif;
+  font-size: 15px;
+  color: var(--ink);
+  outline: none;
+  box-shadow: var(--shadow-hard);
+  transition: box-shadow 0.15s;
+}
+.input:focus {
+  box-shadow: 0 0 0 3px var(--violet), var(--shadow-hard);
+}
+.input::placeholder { color: #888; }
+
+/* ============================================================
+   ANSWER BUTTONS (Memphis 4-color grid)
+   ============================================================ */
+.answer-btn {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 18px 20px;
+  border: var(--line);
+  border-radius: 16px;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: var(--shadow-hard);
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+  text-align: left;
+  color: var(--ink);
+  width: 100%;
+}
+.answer-btn:hover:not(:disabled) {
+  transform: translate(-2px, -2px);
+  box-shadow: 6px 6px 0px var(--ink);
+}
+.answer-btn:active:not(:disabled) {
+  transform: translate(2px, 2px);
+  box-shadow: 2px 2px 0px var(--ink);
+}
+.answer-btn:disabled { cursor: not-allowed; }
+
+.answer-btn.cherry { background: #FFE4E6; }
+.answer-btn.sky    { background: #DCEFFF; }
+.answer-btn.sun    { background: #FFF9C2; }
+.answer-btn.mint   { background: #D4FAF0; }
+
+.answer-btn.cherry.selected-correct { background: var(--mint);  box-shadow: var(--shadow-hard); }
+.answer-btn.sky.selected-correct    { background: var(--mint);  box-shadow: var(--shadow-hard); }
+.answer-btn.sun.selected-correct    { background: var(--mint);  box-shadow: var(--shadow-hard); }
+.answer-btn.mint.selected-correct   { background: var(--mint);  box-shadow: var(--shadow-hard); }
+
+.answer-btn.selected-wrong { background: #FFE4E6; opacity: 0.7; }
+.answer-btn.revealed-correct { background: var(--mint) !important; border-color: var(--ink) !important; }
+
+.answer-glyph {
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--ink);
+  border-radius: 8px;
+  font-size: 16px;
+  flex-shrink: 0;
+  background: var(--paper);
+}
+
+/* ============================================================
+   POWERUP BUTTONS
+   ============================================================ */
+.powerup-btn {
+  width: 48px;
+  height: 48px;
+  border: var(--line);
+  border-radius: 12px;
+  background: var(--paper);
+  font-size: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--shadow-hard);
+  transition: transform 0.12s, box-shadow 0.12s;
+  cursor: pointer;
+}
+.powerup-btn:hover { transform: translate(-2px,-2px); box-shadow: 5px 5px 0 var(--ink); }
+.powerup-btn.used { opacity: 0.35; cursor: not-allowed; transform: none; }
+
+/* ============================================================
+   TIMER BAR
+   ============================================================ */
+.timer-bar {
+  height: 8px;
+  background: var(--paper-2);
+  border: 1.5px solid var(--ink);
+  border-radius: 99px;
+  overflow: hidden;
+  margin: 8px 0;
+}
+.timer-bar-fill {
+  height: 100%;
+  border-radius: 99px;
+  background: var(--mint);
+  transition: width 0.9s linear, background 0.5s;
+}
+
+/* ============================================================
+   SCORE POPUP
+   ============================================================ */
+.score-popup {
+  position: fixed;
+  z-index: 100;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 28px;
+  font-weight: 900;
+  color: var(--ink);
+  background: var(--sun);
+  border: var(--line);
+  border-radius: 16px;
+  padding: 10px 24px;
+  box-shadow: var(--shadow-hard-lg);
+  animation: score-pop 1.4s ease forwards;
+  pointer-events: none;
+}
+
+/* ============================================================
+   AVATAR RING
+   ============================================================ */
+.avatar-ring {
+  border: var(--line);
+  border-radius: 50%;
+  overflow: hidden;
+  box-shadow: var(--shadow-hard);
+  background: var(--paper-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ============================================================
+   STREAK BADGE
+   ============================================================ */
+.streak-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  background: var(--cherry);
+  color: white;
+  border: 1.5px solid var(--ink);
+  border-radius: 99px;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+/* ============================================================
+   PAGE WRAPPER
+   ============================================================ */
+.page-wrapper {
+  min-height: 100vh;
+  background: var(--paper);
+  position: relative;
+}
+
+/* Memphis background pattern */
+.memphis-bg {
+  background-color: var(--paper);
+  background-image:
+    radial-gradient(circle at 20% 10%, rgba(255,214,10,0.15) 0%, transparent 40%),
+    radial-gradient(circle at 80% 90%, rgba(0,229,160,0.12) 0%, transparent 40%),
+    radial-gradient(circle at 80% 10%, rgba(92,201,255,0.12) 0%, transparent 35%),
+    radial-gradient(circle at 10% 80%, rgba(122,92,255,0.10) 0%, transparent 35%);
+}
+
+/* ============================================================
+   MEMPHIS DECORATIVE SHAPES
+   ============================================================ */
+.shape-circle {
+  width: 60px; height: 60px;
+  border-radius: 50%;
+  border: var(--line);
+  position: absolute;
+  pointer-events: none;
+}
+.shape-square {
+  width: 40px; height: 40px;
+  border: var(--line);
+  position: absolute;
+  pointer-events: none;
+}
+.shape-dot {
+  width: 12px; height: 12px;
+  border-radius: 50%;
+  background: var(--ink);
+  position: absolute;
+  pointer-events: none;
+}
+
+/* ============================================================
+   HEADER / NAV
+   ============================================================ */
+.top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 24px;
+  background: var(--ink);
+  color: var(--paper);
+  border-bottom: var(--line);
+  position: relative;
+  z-index: 10;
+}
+
+.top-bar-light {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 24px;
+  background: var(--paper);
+  border-bottom: var(--line);
+  position: relative;
+  z-index: 10;
+}
+
+/* ============================================================
+   PIN DISPLAY (for host projector)
+   ============================================================ */
+.pin-display {
+  background: var(--sun);
+  border: var(--line);
+  border-radius: 16px;
+  padding: 12px 32px;
+  box-shadow: var(--shadow-hard-lg);
+  display: inline-flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.pin-code {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 48px;
+  font-weight: 900;
+  letter-spacing: 0.18em;
+  color: var(--ink);
+}
+
+/* ============================================================
+   LEADERBOARD ROW
+   ============================================================ */
+.lb-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  border: 1.5px solid var(--ink);
+  border-radius: 12px;
+  background: var(--paper);
+  box-shadow: 3px 3px 0 var(--ink);
+  margin-bottom: 8px;
+}
+.lb-row.me {
+  background: var(--sun);
+}
+.lb-row.first  { background: var(--sun); }
+.lb-row.second { background: var(--paper-2); }
+.lb-row.third  { background: #FFE4D6; }
+
+/* ============================================================
+   PROGRESS / ACCURACY DIAL
+   ============================================================ */
+.accuracy-label {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #555;
+}
+
+/* ============================================================
+   SECTION TITLES
+   ============================================================ */
+.section-label {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #888;
+  margin-bottom: 12px;
+}
+
+/* ============================================================
+   ANIMATIONS
+   ============================================================ */
+@keyframes score-pop {
+  0%   { transform: translateX(-50%) translateY(0) scale(1); opacity: 1; }
+  60%  { transform: translateX(-50%) translateY(-40px) scale(1.1); opacity: 1; }
+  100% { transform: translateX(-50%) translateY(-80px) scale(0.9); opacity: 0; }
+}
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.92); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+@keyframes jitter {
+  0%, 100% { transform: translateX(0); }
+  25%  { transform: translateX(-3px); }
+  75%  { transform: translateX(3px); }
+}
+
+@keyframes pulse-dot {
+  0%, 100% { transform: scale(1); opacity: 0.5; }
+  50%       { transform: scale(1.6); opacity: 1; }
+}
+
+@keyframes confetti-fall {
+  0%   { transform: translateY(-20px) rotate(0deg); opacity: 1; }
+  100% { transform: translateY(110vh) rotate(720deg); opacity: 0; }
+}
+
+@keyframes stamp-in {
+  0%   { transform: scale(2) rotate(-8deg); opacity: 0; }
+  60%  { transform: scale(0.92) rotate(2deg); opacity: 1; }
+  100% { transform: scale(1) rotate(0deg); opacity: 1; }
+}
+
+.anim-fade-up   { animation: fade-up  0.35s ease forwards; }
+.anim-scale-in  { animation: scale-in 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
+.anim-stamp-in  { animation: stamp-in 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
+
+/* ============================================================
+   MODULE 2 & 3: TACTILE HAPTICS, COMBOS & POWER-UP FX
+   ============================================================ */
+
+/* Tactile Locked-In State for Answer Buttons */
+.answer-btn.is-locked {
+  transform: translate(3px, 3px) !important;
+  box-shadow: 1px 1px 0px var(--ink) !important;
+}
+
+.answer-btn.is-dimmed {
+  opacity: 0.35 !important;
+}
+
+/* 50/50 Power-up Smoke/Dissolve Transition */
+.choice-dissolved {
+  opacity: 0.15 !important;
+  filter: blur(2px) grayscale(80%);
+  pointer-events: none !important;
+  transform: scale(0.96) !important;
+  transition: opacity 0.5s ease, filter 0.5s ease, transform 0.5s ease !important;
+}
+
+/* Streak Flame Animation (3x+ Streak) */
+@keyframes flame-float {
+  0% { transform: translateY(0) scale(1) rotate(-5deg); opacity: 0.8; }
+  50% { transform: translateY(-15px) scale(1.15) rotate(5deg); opacity: 1; }
+  100% { transform: translateY(-30px) scale(0.9) rotate(-3deg); opacity: 0; }
+}
+
+.streak-flame {
+  position: fixed;
+  z-index: 40;
+  pointer-events: none;
+  font-size: 28px;
+  animation: flame-float 1.8s ease-in-out infinite alternate;
+}
+
+.streak-flame-left {
+  left: 14px;
+}
+
+.streak-flame-right {
+  right: 14px;
+}
+
+/* Screen Shake (5x+ Streak Supercharged) */
+@keyframes screen-shake {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); }
+  10%, 30%, 50%, 70%, 90% { transform: translate(-4px, 2px) rotate(-1deg); }
+  20%, 40%, 60%, 80% { transform: translate(4px, -2px) rotate(1deg); }
+}
+
+.anim-shake {
+  animation: screen-shake 0.5s ease-in-out;
+}
+
+/* Time Freeze Power-up Frosted FX */
+.frosted-freeze-container {
+  border: 3px solid #5CC9FF !important;
+  box-shadow: inset 0 0 20px #5CC9FF, 0 0 20px rgba(92, 201, 255, 0.4) !important;
+  transition: border 0.3s ease, box-shadow 0.3s ease;
+}
+
+@keyframes snowflake-fall {
+  0% { transform: translateY(-20px) rotate(0deg); opacity: 0.9; }
+  100% { transform: translateY(100vh) rotate(360deg); opacity: 0.1; }
+}
+
+.snowflake {
+  position: fixed;
+  top: -20px;
+  color: #5CC9FF;
+  font-size: 22px;
+  pointer-events: none;
+  z-index: 45;
+  animation: snowflake-fall 4s linear infinite;
+}
+
+/* 2x Star Power-Up Golden Pulsating Aura */
+@keyframes aura-pulse {
+  0%, 100% { box-shadow: 0 0 16px #FFD60A, inset 0 0 8px #FFD60A; }
+  50% { box-shadow: 0 0 26px #FFD60A, 0 0 6px var(--ink), inset 0 0 14px #FFD60A; }
+}
+
+.star-aura {
+  animation: aura-pulse 1.5s ease-in-out infinite !important;
+  border-color: #FFD60A !important;
+}
+
+/* ============================================================
+   UTILITIES
+   ============================================================ */
+.text-ink      { color: var(--ink); }
+.text-cherry   { color: var(--cherry); }
+.text-mint     { color: #00a872; }
+.text-violet   { color: var(--violet); }
+.text-muted    { color: #666; }
+.bg-sun        { background: var(--sun); }
+.bg-mint       { background: var(--mint); }
+.bg-cherry     { background: var(--cherry); }
+.bg-violet     { background: var(--violet); }
+.bg-sky        { background: var(--sky); }
+.bg-paper      { background: var(--paper); }
+.bg-paper-2    { background: var(--paper-2); }
+.border-ink    { border: var(--line); }
+.shadow-hard   { box-shadow: var(--shadow-hard); }
+.shadow-hard-lg { box-shadow: var(--shadow-hard-lg); }
+.rounded-card  { border-radius: var(--radius-card); }
+.font-display  { font-family: 'Space Grotesk', sans-serif; }
+.font-body     { font-family: 'Inter', sans-serif; }
+
+/* Divider */
+hr.ink { border: none; border-top: 2px solid var(--ink); margin: 20px 0; }
+
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
+@media (max-width: 640px) {
+  .pin-code { font-size: 32px; letter-spacing: 0.12em; }
+  .answer-btn { padding: 14px 14px; font-size: 13px; }
+  .card { border-radius: 12px; }
+}
