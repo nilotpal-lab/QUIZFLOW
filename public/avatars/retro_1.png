@@ -1,0 +1,20 @@
+﻿<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <rect width="200" height="200" fill="#1a1a2e"/>
+  <!-- pixel knight -->
+  <rect x="75" y="55" width="50" height="50" fill="#FFD700" shape-rendering="crispEdges"/>
+  <rect x="80" y="60" width="40" height="35" fill="#B8860B" shape-rendering="crispEdges"/>
+  <!-- visor -->
+  <rect x="82" y="68" width="36" height="12" fill="#1a1a2e" shape-rendering="crispEdges"/>
+  <rect x="84" y="70" width="32" height="8" fill="#00BFFF" shape-rendering="crispEdges"/>
+  <!-- crest -->
+  <rect x="93" y="50" width="14" height="12" fill="#FF4444" shape-rendering="crispEdges"/>
+  <rect x="96" y="44" width="8" height="8" fill="#FF2222" shape-rendering="crispEdges"/>
+  <!-- armor body -->
+  <rect x="65" y="108" width="70" height="55" fill="#C0C0C0" shape-rendering="crispEdges"/>
+  <rect x="68" y="111" width="64" height="48" fill="#888" shape-rendering="crispEdges"/>
+  <rect x="75" y="118" width="50" height="6" fill="#A0A0A0" shape-rendering="crispEdges"/>
+  <rect x="75" y="128" width="50" height="6" fill="#A0A0A0" shape-rendering="crispEdges"/>
+  <!-- cape -->
+  <rect x="55" y="108" width="14" height="55" fill="#CC0000" shape-rendering="crispEdges"/>
+  <rect x="131" y="108" width="14" height="55" fill="#CC0000" shape-rendering="crispEdges"/>
+</svg>

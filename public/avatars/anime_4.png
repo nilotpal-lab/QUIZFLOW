@@ -1,0 +1,22 @@
+﻿<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <rect width="200" height="200" fill="#FF8C42"/>
+  <circle cx="100" cy="120" r="45" fill="#FDE8D8"/>
+  <!-- spiky orange hair -->
+  <ellipse cx="100" cy="75" rx="38" ry="32" fill="#FF6B00"/>
+  <polygon points="70,65 60,30 80,55" fill="#FF6B00"/>
+  <polygon points="85,58 80,20 95,55" fill="#FF6B00"/>
+  <polygon points="100,55 100,18 112,53" fill="#FF8C00"/>
+  <polygon points="115,58 122,22 128,58" fill="#FF6B00"/>
+  <polygon points="130,65 140,32 142,60" fill="#FF6B00"/>
+  <!-- face -->
+  <ellipse cx="88" cy="118" rx="7" ry="9" fill="#1a1a2e"/>
+  <ellipse cx="112" cy="118" rx="7" ry="9" fill="#1a1a2e"/>
+  <ellipse cx="88" cy="116" rx="3" ry="4" fill="white" opacity="0.6"/>
+  <ellipse cx="112" cy="116" rx="3" ry="4" fill="white" opacity="0.6"/>
+  <!-- big grin -->
+  <path d="M84 132 Q100 148 116 132" stroke="#c0604a" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+  <path d="M84 132 Q100 146 116 132" fill="white"/>
+  <!-- body -->
+  <rect x="65" y="158" width="70" height="42" rx="16" fill="white"/>
+  <rect x="78" y="163" width="44" height="8" rx="4" fill="#e0e0e0"/>
+</svg>

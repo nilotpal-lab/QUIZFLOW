@@ -1,0 +1,32 @@
+﻿<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <rect width="200" height="200" fill="#2d0059"/>
+  <!-- stars bg -->
+  <circle cx="20" cy="20" r="2" fill="white" opacity="0.7"/>
+  <circle cx="170" cy="30" r="1.5" fill="white" opacity="0.7"/>
+  <circle cx="40" cy="160" r="2" fill="white" opacity="0.5"/>
+  <circle cx="180" cy="150" r="1" fill="white" opacity="0.6"/>
+  <!-- wizard body -->
+  <rect x="70" y="115" width="60" height="60" fill="#1a0044" shape-rendering="crispEdges"/>
+  <rect x="60" y="110" width="80" height="14" fill="#3700b3" shape-rendering="crispEdges"/>
+  <!-- robe stars -->
+  <circle cx="88" cy="135" r="3" fill="#FFD700"/>
+  <circle cx="110" cy="148" r="2.5" fill="#FFD700"/>
+  <circle cx="78" cy="152" r="2" fill="#FFD700"/>
+  <!-- face -->
+  <rect x="80" y="60" width="40" height="48" rx="8" fill="#F5DEB3" shape-rendering="crispEdges"/>
+  <!-- eyes -->
+  <rect x="86" y="76" width="8" height="8" fill="#1a1a2e" shape-rendering="crispEdges"/>
+  <rect x="106" y="76" width="8" height="8" fill="#1a1a2e" shape-rendering="crispEdges"/>
+  <rect x="88" y="78" width="4" height="4" fill="white" shape-rendering="crispEdges"/>
+  <rect x="108" y="78" width="4" height="4" fill="white" shape-rendering="crispEdges"/>
+  <!-- long beard -->
+  <rect x="82" y="100" width="36" height="30" rx="4" fill="white"/>
+  <rect x="86" y="115" width="28" height="22" rx="2" fill="#F0F0F0"/>
+  <!-- wizard hat -->
+  <polygon points="100,15 68,62 132,62" fill="#3700b3"/>
+  <rect x="60" y="58" width="80" height="10" fill="#5c00d3" shape-rendering="crispEdges"/>
+  <!-- staff glow -->
+  <rect x="148" y="70" width="6" height="80" fill="#8B4513" shape-rendering="crispEdges"/>
+  <circle cx="151" cy="68" r="12" fill="#00FFAA" opacity="0.8"/>
+  <circle cx="151" cy="68" r="8" fill="#00FF88"/>
+</svg>
