@@ -12,15 +12,18 @@ const RANDOM_NICKNAMES = [
 const AVATARS = {
   cartoon: [
     { src: '/avatars/clay_1.png', emoji: '🧸' },
+    { src: '/avatars/custom_cabbage.png', emoji: '🥬' },
+    { src: '/avatars/custom_boy.png', emoji: '👦' },
     { src: '/avatars/clay_2.png', emoji: '🦊' },
     { src: '/avatars/clay_3.png', emoji: '🦁' },
     { src: '/avatars/clay_4.png', emoji: '🐯' },
   ],
   anime: [
+    { src: '/avatars/custom_winter_girl.png', emoji: '❄️' },
     { src: '/avatars/anime_1.png', emoji: '🌸' },
     { src: '/avatars/anime_2.png', emoji: '✨' },
-    { src: '/avatars/anime_3.png', emoji: '💫' },
-    { src: '/avatars/anime_4.png', emoji: '🌟' },
+    { src: '/avatars/anime_3.png', emoji: '🦊' },
+    { src: '/avatars/anime_4.png', emoji: '🔥' },
   ],
   retro: [
     { src: '/avatars/retro_1.png', emoji: '👾' },

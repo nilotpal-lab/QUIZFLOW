@@ -74,9 +74,12 @@ export type AvatarStyle = 'cartoon' | 'anime' | 'retro' | 'adventurer' | 'lorele
 
 export const LOCAL_AVATARS = [
   '/avatars/clay_1.png',
+  '/avatars/custom_cabbage.png',
+  '/avatars/custom_boy.png',
   '/avatars/clay_2.png',
   '/avatars/clay_3.png',
   '/avatars/clay_4.png',
+  '/avatars/custom_winter_girl.png',
   '/avatars/anime_1.png',
   '/avatars/anime_2.png',
   '/avatars/anime_3.png',
