@@ -151,10 +151,22 @@ const DEFAULT_PRESET_QUIZZES: SavedQuizItem[] = [
   }
 ]
 
+import { getHostUser } from './authStore'
+
+function getStorageKey(): string {
+  if (typeof window === 'undefined') return QUIZZES_KEY
+  const user = getHostUser()
+  if (user && user.email) {
+    return `qf_saved_quizzes_${user.email.toLowerCase().replace(/[^a-z0-9]/g, '_')}`
+  }
+  return QUIZZES_KEY
+}
+
 export function getSavedQuizzes(): SavedQuizItem[] {
   if (typeof window === 'undefined') return DEFAULT_PRESET_QUIZZES
+  const key = getStorageKey()
   try {
-    const raw = localStorage.getItem(QUIZZES_KEY)
+    const raw = localStorage.getItem(key)
     if (raw) {
       const parsed = JSON.parse(raw)
       if (Array.isArray(parsed) && parsed.length > 0) {
@@ -162,7 +174,7 @@ export function getSavedQuizzes(): SavedQuizItem[] {
       }
     }
     // Initialize default presets if empty
-    localStorage.setItem(QUIZZES_KEY, JSON.stringify(DEFAULT_PRESET_QUIZZES))
+    localStorage.setItem(key, JSON.stringify(DEFAULT_PRESET_QUIZZES))
     return DEFAULT_PRESET_QUIZZES
   } catch (err) {
     console.warn('Failed to load saved quizzes from storage:', err)
@@ -202,7 +214,8 @@ export function saveQuizDraft(quiz: AIGeneratedQuiz, isDraft = true, id?: string
   }
 
   if (typeof window !== 'undefined') {
-    localStorage.setItem(QUIZZES_KEY, JSON.stringify(quizzes))
+    const key = getStorageKey()
+    localStorage.setItem(key, JSON.stringify(quizzes))
     syncQuizToSupabase(newItem)
   }
   return newItem
@@ -212,7 +225,8 @@ export function deleteSavedQuiz(id: string): boolean {
   let quizzes = getSavedQuizzes()
   quizzes = quizzes.filter(q => q.id !== id)
   if (typeof window !== 'undefined') {
-    localStorage.setItem(QUIZZES_KEY, JSON.stringify(quizzes))
+    const key = getStorageKey()
+    localStorage.setItem(key, JSON.stringify(quizzes))
   }
   return true
 }

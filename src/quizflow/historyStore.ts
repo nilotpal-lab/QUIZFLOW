@@ -67,17 +67,29 @@ const DEMO_HISTORY: SessionHistoryRecord[] = [
   }
 ]
 
+import { getHostUser } from './authStore'
+
+function getHistoryStorageKey(): string {
+  if (typeof window === 'undefined') return HISTORY_KEY
+  const user = getHostUser()
+  if (user && user.email) {
+    return `qf_session_history_${user.email.toLowerCase().replace(/[^a-z0-9]/g, '_')}`
+  }
+  return HISTORY_KEY
+}
+
 export function getSessionHistory(): SessionHistoryRecord[] {
   if (typeof window === 'undefined') return DEMO_HISTORY
+  const key = getHistoryStorageKey()
   try {
-    const raw = localStorage.getItem(HISTORY_KEY)
+    const raw = localStorage.getItem(key)
     if (raw) {
       const parsed = JSON.parse(raw)
       if (Array.isArray(parsed) && parsed.length > 0) {
         return parsed
       }
     }
-    localStorage.setItem(HISTORY_KEY, JSON.stringify(DEMO_HISTORY))
+    localStorage.setItem(key, JSON.stringify(DEMO_HISTORY))
     return DEMO_HISTORY
   } catch (err) {
     console.warn('Failed to load session history from storage:', err)
@@ -157,7 +169,8 @@ export function recordCompletedSession(gameState: GameState): SessionHistoryReco
   history.unshift(record)
 
   if (typeof window !== 'undefined') {
-    localStorage.setItem(HISTORY_KEY, JSON.stringify(history))
+    const key = getHistoryStorageKey()
+    localStorage.setItem(key, JSON.stringify(history))
     syncSessionHistoryToSupabase(record)
   }
 
