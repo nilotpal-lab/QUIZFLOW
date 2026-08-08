@@ -230,9 +230,14 @@ function broadcast(pin: string, state?: GameState) {
 
   // 1. Cloud Room Relay Sync (Works across all laptops, phones, and tablets over the internet)
   if (typeof window !== 'undefined' && payload) {
-    fetch(`/api/room/${pin}`, {
+    fetch(`/api/room/${pin}?_t=${Date.now()}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache'
+      },
+      cache: 'no-store',
       body: JSON.stringify({ state: payload }),
     }).catch(() => {})
   }
@@ -273,7 +278,13 @@ export function loadState(pin: string): GameState | null {
 export async function fetchRemoteState(pin: string): Promise<GameState | null> {
   if (typeof window === 'undefined') return null
   try {
-    const res = await fetch(`/api/room/${pin}`)
+    const res = await fetch(`/api/room/${pin}?_t=${Date.now()}`, {
+      cache: 'no-store',
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache'
+      }
+    })
     if (res.ok) {
       const data = await res.json()
       if (data?.state) {
@@ -326,12 +337,12 @@ export function subscribeToSession(
   }
   window.addEventListener('storage', onStorage)
 
-  // 5. Cloud Room Relay Polling for cross-device internet sync (every 900ms)
+  // 5. Cloud Room Relay Polling for cross-device internet sync (every 400ms)
   const pollInterval = setInterval(() => {
     fetchRemoteState(pin).then(remote => {
       if (remote) callback(remote)
     })
-  }, 900)
+  }, 400)
 
   // 6. Supabase Realtime WebSocket subscription (zero-latency internet sync)
   let sbSub: any = null

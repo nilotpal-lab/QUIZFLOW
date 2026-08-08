@@ -16,6 +16,10 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || DEFAULT_SUP
 
 const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+export const fetchCache = 'force-no-store'
+
 declare global {
   // eslint-disable-next-line no-var
   var __qf_rooms: Map<string, { state: any; updatedAt: number }> | undefined
@@ -36,6 +40,14 @@ export async function GET(
     return NextResponse.json({ error: 'PIN required' }, { status: 400 })
   }
 
+  const noCacheHeaders = {
+    'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
+    'CDN-Cache-Control': 'no-store',
+    'Vercel-CDN-Cache-Control': 'no-store',
+    'Pragma': 'no-cache',
+    'Expires': '0'
+  }
+
   // 1. Check in-memory map
   let room = rooms.get(pin)
   if (room?.state) {
@@ -44,7 +56,7 @@ export async function GET(
       pin,
       state: room.state,
       updatedAt: room.updatedAt
-    })
+    }, { headers: noCacheHeaders })
   }
 
   // 2. Fallback to Supabase Cloud Database if serverless lambda was cold
@@ -65,13 +77,13 @@ export async function GET(
         pin,
         state: data.quiz_data,
         updatedAt: Date.now()
-      })
+      }, { headers: noCacheHeaders })
     }
   } catch (err) {
     // Graceful fallback
   }
 
-  return NextResponse.json({ error: 'Room not found', pin }, { status: 404 })
+  return NextResponse.json({ error: 'Room not found', pin }, { status: 404, headers: noCacheHeaders })
 }
 
 export async function POST(
@@ -81,6 +93,14 @@ export async function POST(
   const pin = params?.pin
   if (!pin) {
     return NextResponse.json({ error: 'PIN required' }, { status: 400 })
+  }
+
+  const noCacheHeaders = {
+    'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
+    'CDN-Cache-Control': 'no-store',
+    'Vercel-CDN-Cache-Control': 'no-store',
+    'Pragma': 'no-cache',
+    'Expires': '0'
   }
 
   try {
@@ -208,8 +228,8 @@ export async function POST(
       pin,
       state: current,
       updatedAt: Date.now()
-    })
+    }, { headers: noCacheHeaders })
   } catch (err: any) {
-    return NextResponse.json({ error: err?.message || 'Failed to update room' }, { status: 500 })
+    return NextResponse.json({ error: err?.message || 'Failed to update room' }, { status: 500, headers: noCacheHeaders })
   }
 }
