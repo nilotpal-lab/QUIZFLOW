@@ -2,7 +2,7 @@
 export const dynamic = 'force-dynamic'
 import { useEffect, useState, useCallback } from 'react'
 import { useParams, useSearchParams, useRouter } from 'next/navigation'
-import { subscribeToSession, joinSession, sendReaction } from '@/quizflow/sessionStore'
+import { subscribeToSession, joinSessionAsync, sendReaction } from '@/quizflow/sessionStore'
 import type { GameState } from '@/quizflow/sessionStore'
 import { buildAvatarUrl } from '@/quizflow/utils'
 import { playClickSound } from '@/quizflow/sound'
@@ -45,14 +45,29 @@ export default function LobbyPage() {
     return () => clearInterval(t)
   }, [])
 
-  // Join room once
+  // Join room once across any device / laptop / phone
   useEffect(() => {
     if (joined) return
-    const result = joinSession(pin, { id: playerId, nickname, avatarSeed, avatarStyle })
-    if (result === 'not_found') { setError('Room not found. Check your PIN.'); return }
-    if (result === 'duplicate') { setError('Nickname already taken! Go back and pick another.'); return }
-    if (result === 'locked')    { setError('This room is locked. Ask your teacher to unlock it.'); return }
-    setJoined(true)
+    let isMounted = true
+    joinSessionAsync(pin, { id: playerId, nickname, avatarSeed, avatarStyle }).then((result) => {
+      if (!isMounted) return
+      if (result === 'not_found') {
+        setError('Room not found. Check your PIN.')
+        return
+      }
+      if (result === 'duplicate') {
+        setError('Nickname already taken! Go back and pick another.')
+        return
+      }
+      if (result === 'locked') {
+        setError('This room is locked. Ask your teacher to unlock it.')
+        return
+      }
+      setJoined(true)
+    })
+    return () => {
+      isMounted = false
+    }
   }, [pin, nickname, avatarSeed, avatarStyle, playerId, joined])
 
   // Subscribe to session state changes

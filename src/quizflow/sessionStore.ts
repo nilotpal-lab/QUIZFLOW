@@ -97,6 +97,7 @@ export function getMasteryRankings(players: Record<string, Player> | Player[]): 
 }
 
 // ── Broadcast ─────────────────────────────────────────────────────
+// ── Broadcast & Cross-Device Cloud Sync ───────────────────────────
 import { supabase } from './supabaseClient'
 
 let _channel: BroadcastChannel | null = null
@@ -111,14 +112,25 @@ function broadcast(pin: string, state?: GameState) {
   const ch = getChannel()
   if (ch) ch.postMessage({ pin, ts: Date.now() })
 
-  // Supabase Realtime Cloud Sync across all student devices on the internet
-  if (supabase) {
+  const payload = state || loadState(pin)
+
+  // 1. Cloud Room Relay Sync (Works across all laptops, phones, and tablets over the internet)
+  if (typeof window !== 'undefined' && payload) {
+    fetch(`/api/room/${pin}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ state: payload }),
+    }).catch(() => {})
+  }
+
+  // 2. Supabase Realtime WebSocket Sync (if configured)
+  if (supabase && payload) {
     try {
       const roomChannel = supabase.channel(`qf_room_${pin}`)
       roomChannel.send({
         type: 'broadcast',
         event: 'state_sync',
-        payload: state || loadState(pin)
+        payload
       }).catch(() => {})
     } catch {
       // Graceful fallback if offline
@@ -142,6 +154,21 @@ export function loadState(pin: string): GameState | null {
   try { return JSON.parse(raw) as GameState } catch { return null }
 }
 
+export async function fetchRemoteState(pin: string): Promise<GameState | null> {
+  if (typeof window === 'undefined') return null
+  try {
+    const res = await fetch(`/api/room/${pin}`)
+    if (res.ok) {
+      const data = await res.json()
+      if (data?.state) {
+        localStorage.setItem(key(pin), JSON.stringify(data.state))
+        return data.state as GameState
+      }
+    }
+  } catch {}
+  return null
+}
+
 export function deleteState(pin: string) {
   if (typeof window === 'undefined' || typeof localStorage === 'undefined') return
   localStorage.removeItem(key(pin))
@@ -155,10 +182,16 @@ export function subscribeToSession(
 ): () => void {
   if (typeof window === 'undefined') return () => {}
 
-  // Immediate read from local cache
-  callback(loadState(pin))
+  // 1. Immediate read from local cache
+  const local = loadState(pin)
+  if (local) callback(local)
 
-  // BroadcastChannel (cross-tab same browser)
+  // 2. Fetch from Cloud Room Relay (for other devices on the internet)
+  fetchRemoteState(pin).then(remote => {
+    if (remote) callback(remote)
+  })
+
+  // 3. BroadcastChannel (instant 0ms cross-tab same browser)
   let ch: BroadcastChannel | null = null
   let onMsg: ((e: MessageEvent) => void) | null = null
   if (typeof BroadcastChannel !== 'undefined') {
@@ -169,13 +202,20 @@ export function subscribeToSession(
     ch.addEventListener('message', onMsg)
   }
 
-  // StorageEvent (same-tab fallback)
+  // 4. StorageEvent (same-tab fallback)
   const onStorage = (e: StorageEvent) => {
     if (e.key === key(pin)) callback(loadState(pin))
   }
   window.addEventListener('storage', onStorage)
 
-  // Supabase Realtime WebSocket subscription (cross-device internet sync across phones & tablets)
+  // 5. Cloud Room Relay Polling for cross-device internet sync (every 800ms)
+  const pollInterval = setInterval(() => {
+    fetchRemoteState(pin).then(remote => {
+      if (remote) callback(remote)
+    })
+  }, 800)
+
+  // 6. Supabase Realtime WebSocket subscription (if configured)
   let sbSub: any = null
   if (supabase) {
     try {
@@ -194,6 +234,7 @@ export function subscribeToSession(
   }
 
   return () => {
+    clearInterval(pollInterval)
     if (ch && onMsg) {
       ch.removeEventListener('message', onMsg)
       ch.close()
@@ -454,16 +495,19 @@ export function toggleAliasMode(pin: string) {
 
 // ── Player actions ────────────────────────────────────────────────
 
-export function joinSession(
+export async function joinSessionAsync(
   pin: string,
   player: Omit<Player, 'score' | 'streak' | 'rank' | 'lastAnswerCorrect' | 'lastPointsEarned' | 'hasAnswered' | 'selectedIndex' | 'joinedAt' | 'connected'>
-): 'ok' | 'not_found' | 'locked' | 'duplicate' {
-  const state = loadState(pin)
+): Promise<'ok' | 'not_found' | 'locked' | 'duplicate'> {
+  let state = loadState(pin)
+  if (!state) {
+    state = await fetchRemoteState(pin)
+  }
   if (!state) return 'not_found'
   if (state.status === 'ended') return 'not_found'
 
   // If this exact player ID is already registered, update player info & return ok (re-join)
-  if (state.players[player.id]) {
+  if (state.players && state.players[player.id]) {
     saveState({
       ...state,
       players: {
@@ -481,9 +525,10 @@ export function joinSession(
   }
 
   // Check duplicate nickname for a DIFFERENT player ID
-  const existing = Object.values(state.players).find(
+  const existing = state.players ? Object.values(state.players).find(
     p => p.nickname.toLowerCase() === player.nickname.toLowerCase()
-  )
+  ) : null
+
   if (existing) {
     if (existing.id === player.id) return 'ok'
     return 'duplicate'
@@ -499,7 +544,63 @@ export function joinSession(
     joinedAt: Date.now(),
     connected: true,
   }
-  saveState({ ...state, players: { ...state.players, [player.id]: newPlayer } })
+  saveState({ ...state, players: { ...(state.players || {}), [player.id]: newPlayer } })
+  return 'ok'
+}
+
+export function joinSession(
+  pin: string,
+  player: Omit<Player, 'score' | 'streak' | 'rank' | 'lastAnswerCorrect' | 'lastPointsEarned' | 'hasAnswered' | 'selectedIndex' | 'joinedAt' | 'connected'>
+): 'ok' | 'not_found' | 'locked' | 'duplicate' {
+  const state = loadState(pin)
+  if (!state) {
+    // Trigger background remote fetch
+    fetchRemoteState(pin).then(rem => {
+      if (rem) {
+        joinSessionAsync(pin, player)
+      }
+    })
+    return 'ok' // Optimistic ok while remote state synchronizes
+  }
+  if (state.status === 'ended') return 'not_found'
+
+  if (state.players && state.players[player.id]) {
+    saveState({
+      ...state,
+      players: {
+        ...state.players,
+        [player.id]: {
+          ...state.players[player.id],
+          nickname: player.nickname,
+          avatarSeed: player.avatarSeed,
+          avatarStyle: player.avatarStyle,
+          connected: true,
+        }
+      }
+    })
+    return 'ok'
+  }
+
+  const existing = state.players ? Object.values(state.players).find(
+    p => p.nickname.toLowerCase() === player.nickname.toLowerCase()
+  ) : null
+
+  if (existing) {
+    if (existing.id === player.id) return 'ok'
+    return 'duplicate'
+  }
+
+  const newPlayer: Player = {
+    ...player,
+    score: 0, streak: 0, maxStreak: 0, totalCorrect: 0, totalAnswered: 0, totalResponseTimeMs: 0, rank: 0,
+    lastAnswerCorrect: null,
+    lastPointsEarned: 0,
+    hasAnswered: false,
+    selectedIndex: null,
+    joinedAt: Date.now(),
+    connected: true,
+  }
+  saveState({ ...state, players: { ...(state.players || {}), [player.id]: newPlayer } })
   return 'ok'
 }
 
