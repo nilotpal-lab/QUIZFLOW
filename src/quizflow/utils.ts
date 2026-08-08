@@ -85,10 +85,10 @@ export const LOCAL_AVATARS = [
   '/avatars/anime_3.png',
   '/avatars/anime_4.png',
   '/avatars/custom_skeleton.png',
-  '/avatars/retro_1.png',
-  '/avatars/retro_2.png',
-  '/avatars/retro_3.png',
-  '/avatars/retro_4.png'
+  '/avatars/retro_1.svg',
+  '/avatars/retro_2.svg',
+  '/avatars/retro_3.svg',
+  '/avatars/retro_4.svg'
 ]
 
 export function buildAvatarUrl(
@@ -100,7 +100,8 @@ export function buildAvatarUrl(
   if (!seed) return LOCAL_AVATARS[0]
   if (seed.startsWith('/avatars/')) return seed
   if (seed.startsWith('clay_') || seed.startsWith('anime_') || seed.startsWith('retro_')) {
-    return `/avatars/${seed}.png`
+    const ext = seed.startsWith('retro_') ? 'svg' : 'png'
+    return `/avatars/${seed}.${ext}`
   }
   // Deterministic avatar index based on seed
   let hash = 0

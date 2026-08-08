@@ -22,10 +22,10 @@ const ALL_AVATARS = [
   { id: 'clay_2', name: 'Spiky Champion', src: '/avatars/clay_2.png', tag: '3D Clay', emoji: '🦊' },
   { id: 'clay_3', name: 'Pink Dreamer', src: '/avatars/clay_3.png', tag: '3D Clay', emoji: '🦁' },
   { id: 'clay_4', name: 'Dreadlock King', src: '/avatars/clay_4.png', tag: '3D Clay', emoji: '🐯' },
-  { id: 'retro_1', name: 'Golden Knight', src: '/avatars/retro_1.png', tag: 'Retro', emoji: '👾' },
-  { id: 'retro_2', name: 'Cosmic Wizard', src: '/avatars/retro_2.png', tag: 'Retro', emoji: '🕹️' },
-  { id: 'retro_3', name: 'Shadow Ninja', src: '/avatars/retro_3.png', tag: 'Retro', emoji: '🚀' },
-  { id: 'retro_4', name: 'Jungle Explorer', src: '/avatars/retro_4.png', tag: 'Retro', emoji: '🛸' },
+  { id: 'retro_1', name: 'Golden Knight', src: '/avatars/retro_1.svg', tag: 'Retro', emoji: '👾' },
+  { id: 'retro_2', name: 'Cosmic Wizard', src: '/avatars/retro_2.svg', tag: 'Retro', emoji: '🕹️' },
+  { id: 'retro_3', name: 'Shadow Ninja', src: '/avatars/retro_3.svg', tag: 'Retro', emoji: '🚀' },
+  { id: 'retro_4', name: 'Jungle Explorer', src: '/avatars/retro_4.svg', tag: 'Retro', emoji: '🛸' },
 ]
 
 export default function JoinPage() {
