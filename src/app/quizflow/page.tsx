@@ -1,12 +1,16 @@
+'use client'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 
 export default function MarketingHomepage() {
+  const router = useRouter()
+
   return (
     <div className="min-h-screen w-full bg-[var(--paper)] selection:bg-[var(--sun)] flex flex-col overflow-x-hidden text-[var(--ink)] relative">
       
       {/* High-End Dotted Grid Texture Background */}
       <div 
-        className="absolute inset-0 pointer-events-none opacity-[0.25]"
+        className="absolute inset-0 pointer-events-none opacity-[0.22]"
         style={{
           backgroundImage: `radial-gradient(var(--ink) 1.5px, transparent 1.5px)`,
           backgroundSize: '24px 24px'
@@ -15,11 +19,11 @@ export default function MarketingHomepage() {
 
       {/* Top Navigation */}
       <nav className="sticky top-0 z-50 bg-[var(--paper)] border-b-[3px] border-[var(--ink)]">
-        <div className="max-w-[1280px] mx-auto px-4 md:px-6 h-[68px] flex items-center justify-between">
-          <div className="font-display font-[900] text-[26px] tracking-tight flex items-center gap-1.5 cursor-default select-none">
+        <div className="max-w-[1280px] mx-auto px-4 md:px-6 h-[72px] flex items-center justify-between">
+          <div className="font-display font-[900] text-[26px] tracking-tight flex items-center gap-1.5 cursor-pointer" onClick={() => router.push('/')}>
             <span className="text-[var(--violet)] drop-shadow-[1px_1px_0px_var(--ink)]">⚡</span> QuizFlow
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-4">
             <Link href="/auth">
               <button className="hard bg-white text-[var(--ink)] rounded-full px-5 py-2 text-[13px] font-display font-black uppercase tracking-wider btn-press">
                 Login
@@ -29,6 +33,7 @@ export default function MarketingHomepage() {
         </div>
       </nav>
 
+      {/* Main Content */}
       <main className="flex-1 flex flex-col items-center justify-center relative z-10">
         
         {/* Section 1: Hero */}
@@ -211,17 +216,18 @@ export default function MarketingHomepage() {
         </section>
       </main>
 
-      {/* Section 5: Branded Footer */}
+      {/* Clean Aesthetic Footer */}
       <footer className="border-t-[3px] border-[var(--ink)] bg-[var(--paper)] py-10 text-center font-display relative z-10">
-        <div className="max-w-[1280px] mx-auto px-4 flex flex-col items-center gap-4">
-          <div className="font-display font-[900] text-[20px] tracking-tight">
+        <div className="max-w-[1280px] mx-auto px-4 flex flex-col items-center gap-3">
+          <div className="font-display font-[900] text-[22px] tracking-tight">
             ⚡ QuizFlow
           </div>
-          <div className="text-[12px] font-display font-bold uppercase tracking-wider text-[var(--violet)] bg-white border-[2px] border-[var(--ink)] px-3 py-1 rounded-full">
-            Designed with Neo-Brutalist Memphis Taste
-          </div>
-          <div className="text-[13px] font-body font-semibold opacity-70 mt-2">
-            © 2026 QuizFlow · The Next-Gen Classroom Platform
+          <div className="flex gap-4 text-[12px] font-display font-black uppercase tracking-wider text-[var(--violet)]">
+            <Link href="/quizflow/join" className="hover:underline">Join Game</Link>
+            <span>·</span>
+            <Link href="/host/new" className="hover:underline">Host Quiz</Link>
+            <span>·</span>
+            <Link href="/studio" className="hover:underline">AI Studio</Link>
           </div>
         </div>
       </footer>
