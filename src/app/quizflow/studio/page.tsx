@@ -30,62 +30,16 @@ const BLOOM_LEVELS: Array<{ value: BloomLevel; label: string; icon: string; emoj
 ]
 
 const DEFAULT_QUIZ: AIGeneratedQuiz = {
-  title: 'Photosynthesis & Plant Biology Quiz',
-  description: 'An interactive quiz covering solar energy conversion, chloroplasts, and cellular respiration.',
+  title: 'Untitled Quiz',
+  description: '',
   language: 'English',
   bloomLevel: 'Recall',
-  questions: [
-    {
-      prompt: 'What is the process by which plants convert sunlight into food?',
-      choices: ['Cellular Respiration', 'Photosynthesis', 'Fermentation', 'Transpiration'],
-      correct_index: 1,
-      difficulty: 'easy',
-      explanation: 'Photosynthesis occurs in chloroplasts using chlorophyll to capture light energy.',
-      bloom_level: 'Recall',
-      misconceptions: [
-        'Cellular respiration breaks down glucose to release energy, rather than synthesizing food from sunlight.',
-        '',
-        'Fermentation is an anaerobic process that extracts energy without oxygen, not solar conversion.',
-        'Transpiration is water evaporation through stomata, not chemical food synthesis.'
-      ],
-      time_limit_ms: 20000
-    },
-    {
-      prompt: 'Which organelle is responsible for hosting photosynthesis in plant cells?',
-      choices: ['Mitochondria', 'Nucleus', 'Chloroplast', 'Ribosome'],
-      correct_index: 2,
-      difficulty: 'medium',
-      explanation: 'Chloroplasts contain chlorophyll pigments that absorb blue and red light wavelengths.',
-      bloom_level: 'Recall',
-      misconceptions: [
-        'Mitochondria perform cellular respiration to generate ATP, not photosynthesis.',
-        'The nucleus houses genomic DNA and controls cell transcription, not photosynthetic light reactions.',
-        '',
-        'Ribosomes translate mRNA into protein chains, not solar glucose synthesis.'
-      ],
-      time_limit_ms: 15000
-    },
-    {
-      prompt: 'What are the main outputs (products) of photosynthesis?',
-      choices: ['Carbon Dioxide & Water', 'Glucose & Oxygen', 'Nitrogen & ATP', 'Lactic Acid & CO2'],
-      correct_index: 1,
-      difficulty: 'easy',
-      explanation: 'The chemical reaction produces 6O2 + C6H12O6 (Glucose and Oxygen).',
-      bloom_level: 'Comprehension',
-      misconceptions: [
-        'Carbon dioxide and water are the required inputs/reactants, not the final outputs.',
-        '',
-        'Atmospheric nitrogen is not a product of photosynthetic light/dark reactions.',
-        'Lactic acid and carbon dioxide are byproducts of anaerobic muscle fermentation.'
-      ],
-      time_limit_ms: 20000
-    }
-  ]
+  questions: []
 }
 
 export default function AIQuizStudio() {
   const router = useRouter()
-  const [topicInput, setTopicInput]         = useState('Photosynthesis, light-dependent reactions, Calvin cycle, chlorophyll structure')
+  const [topicInput, setTopicInput]         = useState('')
   const [questionCount, setQuestionCount]   = useState(5)
   const [selectedLang, setSelectedLang]     = useState('English')
   const [bloomLevel, setBloomLevel]         = useState<BloomLevel>('Recall')
@@ -335,7 +289,7 @@ export default function AIQuizStudio() {
                   setQuiz({ ...quiz, title: tempTitle })
                 }
               }}
-              className="w-full h-10 px-4 bg-[#FFF8EB] border-[3px] border-white/20 rounded-[24px] text-[13px] font-semibold outline-none text-[#10100F]"
+              className="w-full h-10 px-4 bg-white border-[3px] border-[#10100F] rounded-[24px] text-[13px] font-semibold outline-none text-[#10100F]"
             />
           ) : (
             <button
@@ -343,7 +297,7 @@ export default function AIQuizStudio() {
                 setTempTitle(quiz.title)
                 setEditingTitle(true)
               }}
-              className="w-full h-10 px-4 bg-[#FFF8EB] border-[3px] border-white/10 rounded-[24px] text-[13px] font-semibold flex items-center justify-between gap-2 text-left text-white"
+              className="w-full h-10 px-4 bg-[#FFF8EB] border-[3px] border-[#10100F] rounded-[24px] text-[13px] font-semibold flex items-center justify-between gap-2 text-left text-[#10100F] btn-press"
             >
               <span className="truncate">{quiz.title}</span>
               <span className="shrink-0 w-6 h-6 grid place-items-center rounded-full bg-white border-[2px] border-[#10100F] text-[#10100F] text-[12px] hover:bg-[var(--sun)] transition-colors">✎</span>
