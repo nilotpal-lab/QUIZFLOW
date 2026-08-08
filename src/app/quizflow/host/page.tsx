@@ -62,6 +62,53 @@ function TeacherHostDashboard() {
   }, [pin])
 
   const [revealedIndex, setRevealedIndex] = useState<number | null>(null)
+  const [autoPacing, setAutoPacing] = useState(true)
+  const [autoAdvanceCountdown, setAutoAdvanceCountdown] = useState<number | null>(null)
+  const autoAdvanceTimerRef = useRef<NodeJS.Timeout | null>(null)
+
+  const qIdx   = gameState?.currentQuestionIndex || 0
+  const totalQ = gameState?.quiz.questions.length || 0
+
+  // Auto-pacing orchestrator (Auto-Reveal -> Auto-Leaderboard -> Auto-Next Question)
+  useEffect(() => {
+    if (autoAdvanceTimerRef.current) clearInterval(autoAdvanceTimerRef.current)
+    setAutoAdvanceCountdown(null)
+    if (!autoPacing || !gameState || !pin) return
+
+    if (gameState.status === 'question_reveal') {
+      let secondsLeft = 4
+      setAutoAdvanceCountdown(secondsLeft)
+      autoAdvanceTimerRef.current = setInterval(() => {
+        secondsLeft -= 1
+        setAutoAdvanceCountdown(Math.max(0, secondsLeft))
+        if (secondsLeft <= 0) {
+          clearInterval(autoAdvanceTimerRef.current!)
+          setAutoAdvanceCountdown(null)
+          showLeaderboard(pin)
+        }
+      }, 1000)
+    } else if (gameState.status === 'leaderboard') {
+      let secondsLeft = 5
+      setAutoAdvanceCountdown(secondsLeft)
+      autoAdvanceTimerRef.current = setInterval(() => {
+        secondsLeft -= 1
+        setAutoAdvanceCountdown(Math.max(0, secondsLeft))
+        if (secondsLeft <= 0) {
+          clearInterval(autoAdvanceTimerRef.current!)
+          setAutoAdvanceCountdown(null)
+          if (qIdx + 1 < totalQ) {
+            nextQuestion(pin)
+          } else {
+            endGame(pin)
+          }
+        }
+      }, 1000)
+    }
+
+    return () => {
+      if (autoAdvanceTimerRef.current) clearInterval(autoAdvanceTimerRef.current)
+    }
+  }, [gameState?.status, gameState?.currentQuestionIndex, autoPacing, pin, qIdx, totalQ])
 
   // Host timer countdown & reveal when time expires
   useEffect(() => {
@@ -134,8 +181,6 @@ function TeacherHostDashboard() {
   const totalPlayers = players.length
   const answered     = players.filter(p => p.hasAnswered).length
   const q            = gameState.quiz.questions[gameState.currentQuestionIndex]
-  const qIdx         = gameState.currentQuestionIndex
-  const totalQ       = gameState.quiz.questions.length
 
   // Ranked players based on active leaderboard selection
   const rankedPlayers = activeBoard === 'mastery'
@@ -289,7 +334,13 @@ function TeacherHostDashboard() {
           <div style={{ fontSize: 10, color: 'var(--paper)', fontFamily: 'Space Grotesk', textTransform: 'uppercase', opacity: 0.7 }}>seconds</div>
         </div>
 
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          {autoAdvanceCountdown !== null && (
+            <div className="anim-pulse" style={{ background: 'var(--sun)', border: '2px solid var(--ink)', padding: '6px 12px', borderRadius: 6, fontFamily: 'Space Grotesk', fontWeight: 800, fontSize: 12, display: 'flex', alignItems: 'center', gap: 6, boxShadow: '2px 2px 0 var(--ink)' }}>
+              <span>⚡ Next in {autoAdvanceCountdown}s</span>
+            </div>
+          )}
+
           {gameState.status === 'question_active' && (
             <button className="btn btn-cherry" style={{ padding: '8px 18px', fontWeight: 700 }} onClick={() => revealAnswer(pin)}>
               👁 Reveal Answer
@@ -331,6 +382,24 @@ function TeacherHostDashboard() {
           <span style={{ fontSize: 11, fontFamily: 'Space Grotesk', fontWeight: 800, textTransform: 'uppercase', color: 'var(--ink)', opacity: 0.75 }}>
             🎛️ Live Controls:
           </span>
+
+          {/* ⚡ Auto-Pacing Toggle */}
+          <button
+            onClick={() => setAutoPacing(!autoPacing)}
+            className="btn btn-sm"
+            style={{
+              padding: '6px 14px',
+              fontSize: 12,
+              fontWeight: 800,
+              border: '2px solid var(--ink)',
+              boxShadow: '2px 2px 0 var(--ink)',
+              background: autoPacing ? 'var(--mint)' : 'var(--paper)',
+              color: 'var(--ink)'
+            }}
+            title="Toggle automatic countdown pacing"
+          >
+            {autoPacing ? '⚡ Auto-Pacing: ON' : '✋ Manual Pacing'}
+          </button>
 
           {/* ⏸️ Pause / Resume */}
           <button
