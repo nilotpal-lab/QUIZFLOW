@@ -106,72 +106,87 @@ export default function JoinPage() {
         </div>
       </nav>
 
-      <main className="flex-1 w-full max-w-[640px] px-4 md:px-6 py-6 md:py-10 flex flex-col">
+      {/* Landscape Main Content Area */}
+      <main className="flex-1 w-full max-w-[1040px] px-4 md:px-6 py-6 md:py-10 flex flex-col justify-center">
         <div className="hard bg-[var(--paper-2)] rounded-[var(--radius-card)] p-5 md:p-8 relative overflow-hidden w-full">
           
           <div className="absolute right-6 top-6 w-20 h-20 bg-[var(--sun)] border-[3px] border-[var(--ink)] rotate-[15deg] opacity-20 -z-0"></div>
 
-          <div className="relative z-10 flex flex-col">
-            <div className="inline-flex items-center gap-2 hard bg-[var(--cherry)] text-white px-3 py-1 rounded-full font-display font-[800] text-[11px] mb-2 self-start">
-              <span>🎮</span> LIVE GAME JOIN
-            </div>
-
-            <h1 className="font-display font-[900] text-[32px] md:text-[40px] leading-[1] tracking-[-0.02em] mb-2 uppercase">
-              Join the Arena
-            </h1>
+          <div className="relative z-10 grid grid-cols-1 lg:grid-cols-[1fr_1.1fr] gap-6 lg:gap-10">
             
-            {error && (
-              <div className="mt-3 text-[13px] font-[700] text-[var(--cherry)] bg-red-100 border-[3px] border-[var(--cherry)] p-3 rounded-[8px]">
-                ⚠️ {error}
-              </div>
-            )}
+            {/* Left Column: Form Info */}
+            <div className="flex flex-col justify-between">
+              <div>
+                <div className="inline-flex items-center gap-2 hard bg-[var(--cherry)] text-white px-3 py-1 rounded-full font-display font-[800] text-[11px] mb-3 self-start">
+                  <span>🎮</span> LIVE GAME JOIN
+                </div>
 
-            {/* PIN Input */}
-            <div className="mt-6">
-              <label className="font-display text-[13px] font-[800] tracking-widest block mb-2 uppercase opacity-80">6-Digit Room PIN</label>
-              <div className="flex gap-2 justify-between">
-                {pin.map((digit, idx) => (
-                  <input
-                    key={idx}
-                    ref={inputs[idx]}
-                    value={digit}
-                    onChange={e => handlePinInput(idx, e.target.value)}
-                    onKeyDown={e => handlePinKey(idx, e)}
-                    maxLength={1}
-                    className="w-[calc(16.66%-7px)] aspect-[3/4] text-center bg-[var(--paper)] rounded-[12px] border-[3px] border-[var(--ink)] font-display text-[26px] md:text-[32px] font-[800] outline-none focus:ring-[4px] focus:ring-[#FFE57F] focus:border-[var(--violet)] transition-colors shadow-[3px_3px_0px_#10100F]"
-                    placeholder="·"
-                    aria-label={`PIN digit ${idx + 1}`}
-                  />
-                ))}
+                <h1 className="font-display font-[900] text-[36px] md:text-[44px] leading-[1] tracking-[-0.02em] mb-4 uppercase">
+                  Join the Arena
+                </h1>
+                
+                {error && (
+                  <div className="mb-4 text-[13px] font-[700] text-[var(--cherry)] bg-red-100 border-[3px] border-[var(--cherry)] p-3 rounded-[8px]">
+                    ⚠️ {error}
+                  </div>
+                )}
+
+                {/* PIN Input */}
+                <div className="mt-4">
+                  <label className="font-display text-[13px] font-[800] tracking-widest block mb-2.5 uppercase opacity-85">6-Digit Room PIN</label>
+                  <div className="flex gap-2 justify-between">
+                    {pin.map((digit, idx) => (
+                      <input
+                        key={idx}
+                        ref={inputs[idx]}
+                        value={digit}
+                        onChange={e => handlePinInput(idx, e.target.value)}
+                        onKeyDown={e => handlePinKey(idx, e)}
+                        maxLength={1}
+                        className="w-[calc(16.66%-6px)] aspect-[3/4] text-center bg-[var(--paper)] rounded-[12px] border-[3px] border-[var(--ink)] font-display text-[26px] md:text-[30px] font-[800] outline-none focus:ring-[4px] focus:ring-[#FFE57F] focus:border-[var(--violet)] transition-colors shadow-[3px_3px_0px_#10100F]"
+                        placeholder="·"
+                        aria-label={`PIN digit ${idx + 1}`}
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                {/* Nickname Input */}
+                <div className="mt-6">
+                  <label className="font-display text-[13px] font-[800] tracking-widest block mb-2.5 uppercase opacity-85">Player Nickname</label>
+                  <div className="flex gap-2">
+                    <input
+                      value={nickname}
+                      onChange={e => setNickname(e.target.value)}
+                      onKeyDown={e => e.key === 'Enter' && handleJoin()}
+                      placeholder="Enter your name..."
+                      className="flex-1 h-[52px] px-4 bg-white rounded-[12px] border-[3px] border-[var(--ink)] text-[16px] font-[700] outline-none focus:ring-[4px] focus:ring-[#FFE57F] shadow-[3px_3px_0px_#10100F]"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleRandomizeNick}
+                      className="hard btn-press bg-[var(--sun)] rounded-[12px] px-3.5 h-[52px] font-display font-[800] text-[13px] min-w-[130px]"
+                    >
+                      {randomBtnText}
+                    </button>
+                  </div>
+                </div>
               </div>
+
+              {/* Big Join Button at Bottom of Left Column */}
+              <button
+                onClick={handleJoin}
+                className="mt-8 lg:mt-auto w-full h-[62px] rounded-[var(--radius-btn)] bg-[var(--violet)] text-white font-display font-[900] text-[22px] uppercase tracking-wide hard btn-press shadow-[4px_4px_0px_#10100F]"
+              >
+                🚀 Join Game Arena →
+              </button>
             </div>
 
-            {/* Nickname Input */}
-            <div className="mt-6">
-              <label className="font-display text-[13px] font-[800] tracking-widest block mb-2 uppercase opacity-80">Player Nickname</label>
-              <div className="flex gap-2">
-                <input
-                  value={nickname}
-                  onChange={e => setNickname(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && handleJoin()}
-                  placeholder="Enter your name..."
-                  className="flex-1 h-[50px] px-4 bg-white rounded-[12px] border-[3px] border-[var(--ink)] text-[16px] font-[700] outline-none focus:ring-[4px] focus:ring-[#FFE57F] shadow-[3px_3px_0px_#10100F]"
-                />
-                <button
-                  type="button"
-                  onClick={handleRandomizeNick}
-                  className="hard btn-press bg-[var(--sun)] rounded-[12px] px-3.5 h-[50px] font-display font-[800] text-[13px] min-w-[130px]"
-                >
-                  {randomBtnText}
-                </button>
-              </div>
-            </div>
-
-            {/* Unified Avatar Selection Window with Scrolling */}
-            <div className="mt-8">
+            {/* Right Column: Avatar Selector */}
+            <div className="flex flex-col">
               <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
                 <div>
-                  <label className="font-display text-[13px] font-[800] tracking-widest uppercase opacity-80 block">CHOOSE YOUR AVATAR</label>
+                  <label className="font-display text-[13px] font-[800] tracking-widest uppercase opacity-85 block">CHOOSE YOUR AVATAR</label>
                   <span className="text-[11px] font-display font-bold text-[var(--violet)]">16 Custom Characters · Scroll to explore</span>
                 </div>
                 <button
@@ -203,7 +218,7 @@ export default function JoinPage() {
 
               {/* Scrollable Gallery Window */}
               <div className="hard bg-white rounded-[16px] p-3.5 border-[3px] border-[var(--ink)] shadow-[4px_4px_0px_#10100F]">
-                <div className="max-h-[260px] overflow-y-auto overflow-x-hidden pr-1.5 scrollbar-thin space-y-2">
+                <div className="max-h-[260px] lg:max-h-[290px] overflow-y-auto overflow-x-hidden pr-1.5 scrollbar-thin space-y-2">
                   <div className="grid grid-cols-4 gap-2.5">
                     {ALL_AVATARS.map((avatar, idx) => {
                       const isSelected = selectedAvatarIdx === idx
@@ -239,14 +254,6 @@ export default function JoinPage() {
               </div>
             </div>
 
-            {/* Big Join Button */}
-            <button
-              onClick={handleJoin}
-              className="mt-8 w-full h-[58px] rounded-[var(--radius-btn)] bg-[var(--violet)] text-white font-display font-[900] text-[22px] uppercase tracking-wide hard btn-press shadow-[4px_4px_0px_#10100F]"
-            >
-              🚀 Join Game Arena →
-            </button>
-            
           </div>
         </div>
       </main>
