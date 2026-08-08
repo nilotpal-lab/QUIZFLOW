@@ -516,7 +516,7 @@ export function sendReaction(pin: string, emoji: string, senderName?: string) {
   saveState({ ...state, reactions })
 }
 
-export function submitAnswer(pin: string, playerId: string, selectedIndex: number) {
+export function submitAnswer(pin: string, playerId: string, selectedIndex: number, powerUpActive = false) {
   const state = loadState(pin)
   if (!state || state.status !== 'question_active') return
   const player = state.players[playerId]
@@ -524,23 +524,27 @@ export function submitAnswer(pin: string, playerId: string, selectedIndex: numbe
 
   const q = state.quiz.questions[state.currentQuestionIndex]
   const isCorrect = selectedIndex === q.correct_index
-  const timeRemainingMs = Math.max(0, state.questionEndsAt - Date.now())
+  const now = Date.now()
+  const timeRemainingMs = state.isPaused
+    ? Math.max(0, state.pausedTimeRemainingMs || 0)
+    : Math.max(0, state.questionEndsAt - now)
   const totalTimeMs = q.time_limit_ms
-  const responseTimeMs = totalTimeMs - timeRemainingMs
+  const responseTimeMs = Math.max(0, now - state.questionStartedAt)
 
-  // SECURITY: Prevent sub-100ms automated script answers (humanly impossible speed)
-  const isSuspiciousBot = responseTimeMs < 100
+  // SECURITY: Prevent sub-100ms automated script answers
+  const isSuspiciousBot = responseTimeMs < 100 && totalTimeMs >= 5000
 
   let points = 0
   const newStreak = isCorrect ? player.streak + 1 : 0
   if (isCorrect && !isSuspiciousBot) {
-    const ratio = timeRemainingMs / totalTimeMs
+    const ratio = Math.max(0, Math.min(1, timeRemainingMs / totalTimeMs))
     const speedFactor = 0.5 + 0.5 * ratio
     const streakMultiplier = 1 + Math.min(player.streak * 0.1, 0.5)
-    points = Math.round(Math.max(50, 1000 * speedFactor * streakMultiplier))
+    const multiplier = powerUpActive ? 2 : 1
+    points = Math.round(Math.max(50, 1000 * speedFactor * streakMultiplier * multiplier))
     
     // SECURITY: Mathematically clamp maximum points to stop score injection cheats
-    points = Math.min(3000, points)
+    points = Math.min(6000, points)
   } else {
     if (state.gameMode === 'boss_raid') {
       points = -5 // Boss attacks (-5 class points)

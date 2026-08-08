@@ -85,25 +85,33 @@ export function processQuestionsForVersion(
   })
 }
 
-export function generateWorksheetHTML(
-  quiz: AIGeneratedQuiz,
-  version: WorksheetVersion = 'A',
-  showAnswerKey: boolean = false
-): string {
-  const questions = processQuestionsForVersion(quiz, version)
-  const letters = ['A', 'B', 'C', 'D', 'E', 'F']
+function escapeHTML(str: unknown): string {
+  if (typeof str !== 'string') return str ? String(str) : ''
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;')
+}
 
-  return `<!DOCTYPE html>
-<html lang="en">
+export function generateWorksheetHTML(options: WorksheetOptions): string {
+  const { quiz, version = 'A', showAnswerKey = true } = options
+  const questions = processQuestionsForVersion(quiz, version)
+  const letters = ['A', 'B', 'C', 'D']
+
+  return `
+<!DOCTYPE html>
+<html lang="${escapeHTML(quiz.language || 'en')}">
 <head>
   <meta charset="UTF-8">
-  <title>${quiz.title} - Test Version ${version}</title>
+  <title>${escapeHTML(quiz.title)} — Version ${version}</title>
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700;800&family=Inter:wght@400;500;600;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@600;700;800&display=swap');
 
     @page {
       size: letter portrait;
-      margin: 12mm 15mm;
+      margin: 18mm 16mm 18mm 16mm;
     }
 
     * {
@@ -113,21 +121,21 @@ export function generateWorksheetHTML(
     }
 
     body {
-      background-color: #FFFCF5;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       color: #10100F;
-      font-family: 'Inter', sans-serif;
-      line-height: 1.5;
-      padding: 20px;
+      background: #FFF;
+      line-height: 1.4;
+      font-size: 13px;
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
     }
 
     .header-card {
       border: 3px solid #10100F;
-      background: #FFFCF5;
       box-shadow: 4px 4px 0 #10100F;
-      padding: 20px;
-      margin-bottom: 24px;
+      background: #FFFCF5;
+      padding: 16px 20px;
+      margin-bottom: 20px;
       border-radius: 8px;
     }
 
@@ -135,9 +143,9 @@ export function generateWorksheetHTML(
       display: flex;
       justify-content: space-between;
       align-items: flex-start;
-      margin-bottom: 16px;
-      border-bottom: 2px solid #10100F;
-      padding-bottom: 12px;
+      margin-bottom: 12px;
+      border-bottom: 2px dashed #10100F;
+      padding-bottom: 10px;
     }
 
     .quiz-title {
@@ -150,20 +158,20 @@ export function generateWorksheetHTML(
 
     .quiz-desc {
       font-size: 13px;
-      color: #444;
+      color: #555;
+      font-style: italic;
     }
 
     .version-badge {
       font-family: 'Space Grotesk', sans-serif;
-      font-size: 16px;
+      font-size: 13px;
       font-weight: 800;
       background: #FFE57F;
       border: 2px solid #10100F;
-      box-shadow: 3px 3px 0 #10100F;
-      padding: 6px 14px;
+      padding: 4px 12px;
       border-radius: 6px;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
+      box-shadow: 2px 2px 0 #10100F;
+      white-space: nowrap;
     }
 
     .student-fields {
@@ -178,16 +186,6 @@ export function generateWorksheetHTML(
     .field-line {
       border-bottom: 2px solid #10100F;
       padding-bottom: 4px;
-    }
-
-    .instructions {
-      font-size: 12px;
-      font-style: italic;
-      color: #555;
-      margin-bottom: 20px;
-      padding: 8px 12px;
-      border-left: 3px solid #10100F;
-      background: #F4EFE6;
     }
 
     .question-block {
@@ -310,10 +308,10 @@ export function generateWorksheetHTML(
   <div class="header-card">
     <div class="header-top">
       <div>
-        <div class="quiz-title">${quiz.title}</div>
-        <div class="quiz-desc">${quiz.description || ''}</div>
+        <div class="quiz-title">${escapeHTML(quiz.title)}</div>
+        <div class="quiz-desc">${escapeHTML(quiz.description || '')}</div>
       </div>
-      <div class="version-badge">Version ${version}</div>
+      <div class="version-badge">Version ${escapeHTML(version)}</div>
     </div>
     <div class="student-fields">
       <div class="field-line">Name: _______________________________</div>
@@ -322,23 +320,19 @@ export function generateWorksheetHTML(
     </div>
   </div>
 
-  <div class="instructions">
-    📝 <strong>Instructions:</strong> Read each question carefully and fill in or check the box corresponding to the correct answer.
-  </div>
-
   <div class="questions-container">
     ${questions.map((q, idx) => `
       <div class="question-block">
         <div class="question-header">
           <span class="q-number">Q${idx + 1}</span>
-          <span class="q-prompt">${q.prompt}</span>
+          <span class="q-prompt">${escapeHTML(q.prompt)}</span>
         </div>
         <div class="choices-grid">
           ${q.choices.map((choiceText, cIdx) => `
             <div class="choice-item">
               <span class="checkbox"></span>
-              <span class="choice-label">${letters[cIdx]}.</span>
-              <span>${choiceText}</span>
+              <span class="choice-label">${letters[cIdx % letters.length]}.</span>
+              <span>${escapeHTML(choiceText)}</span>
             </div>
           `).join('')}
         </div>
@@ -350,7 +344,7 @@ export function generateWorksheetHTML(
     <div class="page-break"></div>
     <div class="answer-key-header">
       <span>🔑 MASTER ANSWER KEY</span>
-      <span style="font-size: 14px;">Test Version ${version}</span>
+      <span style="font-size: 14px;">Test Version ${escapeHTML(version)}</span>
     </div>
 
     <table class="key-table">
@@ -363,49 +357,58 @@ export function generateWorksheetHTML(
         </tr>
       </thead>
       <tbody>
-        ${questions.map((q, idx) => `
+        ${questions.map((q, idx) => {
+          const safeIdx = (typeof q.correctIndex === 'number' && q.correctIndex >= 0 && q.correctIndex < q.choices.length)
+            ? q.correctIndex
+            : 0
+          const correctLetter = letters[safeIdx % letters.length] || 'A'
+          const correctText = q.choices[safeIdx] || '—'
+          return `
           <tr>
             <td style="font-weight: 800; font-family: 'Space Grotesk';">Q${idx + 1}</td>
             <td style="font-weight: 800; font-family: 'Space Grotesk'; background: #E8F5E9;">
-              ${letters[q.correctIndex]}
+              ${correctLetter}
             </td>
-            <td style="font-weight: 600;">${q.choices[q.correctIndex]}</td>
-            <td style="color: #444; font-size: 12px;">${q.explanation || '—'}</td>
+            <td style="font-weight: 600;">${escapeHTML(correctText)}</td>
+            <td style="color: #444; font-size: 12px;">${escapeHTML(q.explanation || '—')}</td>
           </tr>
-        `).join('')}
+          `
+        }).join('')}
       </tbody>
     </table>
   ` : ''}
 
   <div class="footer">
-    Generated with QuizFlow AI • Muse Spark Printed Worksheet • Version ${version}
+    Generated via QuizFlow Studio • Version ${escapeHTML(version)} • Bloom's Level: ${escapeHTML(quiz.bloomLevel || 'Recall')}
   </div>
 
 </body>
-</html>`
+</html>
+`
 }
 
 export function generatePrintableWorksheet(
   quiz: AIGeneratedQuiz,
   version: WorksheetVersion = 'A',
   showAnswerKey: boolean = false
-) {
+): void {
   if (typeof window === 'undefined') return
 
-  const html = generateWorksheetHTML(quiz, version, showAnswerKey)
+  const html = generateWorksheetHTML({ quiz, version, showAnswerKey })
   const printWindow = window.open('', '_blank', 'width=900,height=1100')
 
   if (!printWindow) {
-    alert('Please allow popups to open and print the test worksheet.')
+    alert('Please allow popups to print the worksheet.')
     return
   }
 
   printWindow.document.open()
   printWindow.document.write(html)
   printWindow.document.close()
-  printWindow.focus()
 
+  // Wait for fonts and styling to load before triggering print
   setTimeout(() => {
+    printWindow.focus()
     printWindow.print()
   }, 400)
 }

@@ -79,11 +79,11 @@ function StudentPlayScreen() {
     if (!gameState) return
     if (gameState.status === 'ended') {
       stopSpeech()
-      router.push(`/results?pin=${pin}&pid=${playerId}`)
+      router.push(`/quizflow/results?pin=${pin}&pid=${playerId}`)
     }
   }, [gameState?.status, pin, playerId, router])
 
-  // Reset power-ups & speech when question changes
+  // Reset speech & state when question changes (preserve used power-ups across session)
   useEffect(() => {
     if (!gameState) return
     const qIdx = gameState.currentQuestionIndex
@@ -92,7 +92,6 @@ function StudentPlayScreen() {
       setHiddenChoices(new Set())
       setFrozen(false)
       setDoubleActive(false)
-      setUsedPowers(new Set())
       setPlayedRevealSound(false)
       setIsTTSActive(false)
       stopSpeech()
@@ -169,34 +168,39 @@ function StudentPlayScreen() {
   const handleAnswer = useCallback((idx: number) => {
     if (!gameState || gameState.status !== 'question_active') return
     if (me?.hasAnswered) return
-    if (!q) return
 
     if (typeof window !== 'undefined' && window.navigator?.vibrate) {
       window.navigator.vibrate(30)
     }
 
     playLockInSound()
-    const isCorrect = idx === q.correct_index
-    const result    = calculatePoints(timeMs, totalTime, isCorrect, me?.streak ?? 0, doubleActive)
-    if (isCorrect) {
+
+    if (q) {
+      const isCorrect = idx === q.correct_index
+      const result = calculatePoints(timeMs, totalTime, isCorrect, me?.streak || 0, doubleActive)
       setPopupPoints(result.points)
       setShowPopup(true)
     }
-    submitAnswer(pin, playerId, idx)
+    submitAnswer(pin, playerId, idx, doubleActive)
   }, [gameState, me, q, timeMs, totalTime, doubleActive, pin, playerId])
 
   const usePowerUp = (type: PowerUpType) => {
-    if (usedPowers.has(type) || me?.hasAnswered) return
-    const next = new Set(usedPowers); next.add(type)
-    setUsedPowers(next)
+    if (usedPowers.has(type)) return
+    setUsedPowers(prev => {
+      const next = new Set<PowerUpType>()
+      prev.forEach(p => next.add(p))
+      next.add(type)
+      return next
+    })
 
     if (type === 'fifty_fifty' && q) {
       playPowerUpSound('5050')
-      const wrong = [0,1,2,3].filter(i => i !== q.correct_index)
-      setHiddenChoices(new Set(wrong.sort(() => Math.random()-0.5).slice(0,2)))
+      const wrong = q.choices.map((_, i) => i).filter(i => i !== q.correct_index)
+      setHiddenChoices(new Set(wrong.sort(() => Math.random() - 0.5).slice(0, Math.min(2, wrong.length))))
     } else if (type === 'time_freeze') {
       playPowerUpSound('freeze')
-      setFrozen(true); setTimeout(() => setFrozen(false), 5000)
+      setFrozen(true)
+      setTimeout(() => setFrozen(false), 5000)
     } else if (type === 'double_points') {
       playPowerUpSound('double')
       setDoubleActive(true)

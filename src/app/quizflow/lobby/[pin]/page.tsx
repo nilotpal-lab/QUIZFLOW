@@ -63,16 +63,16 @@ export default function LobbyPage() {
     return unsub
   }, [pin])
 
-  // Navigate when game starts
+  // Navigate when game starts or advances
   useEffect(() => {
     if (!gameState) return
-    if (gameState.status === 'question_active') {
+    if (['question_active', 'question_reveal', 'leaderboard'].includes(gameState.status)) {
       router.push(`/quizflow/play?pin=${pin}&pid=${playerId}&nickname=${encodeURIComponent(nickname)}&seed=${encodeURIComponent(avatarSeed)}&style=${avatarStyle}`)
     }
     if (gameState.status === 'ended') {
       router.push(`/quizflow/results?pin=${pin}&pid=${playerId}`)
     }
-  }, [gameState?.status])
+  }, [gameState?.status, pin, playerId, nickname, avatarSeed, avatarStyle, router])
 
   const playerCount = gameState ? Object.keys(gameState.players).length : 0
   const players     = gameState ? Object.values(gameState.players) : []

@@ -99,32 +99,26 @@ function ResultsInner() {
   let speedDemonId: string | null = null
   let minAvgMs = Infinity
   metricsMap.forEach(m => {
-    if (m.ansCount > 0 && m.avgResponseMs < minAvgMs) {
+    if (m.ansCount > 0 && m.avgResponseMs < minAvgMs && m.avgResponseMs > 0) {
       minAvgMs = m.avgResponseMs
       speedDemonId = m.id
     }
   })
-  if (!speedDemonId && players.length > 0) {
-    speedDemonId = players[0].id
-  }
 
-  // 🎯 Sharpshooter (100% accuracy)
+  // 🎯 Sharpshooter (100% accuracy with at least 1 answer)
   const sharpshooterIds = new Set(
-    metricsMap.filter(m => (m.ansCount > 0 ? m.accuracy === 1 : (players.find(p => p.id === m.id)?.score || 0) > 0)).map(m => m.id)
+    metricsMap.filter(m => m.ansCount > 0 && m.accuracy === 1).map(m => m.id)
   )
 
-  // 🔥 Fire Starter (highest streak)
+  // 🔥 Fire Starter (highest streak >= 2)
   let fireStarterId: string | null = null
-  let maxStreakVal = 0
+  let maxStreakVal = 1
   metricsMap.forEach(m => {
     if (m.streakVal > maxStreakVal) {
       maxStreakVal = m.streakVal
       fireStarterId = m.id
     }
   })
-  if (!fireStarterId && players.length > 0) {
-    fireStarterId = players[0].id
-  }
 
   const renderBadges = (pId: string) => {
     const badges = []
@@ -144,17 +138,16 @@ function ResultsInner() {
     }
     if (pId === fireStarterId) {
       badges.push(
-        <span key="fire" className="badge" style={{ background: '#FFE4E7', color: 'var(--ink)', border: '1.5px solid var(--ink)', fontSize: 10, padding: '2px 7px' }}>
+        <span key="fire" className="badge" style={{ background: '#FFEBEA', color: 'var(--cherry)', border: '1.5px solid var(--cherry)', fontSize: 10, padding: '2px 7px' }}>
           🔥 Fire Starter
         </span>
       )
     }
-    if (badges.length === 0) return null
-    return (
-      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', justifyContent: 'center', marginTop: 6 }}>
+    return badges.length > 0 ? (
+      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 4 }}>
         {badges}
       </div>
-    )
+    ) : null
   }
 
   return (
