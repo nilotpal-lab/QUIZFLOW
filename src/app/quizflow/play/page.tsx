@@ -127,6 +127,12 @@ function StudentPlayScreen() {
       if (intervalRef.current) clearInterval(intervalRef.current)
       return
     }
+    if (gameState.isPaused) {
+      if (intervalRef.current) clearInterval(intervalRef.current)
+      const remaining = Math.max(0, gameState.pausedTimeRemainingMs || 0)
+      setTimeMs(remaining)
+      return
+    }
     if (frozen) {
       if (intervalRef.current) clearInterval(intervalRef.current)
       return
@@ -152,7 +158,7 @@ function StudentPlayScreen() {
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current)
     }
-  }, [gameState?.status, gameState?.currentQuestionIndex, gameState?.questionEndsAt, frozen, gameState])
+  }, [gameState?.status, gameState?.currentQuestionIndex, gameState?.questionEndsAt, gameState?.isPaused, gameState?.pausedTimeRemainingMs, frozen, gameState])
 
   const me = gameState?.players[playerId]
   const q  = gameState ? gameState.quiz.questions[gameState.currentQuestionIndex] : null

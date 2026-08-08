@@ -388,18 +388,16 @@ function TeacherHostDashboard() {
           {/* ⏭️ Skip Question */}
           <button
             onClick={() => skipQuestion(pin)}
-            disabled={gameState.status !== 'question_active'}
             className="btn btn-sm"
             style={{
               padding: '6px 14px',
               fontSize: 12,
               fontWeight: 700,
-              opacity: gameState.status !== 'question_active' ? 0.5 : 1,
               border: '2px solid var(--ink)',
               boxShadow: '2px 2px 0 var(--ink)',
               background: 'var(--paper)'
             }}
-            title="Skip Question / Advance Phase"
+            title="Skip Question / Advance Phase Immediately"
           >
             ⏭️ Skip Question
           </button>
