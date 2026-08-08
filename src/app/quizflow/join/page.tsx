@@ -214,8 +214,9 @@ export default function JoinPage() {
   )
 }
 
-function AvatarButton({ avatar, isSelected, onClick }: { avatar: any, isSelected: boolean, onClick: () => void }) {
-  const [error, setError] = useState(false)
+function AvatarButton({ avatar, isSelected, onClick }: { avatar: { src: string, emoji: string }, isSelected: boolean, onClick: () => void }) {
+  const [imgError, setImgError] = useState(false)
+
   return (
     <button
       type="button"
@@ -224,12 +225,13 @@ function AvatarButton({ avatar, isSelected, onClick }: { avatar: any, isSelected
         isSelected ? 'border-[var(--violet)] shadow-[4px_4px_0px_#7C4DFF]' : 'border-[var(--ink)] shadow-[4px_4px_0px_#10100F]'
       }`}
     >
-      {!error ? (
+      {!imgError ? (
         <img 
+          key={avatar.src}
           src={avatar.src} 
           alt="Avatar" 
           className="w-full h-full object-cover"
-          onError={() => setError(true)}
+          onError={() => setImgError(true)}
         />
       ) : (
         <span className="text-[32px]">{avatar.emoji}</span>
