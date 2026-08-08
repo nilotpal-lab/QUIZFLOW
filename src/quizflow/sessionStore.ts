@@ -106,12 +106,15 @@ export function mergeGameStates(current: GameState | null, incoming: GameState |
   const incomingQ = incoming.currentQuestionIndex ?? 0
 
   let base: GameState
-  if (incomingQ > currentQ) {
+  const isQuestionAdvancement = incomingQ > currentQ
+  const isQuestionRegression = currentQ > incomingQ
+
+  if (isQuestionAdvancement) {
     base = incoming
-  } else if (incomingQ < currentQ) {
+  } else if (isQuestionRegression) {
     base = current
   } else {
-    // Same question: prioritize 'leaderboard' > 'question_reveal' > 'question_active' > 'lobby'
+    // Same question: prioritize 'ended' > 'leaderboard' > 'question_reveal' > 'question_active' > 'lobby'
     const statusWeight: Record<GameStatus, number> = {
       lobby: 0,
       question_active: 1,
@@ -124,8 +127,8 @@ export function mergeGameStates(current: GameState | null, incoming: GameState |
     base = inWeight >= curWeight ? incoming : current
   }
 
-  // Merge players monotonically: never erase scores, streaks, or answered states!
-  const mergedPlayers: Record<string, Player> = { ...(base.players || {}) }
+  // Merge players monotonically: never erase cumulative scores or streaks, but respect question reset!
+  const mergedPlayers: Record<string, Player> = {}
   const allPlayerIds = Array.from(new Set([
     ...Object.keys(current.players || {}),
     ...Object.keys(incoming.players || {})
@@ -134,35 +137,64 @@ export function mergeGameStates(current: GameState | null, incoming: GameState |
   for (const pid of allPlayerIds) {
     const p1 = current.players?.[pid]
     const p2 = incoming.players?.[pid]
-    if (!p1) {
-      mergedPlayers[pid] = p2!
-    } else if (!p2) {
+    if (!p1 && p2) {
+      mergedPlayers[pid] = p2
+    } else if (p1 && !p2) {
       mergedPlayers[pid] = p1
-    } else {
-      // Pick highest score, total correct, total answered, and maintain answer lock
-      const hasAnswered = Boolean(p1.hasAnswered || p2.hasAnswered)
+    } else if (p1 && p2) {
       const score = Math.max(p1.score || 0, p2.score || 0)
       const streak = Math.max(p1.streak || 0, p2.streak || 0)
       const maxStreak = Math.max(p1.maxStreak || 0, p2.maxStreak || 0, streak)
       const totalCorrect = Math.max(p1.totalCorrect || 0, p2.totalCorrect || 0)
       const totalAnswered = Math.max(p1.totalAnswered || 0, p2.totalAnswered || 0)
       const totalResponseTimeMs = Math.max(p1.totalResponseTimeMs || 0, p2.totalResponseTimeMs || 0)
-      const selectedIndex = p1.hasAnswered && p1.selectedIndex !== null ? p1.selectedIndex : p2.selectedIndex
-      const lastAnswerCorrect = p1.hasAnswered && p1.lastAnswerCorrect !== null ? p1.lastAnswerCorrect : p2.lastAnswerCorrect
-      const lastPointsEarned = Math.max(p1.lastPointsEarned || 0, p2.lastPointsEarned || 0)
 
-      mergedPlayers[pid] = {
-        ...(p2.joinedAt >= p1.joinedAt ? p2 : p1),
-        score,
-        streak,
-        maxStreak,
-        totalCorrect,
-        totalAnswered,
-        totalResponseTimeMs,
-        hasAnswered,
-        selectedIndex,
-        lastAnswerCorrect,
-        lastPointsEarned,
+      if (isQuestionAdvancement) {
+        // Advanced to new question -> reset per-question answer flags from incoming (Host)
+        mergedPlayers[pid] = {
+          ...p2,
+          score,
+          streak,
+          maxStreak,
+          totalCorrect,
+          totalAnswered,
+          totalResponseTimeMs,
+          hasAnswered: p2.hasAnswered || false,
+          selectedIndex: p2.selectedIndex ?? null,
+          lastAnswerCorrect: p2.lastAnswerCorrect ?? null,
+          lastPointsEarned: p2.lastPointsEarned ?? 0
+        }
+      } else if (isQuestionRegression) {
+        // Keep current
+        mergedPlayers[pid] = {
+          ...p1,
+          score,
+          streak,
+          maxStreak,
+          totalCorrect,
+          totalAnswered,
+          totalResponseTimeMs
+        }
+      } else {
+        // Same question: if either answered on THIS question, preserve the answer
+        const hasAnswered = Boolean(p1.hasAnswered || p2.hasAnswered)
+        const selectedIndex = p1.hasAnswered && p1.selectedIndex !== null ? p1.selectedIndex : p2.selectedIndex
+        const lastAnswerCorrect = p1.hasAnswered && p1.lastAnswerCorrect !== null ? p1.lastAnswerCorrect : p2.lastAnswerCorrect
+        const lastPointsEarned = Math.max(p1.lastPointsEarned || 0, p2.lastPointsEarned || 0)
+
+        mergedPlayers[pid] = {
+          ...(p2.joinedAt >= p1.joinedAt ? p2 : p1),
+          score,
+          streak,
+          maxStreak,
+          totalCorrect,
+          totalAnswered,
+          totalResponseTimeMs,
+          hasAnswered,
+          selectedIndex,
+          lastAnswerCorrect,
+          lastPointsEarned
+        }
       }
     }
   }
