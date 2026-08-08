@@ -365,8 +365,8 @@ function ResultsInner() {
         {/* CTAs */}
         <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
           <a href="/host/new"><button className="btn btn-primary btn-lg">🎮 Play Again</button></a>
-          <a href="/"><button className="btn btn-sun btn-lg">🏠 Back to Home</button></a>
-          <a href="/studio"><button className="btn btn-lg" style={{ background: 'var(--paper-2)', color: 'var(--ink)', border: 'var(--line)', boxShadow: 'var(--shadow-hard)' }}>✨ Create New Quiz</button></a>
+          <a href="/practice"><button className="btn btn-sun btn-lg">🎴 Review in Practice Mode</button></a>
+          <a href="/"><button className="btn btn-lg" style={{ background: 'var(--paper-2)', color: 'var(--ink)', border: 'var(--line)', boxShadow: 'var(--shadow-hard)' }}>🏠 Back to Home</button></a>
         </div>
       </div>
 
