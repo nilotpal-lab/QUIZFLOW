@@ -70,18 +70,42 @@ export function generatePin(): string {
   return String(Math.floor(100000 + Math.random() * 900000))
 }
 
-/**
- * Builds a DiceBear SVG avatar URL (Ghibli/Anime styles)
- */
-export type AvatarStyle = 'adventurer' | 'lorelei' | 'pixel-art' | 'fun-emoji'
+export type AvatarStyle = 'cartoon' | 'anime' | 'retro' | 'adventurer' | 'lorelei' | 'pixel-art' | 'fun-emoji'
+
+export const LOCAL_AVATARS = [
+  '/avatars/clay_1.png',
+  '/avatars/clay_2.png',
+  '/avatars/clay_3.png',
+  '/avatars/clay_4.png',
+  '/avatars/anime_1.png',
+  '/avatars/anime_2.png',
+  '/avatars/anime_3.png',
+  '/avatars/anime_4.png',
+  '/avatars/retro_1.png',
+  '/avatars/retro_2.png',
+  '/avatars/retro_3.png',
+  '/avatars/retro_4.png'
+]
 
 export function buildAvatarUrl(
   seed: string,
-  style: AvatarStyle = 'adventurer',
+  style: AvatarStyle | string = 'cartoon',
   size = 80,
   backgroundColor = '0F0926'
 ): string {
-  return `https://api.dicebear.com/8.x/${style}/svg?seed=${encodeURIComponent(seed)}&size=${size}&backgroundColor=${backgroundColor}&backgroundType=solid`
+  if (!seed) return LOCAL_AVATARS[0]
+  if (seed.startsWith('/avatars/')) return seed
+  if (seed.startsWith('clay_') || seed.startsWith('anime_') || seed.startsWith('retro_')) {
+    return `/avatars/${seed}.png`
+  }
+  // Deterministic avatar index based on seed
+  let hash = 0
+  for (let i = 0; i < seed.length; i++) {
+    hash = (hash << 5) - hash + seed.charCodeAt(i)
+    hash |= 0
+  }
+  const idx = Math.abs(hash) % LOCAL_AVATARS.length
+  return LOCAL_AVATARS[idx]
 }
 
 /**
