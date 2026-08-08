@@ -61,7 +61,9 @@ function TeacherHostDashboard() {
     return () => clearTimeout(t)
   }, [pin])
 
-  // Host timer countdown & auto-reveal when timer expires
+  const [revealedIndex, setRevealedIndex] = useState<number | null>(null)
+
+  // Host timer countdown & reveal when time expires
   useEffect(() => {
     clearInterval(timerRef.current!)
     if (!gameState || gameState.status !== 'question_active') { setTimeLeft(0); return }
@@ -75,46 +77,29 @@ function TeacherHostDashboard() {
       setTimeLeft(Math.ceil(remaining / 1000))
       if (remaining <= 0) {
         clearInterval(timerRef.current!)
-        revealAnswer(pin)
+        if (revealedIndex !== gameState.currentQuestionIndex) {
+          setRevealedIndex(gameState.currentQuestionIndex)
+          revealAnswer(pin)
+        }
       }
     }
     tick()
     timerRef.current = setInterval(tick, 250)
     return () => clearInterval(timerRef.current!)
-  }, [gameState?.status, gameState?.currentQuestionIndex, gameState?.questionEndsAt, gameState?.isPaused, gameState?.pausedTimeRemainingMs, pin])
+  }, [gameState?.status, gameState?.currentQuestionIndex, gameState?.questionEndsAt, gameState?.isPaused, gameState?.pausedTimeRemainingMs, pin, revealedIndex])
 
-  // Auto-reveal when ALL joined players have submitted their answers
+  // Auto-reveal when ALL joined players have answered (minimum 2s after start)
   useEffect(() => {
     if (!gameState || gameState.status !== 'question_active') return
     const playersList = Object.values(gameState.players)
-    if (playersList.length > 0 && playersList.every(p => p.hasAnswered)) {
-      revealAnswer(pin)
+    const elapsed = Date.now() - (gameState.questionStartedAt || 0)
+    if (playersList.length > 0 && elapsed >= 2000 && playersList.every(p => p.hasAnswered)) {
+      if (revealedIndex !== gameState.currentQuestionIndex) {
+        setRevealedIndex(gameState.currentQuestionIndex)
+        revealAnswer(pin)
+      }
     }
-  }, [gameState?.status, gameState?.players, pin])
-
-  // Auto-advance: question_reveal -> leaderboard (4s), leaderboard -> next question / end game (5s)
-  useEffect(() => {
-    if (!gameState) return
-
-    if (gameState.status === 'question_reveal') {
-      const timer = setTimeout(() => {
-        showLeaderboard(pin)
-      }, 4000)
-      return () => clearTimeout(timer)
-    }
-
-    if (gameState.status === 'leaderboard') {
-      const timer = setTimeout(() => {
-        const totalQ = gameState.quiz.questions.length
-        if (gameState.currentQuestionIndex + 1 < totalQ) {
-          nextQuestion(pin)
-        } else {
-          endGame(pin)
-        }
-      }, 5000)
-      return () => clearTimeout(timer)
-    }
-  }, [gameState?.status, gameState?.currentQuestionIndex, pin])
+  }, [gameState?.status, gameState?.players, gameState?.currentQuestionIndex, gameState?.questionStartedAt, pin, revealedIndex])
 
   const copyPin = () => {
     navigator.clipboard.writeText(pin)

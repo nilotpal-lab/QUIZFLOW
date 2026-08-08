@@ -96,7 +96,89 @@ export function getMasteryRankings(players: Record<string, Player> | Player[]): 
   })
 }
 
-// ── Broadcast ─────────────────────────────────────────────────────
+// ── Monotonic Non-Destructive State Merging ────────────────────────
+export function mergeGameStates(current: GameState | null, incoming: GameState | null): GameState | null {
+  if (!current) return incoming
+  if (!incoming) return current
+
+  // Identify newest question progression
+  const currentQ = current.currentQuestionIndex ?? 0
+  const incomingQ = incoming.currentQuestionIndex ?? 0
+
+  let base: GameState
+  if (incomingQ > currentQ) {
+    base = incoming
+  } else if (incomingQ < currentQ) {
+    base = current
+  } else {
+    // Same question: prioritize 'leaderboard' > 'question_reveal' > 'question_active' > 'lobby'
+    const statusWeight: Record<GameStatus, number> = {
+      lobby: 0,
+      question_active: 1,
+      question_reveal: 2,
+      leaderboard: 3,
+      ended: 4,
+    }
+    const inWeight = statusWeight[incoming.status] ?? 0
+    const curWeight = statusWeight[current.status] ?? 0
+    base = inWeight >= curWeight ? incoming : current
+  }
+
+  // Merge players monotonically: never erase scores, streaks, or answered states!
+  const mergedPlayers: Record<string, Player> = { ...(base.players || {}) }
+  const allPlayerIds = Array.from(new Set([
+    ...Object.keys(current.players || {}),
+    ...Object.keys(incoming.players || {})
+  ]))
+
+  for (const pid of allPlayerIds) {
+    const p1 = current.players?.[pid]
+    const p2 = incoming.players?.[pid]
+    if (!p1) {
+      mergedPlayers[pid] = p2!
+    } else if (!p2) {
+      mergedPlayers[pid] = p1
+    } else {
+      // Pick highest score, total correct, total answered, and maintain answer lock
+      const hasAnswered = Boolean(p1.hasAnswered || p2.hasAnswered)
+      const score = Math.max(p1.score || 0, p2.score || 0)
+      const streak = Math.max(p1.streak || 0, p2.streak || 0)
+      const maxStreak = Math.max(p1.maxStreak || 0, p2.maxStreak || 0, streak)
+      const totalCorrect = Math.max(p1.totalCorrect || 0, p2.totalCorrect || 0)
+      const totalAnswered = Math.max(p1.totalAnswered || 0, p2.totalAnswered || 0)
+      const totalResponseTimeMs = Math.max(p1.totalResponseTimeMs || 0, p2.totalResponseTimeMs || 0)
+      const selectedIndex = p1.hasAnswered && p1.selectedIndex !== null ? p1.selectedIndex : p2.selectedIndex
+      const lastAnswerCorrect = p1.hasAnswered && p1.lastAnswerCorrect !== null ? p1.lastAnswerCorrect : p2.lastAnswerCorrect
+      const lastPointsEarned = Math.max(p1.lastPointsEarned || 0, p2.lastPointsEarned || 0)
+
+      mergedPlayers[pid] = {
+        ...(p2.joinedAt >= p1.joinedAt ? p2 : p1),
+        score,
+        streak,
+        maxStreak,
+        totalCorrect,
+        totalAnswered,
+        totalResponseTimeMs,
+        hasAnswered,
+        selectedIndex,
+        lastAnswerCorrect,
+        lastPointsEarned,
+      }
+    }
+  }
+
+  const tactics = getTacticsRankings(mergedPlayers)
+  const mastery = getMasteryRankings(mergedPlayers)
+
+  return {
+    ...base,
+    bossHealth: Math.min(current.bossHealth ?? 100, incoming.bossHealth ?? 100),
+    players: mergedPlayers,
+    tacticsRankings: tactics.map((p, i) => ({ ...p, rank: i + 1, tacticsRank: i + 1 })),
+    masteryRankings: mastery.map((p, i) => ({ ...p, masteryRank: i + 1 }))
+  }
+}
+
 // ── Broadcast & Cross-Device Cloud Sync ───────────────────────────
 import { supabase } from './supabaseClient'
 
@@ -143,8 +225,10 @@ function key(pin: string) { return STORE_PREFIX + pin }
 
 export function saveState(state: GameState) {
   if (typeof window === 'undefined' || typeof localStorage === 'undefined') return
-  localStorage.setItem(key(state.pin), JSON.stringify(state))
-  broadcast(state.pin, state)
+  const current = loadState(state.pin)
+  const merged = mergeGameStates(current, state) || state
+  localStorage.setItem(key(state.pin), JSON.stringify(merged))
+  broadcast(state.pin, merged)
 }
 
 export function loadState(pin: string): GameState | null {
@@ -161,8 +245,10 @@ export async function fetchRemoteState(pin: string): Promise<GameState | null> {
     if (res.ok) {
       const data = await res.json()
       if (data?.state) {
-        localStorage.setItem(key(pin), JSON.stringify(data.state))
-        return data.state as GameState
+        const local = loadState(pin)
+        const merged = mergeGameStates(local, data.state as GameState) || data.state
+        localStorage.setItem(key(pin), JSON.stringify(merged))
+        return merged as GameState
       }
     }
   } catch {}
@@ -208,12 +294,12 @@ export function subscribeToSession(
   }
   window.addEventListener('storage', onStorage)
 
-  // 5. Cloud Room Relay Polling for cross-device internet sync (every 800ms)
+  // 5. Cloud Room Relay Polling for cross-device internet sync (every 900ms)
   const pollInterval = setInterval(() => {
     fetchRemoteState(pin).then(remote => {
       if (remote) callback(remote)
     })
-  }, 800)
+  }, 900)
 
   // 6. Supabase Realtime WebSocket subscription (zero-latency internet sync)
   let sbSub: any = null
@@ -225,8 +311,10 @@ export function subscribeToSession(
       sbSub
         .on('broadcast', { event: 'state_sync' }, (res: any) => {
           if (res?.payload && res.payload.pin === pin) {
-            localStorage.setItem(key(pin), JSON.stringify(res.payload))
-            callback(res.payload)
+            const current = loadState(pin)
+            const merged = mergeGameStates(current, res.payload) || res.payload
+            localStorage.setItem(key(pin), JSON.stringify(merged))
+            callback(merged)
           }
         })
         .on('broadcast', { event: 'player_join' }, (res: any) => {

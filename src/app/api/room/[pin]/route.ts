@@ -103,6 +103,54 @@ export async function POST(
 
     if (state) {
       current = state
+    } else if (action === 'submit_answer' && current) {
+      const { playerId, selectedIndex, powerUpActive, timeRemainingMs, responseTimeMs } = body
+      const player = current.players?.[playerId]
+      if (player && !player.hasAnswered) {
+        const q = current.quiz.questions[current.currentQuestionIndex]
+        const isCorrect = q ? selectedIndex === q.correct_index : false
+        const totalTimeMs = q?.time_limit_ms ?? 20000
+        const isSuspiciousBot = responseTimeMs < 100 && totalTimeMs >= 5000
+
+        let points = 0
+        const newStreak = isCorrect ? player.streak + 1 : 0
+        if (isCorrect && !isSuspiciousBot) {
+          const ratio = Math.max(0, Math.min(1, (timeRemainingMs || 0) / totalTimeMs))
+          const speedFactor = 0.5 + 0.5 * ratio
+          const streakMultiplier = 1 + Math.min(player.streak * 0.1, 0.5)
+          const multiplier = powerUpActive ? 2 : 1
+          points = Math.round(Math.max(50, 1000 * speedFactor * streakMultiplier * multiplier))
+          points = Math.min(6000, points)
+        } else if (current.gameMode === 'boss_raid') {
+          points = -5
+        }
+
+        let bossHp = current.bossHealth ?? 100
+        if (current.gameMode === 'boss_raid' && isCorrect && !isSuspiciousBot) {
+          bossHp = Math.max(0, bossHp - 10)
+        }
+
+        const updatedPlayer = {
+          ...player,
+          hasAnswered: true,
+          selectedIndex,
+          lastAnswerCorrect: isCorrect,
+          lastPointsEarned: points,
+          score: Math.max(0, player.score + points),
+          streak: newStreak,
+          maxStreak: Math.max(player.maxStreak || 0, newStreak),
+          totalCorrect: (player.totalCorrect || 0) + (isCorrect ? 1 : 0),
+          totalAnswered: (player.totalAnswered || 0) + 1,
+          totalResponseTimeMs: (player.totalResponseTimeMs || 0) + (responseTimeMs || 0)
+        }
+
+        const updatedPlayers = { ...current.players, [playerId]: updatedPlayer }
+        current = {
+          ...current,
+          bossHealth: bossHp,
+          players: updatedPlayers
+        }
+      }
     } else if (action === 'join' && player && current) {
       current = {
         ...current,
