@@ -1,6 +1,6 @@
 'use client'
 export const dynamic = 'force-dynamic'
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import type { AIGeneratedQuiz, AIGeneratedQuestion, BloomLevel } from '@/quizflow/types'
 import { createSession } from '@/quizflow/sessionStore'
@@ -22,11 +22,11 @@ const LANGUAGES = [
   { code: 'English', flag: '🇬🇧', label: 'English' },
 ]
 
-const BLOOM_LEVELS: Array<{ value: BloomLevel; label: string; icon: string }> = [
-  { value: 'Recall', label: 'Recall (Facts & Definitions)', icon: '🧠' },
-  { value: 'Comprehension', label: 'Comprehension (Understanding)', icon: '💡' },
-  { value: 'Application', label: 'Application (Problem Solving)', icon: '🛠️' },
-  { value: 'Analysis', label: 'Analysis (Critical Thinking)', icon: '🔬' },
+const BLOOM_LEVELS: Array<{ value: BloomLevel; label: string; icon: string; emoji: string }> = [
+  { value: 'Recall', label: 'Recall (Facts & Definitions)', icon: '🧠', emoji: '🧠' },
+  { value: 'Comprehension', label: 'Comprehension (Understanding)', icon: '💡', emoji: '💡' },
+  { value: 'Application', label: 'Application (Problem Solving)', icon: '🛠️', emoji: '🛠️' },
+  { value: 'Analysis', label: 'Analysis (Critical Thinking)', icon: '🔬', emoji: '🔬' },
 ]
 
 const DEFAULT_QUIZ: AIGeneratedQuiz = {
@@ -83,11 +83,9 @@ const DEFAULT_QUIZ: AIGeneratedQuiz = {
   ]
 }
 
-
-
 export default function AIQuizStudio() {
   const router = useRouter()
-  const [topicInput, setTopicInput]         = useState('')
+  const [topicInput, setTopicInput]         = useState('Photosynthesis, light-dependent reactions, Calvin cycle, chlorophyll structure')
   const [questionCount, setQuestionCount]   = useState(5)
   const [selectedLang, setSelectedLang]     = useState('English')
   const [bloomLevel, setBloomLevel]         = useState<BloomLevel>('Recall')
@@ -111,6 +109,23 @@ export default function AIQuizStudio() {
   const [shuffleQuestions, setShuffleQuestions] = useState(true)
   const [showExplanations, setShowExplanations] = useState(true)
   const [allowPowerUps, setAllowPowerUps]       = useState(true)
+
+  // Edit title state
+  const [editingTitle, setEditingTitle] = useState(false)
+  const [tempTitle, setTempTitle] = useState(quiz.title)
+  const titleInputRef = useRef<HTMLInputElement>(null)
+
+  // Print view state
+  const [showPrintModal, setShowPrintModal] = useState(false)
+
+  // Question deleting animation
+  const [deletingId, setDeletingId] = useState<number | null>(null)
+
+  useEffect(() => {
+    if (editingTitle) {
+      titleInputRef.current?.focus()
+    }
+  }, [editingTitle])
 
   // Ingestion File Upload Handler
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -248,7 +263,11 @@ export default function AIQuizStudio() {
   }
 
   const removeQuestion = (index: number) => {
-    setQuiz({ ...quiz, questions: quiz.questions.filter((_, i) => i !== index) })
+    setDeletingId(index)
+    setTimeout(() => {
+      setQuiz({ ...quiz, questions: quiz.questions.filter((_, i) => i !== index) })
+      setDeletingId(null)
+    }, 220)
   }
 
   const addQuestion = () => {
@@ -264,474 +283,651 @@ export default function AIQuizStudio() {
     setQuiz({ ...quiz, questions: [...quiz.questions, newQ] })
   }
 
-  return (
-    <div className="page-wrapper memphis-bg" style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+  const currentBloomInfo = BLOOM_LEVELS.find(lvl => lvl.value === bloomLevel) || BLOOM_LEVELS[0]
 
-      {/* TOP NAV BAR */}
-      <div className="top-bar">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          <a href="/"><button className="btn btn-sm" style={{ background: 'var(--paper)', color: 'var(--ink)' }}>← Exit Studio</button></a>
-          <span style={{ fontFamily: 'Space Grotesk', fontSize: 18, fontWeight: 800 }}>✨ AI Quiz Studio</span>
-          {provider && <span className="badge badge-mint">⚡ {provider}</span>}
+  return (
+    <div className="min-h-screen bg-[#F6F1E7] text-[#10100F] selection:bg-[#FFE57F] flex flex-col relative grain">
+      
+      {/* Styles Injection */}
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&family=Space+Grotesk:wght@600;700;800;900&display=swap');
+        .sg { font-family: 'Space Grotesk', sans-serif; }
+        .hard { box-shadow: 4px 4px 0px #10100F; }
+        .soft { box-shadow: 2px 2px 0px #10100F; }
+        .hard-white { box-shadow: 2px 2px 0px rgba(255,255,255,0.22); }
+        .btn-press:active { transform: translate(2px,2px); box-shadow: 1px 1px 0px #10100F; }
+        .btn-press-white:active { transform: translate(1px,1px); box-shadow: 1px 1px 0px rgba(255,255,255,0.22); }
+        .grain:before {
+          content:''; position:absolute; inset:0; pointer-events:none; opacity:0.025;
+          background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+        }
+      `}</style>
+
+      {/* HEADER BAR (68px ink) */}
+      <header className="h-[68px] bg-[#10100F] border-b-[3px] border-[#10100F] flex items-center justify-between px-5 sticky top-0 z-50 gap-4">
+        <div className="flex items-center gap-3 shrink-0">
+          <a href="/quizflow">
+            <button className="h-10 px-4 bg-[#FFFCF5] border-[3px] border-[#10100F] rounded-[12px] text-[13px] font-bold tracking-[-0.02em] flex items-center gap-2 btn-press hard-white">
+              <span>←</span> Exit Studio
+            </button>
+          </a>
+          <div className="hidden lg:flex items-center gap-2 text-[#FFFCF5] sg font-extrabold text-[20px] tracking-[-0.03em]">
+            <span className="w-8 h-8 bg-[#FFE57F] rounded-[8px] border-[2px] border-white/20 grid place-items-center text-[#10100F] text-[14px]">✦</span>
+            AI Quiz Studio
+          </div>
+          {provider && <span className="h-7 px-3 bg-[#00E676] text-[#10100F] border-[2px] border-white/20 rounded-[8px] text-[11px] font-display font-bold flex items-center">⚡ {provider}</span>}
         </div>
 
-        {/* Quiz Title */}
-        <input
-          type="text"
-          value={quiz.title}
-          onChange={e => setQuiz({ ...quiz, title: e.target.value })}
-          style={{
-            fontFamily: 'Space Grotesk', fontSize: 15, fontWeight: 700,
-            padding: '7px 16px', color: 'var(--ink)',
-            background: 'var(--paper)', border: '2px solid var(--paper)',
-            borderRadius: 10, textAlign: 'center', width: 320, outline: 'none',
-          }}
-        />
+        {/* Title Editing Pill */}
+        <div className="hidden md:flex flex-1 justify-center max-w-[420px] mx-4">
+          {editingTitle ? (
+            <input
+              ref={titleInputRef}
+              value={tempTitle}
+              onChange={e => setTempTitle(e.target.value)}
+              onBlur={() => {
+                setEditingTitle(false)
+                setQuiz({ ...quiz, title: tempTitle })
+              }}
+              onKeyDown={e => {
+                if (e.key === 'Enter') {
+                  setEditingTitle(false)
+                  setQuiz({ ...quiz, title: tempTitle })
+                }
+              }}
+              className="w-full h-10 px-4 bg-[#FFF8EB] border-[3px] border-white/20 rounded-[24px] text-[13px] font-semibold outline-none text-[#10100F]"
+            />
+          ) : (
+            <button
+              onClick={() => {
+                setTempTitle(quiz.title)
+                setEditingTitle(true)
+              }}
+              className="w-full h-10 px-4 bg-[#FFF8EB] border-[3px] border-white/10 rounded-[24px] text-[13px] font-semibold flex items-center justify-between gap-2 text-left text-white"
+            >
+              <span className="truncate">{quiz.title}</span>
+              <span className="shrink-0 w-6 h-6 grid place-items-center rounded-full bg-white border-[2px] border-[#10100F] text-[#10100F] text-[12px] hover:bg-[var(--sun)] transition-colors">✎</span>
+            </button>
+          )}
+        </div>
 
         {/* Action Buttons */}
-        <div style={{ display: 'flex', gap: 10 }}>
+        <div className="flex items-center gap-[10px] shrink-0">
           <button
-            className="btn btn-sm"
-            style={{ background: 'var(--mint)', color: 'var(--ink)' }}
-            onClick={() => generatePrintableWorksheet(quiz, selectedVersion, includeAnswerKey)}
+            onClick={() => setShowPrintModal(true)}
+            className="hidden sm:flex h-10 px-4 bg-[#00E676] border-[3px] border-[#10100F] rounded-[12px] text-[13px] font-bold items-center gap-2 hard-white btn-press-white text-[#10100F]"
           >
-            🖨️ Print Test Sheet (PDF)
+            <span>⎙</span> Print Test PDF
           </button>
-          <button className="btn btn-sm" style={{ background: 'var(--paper-2)', color: 'var(--ink)' }} onClick={() => {
-            saveQuizDraft(quiz, true)
-            alert('✅ Quiz saved to Teacher Dashboard!')
-          }}>
-            💾 Save Draft
+          <button
+            onClick={() => {
+              saveQuizDraft(quiz, true)
+              alert('✅ Quiz saved to Teacher Dashboard!')
+            }}
+            className="hidden lg:flex h-10 px-4 bg-[#FFF8EB] border-[3px] border-white/20 rounded-[12px] text-[13px] font-bold hard-white btn-press-white text-white"
+          >
+            Save Draft
           </button>
           <a href="/dashboard">
-            <button className="btn btn-sm" style={{ background: 'var(--violet)', color: '#fff' }}>
-              📊 Dashboard
+            <button className="h-10 px-4 bg-[#7C4DFF] border-[3px] border-white/20 rounded-[12px] text-[13px] font-bold hard-white btn-press-white text-white">
+              Dashboard
             </button>
           </a>
           <button
-            className="btn btn-sun btn-sm"
             disabled={publishing || quiz.questions.length === 0}
             onClick={() => {
               setPublishing(true)
               const state = createSession(quiz, 'host-' + Date.now())
               router.push(`/host?pin=${state.pin}`)
             }}
+            className="h-10 px-4 bg-[#FFE57F] border-[3px] border-white/20 rounded-[12px] text-[13px] font-bold hard-white btn-press-white text-[#10100F]"
           >
-            {publishing ? '🚀 Creating...' : '🚀 Publish & Host →'}
+            {publishing ? 'Creating...' : 'Publish & Host'}
           </button>
         </div>
-      </div>
+      </header>
 
-      {/* THREE-PANEL LAYOUT */}
-      <div style={{ flex: 1, padding: 20, display: 'grid', gridTemplateColumns: '340px 1fr 280px', gap: 20 }}>
-
-        {/* LEFT PANEL: Multimodal AI Generator */}
-        <div className="card" style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 14, alignSelf: 'start' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 22 }}>✨</span>
-            <h3 style={{ fontFamily: 'Space Grotesk', fontSize: 17, fontWeight: 800 }}>Multimodal AI Studio</h3>
-          </div>
-
-          {/* Mode Selector Tabs */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 4, background: 'var(--paper-2)', padding: 4, borderRadius: 10, border: '1.5px solid var(--ink)' }}>
-            {[
-              { id: 'topic', label: 'Prompt', icon: '✨' },
-              { id: 'file', label: 'Document', icon: '📄' },
-              { id: 'youtube', label: 'YouTube', icon: '🎥' },
-              { id: 'webpage', label: 'Webpage', icon: '🌐' }
-            ].map(tab => (
-              <button
-                key={tab.id}
-                onClick={() => {
-                  setIngestMode(tab.id as any)
-                  setIngestError(null)
-                }}
-                className="btn btn-sm"
-                style={{
-                  fontSize: 11,
-                  padding: '6px 2px',
-                  fontWeight: 800,
-                  fontFamily: 'Space Grotesk',
-                  background: ingestMode === tab.id ? 'var(--mint)' : 'transparent',
-                  border: ingestMode === tab.id ? '1.5px solid var(--ink)' : 'none',
-                  boxShadow: 'none'
-                }}
-              >
-                {tab.icon} {tab.label}
-              </button>
-            ))}
-          </div>
-
-          {/* TAB 1: Topic Prompt */}
-          {ingestMode === 'topic' && (
-            <div>
-              <label style={{ display: 'block', fontSize: 12, fontFamily: 'Space Grotesk', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#666', marginBottom: 6 }}>
-                Topic / Subject
-              </label>
-              <textarea
-                className="input"
-                rows={3}
-                placeholder="e.g. Quantum Physics, Photosynthesis, World War 2..."
-                value={topicInput}
-                onChange={e => setTopicInput(e.target.value)}
-                style={{ resize: 'none', fontFamily: 'Inter' }}
-              />
+      {/* 3-COLUMN STUDIO LAYOUT */}
+      <div className="max-w-[1440px] mx-auto p-6 flex flex-col lg:grid lg:grid-cols-[340px_1fr_320px] gap-6 items-start w-full">
+        
+        {/* LEFT COLUMN: Input Source Studio */}
+        <aside className="w-full lg:sticky lg:top-[92px] flex flex-col gap-6">
+          <div className="bg-[#FFF8EB] border-[3px] border-[#10100F] rounded-[16px] hard p-6 relative overflow-hidden">
+            
+            <div className="flex items-center gap-2 sg font-bold text-[16px] tracking-[-0.02em] mb-5">
+              <span className="text-[16px]">✦</span> Multimodal AI Input
             </div>
-          )}
 
-          {/* TAB 2: File Upload (PDF / PPTX / TXT / MD) */}
-          {ingestMode === 'file' && (
-            <div>
-              <label style={{ display: 'block', fontSize: 12, fontFamily: 'Space Grotesk', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#666', marginBottom: 6 }}>
-                Upload PDF / PPTX / Text File
-              </label>
-              <div style={{ border: '2px dashed var(--ink)', borderRadius: 10, padding: 14, textAlign: 'center', background: '#F8F6F0', cursor: 'pointer' }}>
-                <input
-                  type="file"
-                  accept=".pdf,.pptx,.ppt,.txt,.md,.json,.csv"
-                  onChange={handleFileUpload}
-                  style={{ display: 'none' }}
-                  id="studio-file-input"
-                />
-                <label htmlFor="studio-file-input" style={{ cursor: 'pointer', display: 'block' }}>
-                  <div style={{ fontSize: 24, marginBottom: 4 }}>📄</div>
-                  <div style={{ fontFamily: 'Space Grotesk', fontSize: 13, fontWeight: 800 }}>Choose File or Drag & Drop</div>
-                  <div style={{ fontSize: 11, color: '#666' }}>Supports .pdf, .pptx, .txt, .md</div>
-                </label>
-              </div>
-            </div>
-          )}
-
-          {/* TAB 3: YouTube Video URL */}
-          {ingestMode === 'youtube' && (
-            <div>
-              <label style={{ display: 'block', fontSize: 12, fontFamily: 'Space Grotesk', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#666', marginBottom: 6 }}>
-                YouTube Video Link
-              </label>
-              <div style={{ display: 'flex', gap: 6 }}>
-                <input
-                  type="url"
-                  className="input"
-                  placeholder="https://www.youtube.com/watch?v=..."
-                  value={youtubeUrl}
-                  onChange={e => setYoutubeUrl(e.target.value)}
-                  style={{ fontFamily: 'Inter', fontSize: 12 }}
-                />
+            {/* Input Method Switcher */}
+            <div className="grid grid-cols-2 gap-2 mb-6">
+              {[
+                { id: 'topic', label: 'Prompt', icon: '✦' },
+                { id: 'file', label: 'Document', icon: '◫' },
+                { id: 'youtube', label: 'YouTube', icon: '▶' },
+                { id: 'webpage', label: 'Webpage', icon: '◍' }
+              ].map(tab => (
                 <button
-                  className="btn btn-sm btn-mint"
-                  onClick={handleYouTubeIngest}
-                  disabled={ingesting || !youtubeUrl.trim()}
-                  style={{ whiteSpace: 'nowrap', fontWeight: 800 }}
+                  key={tab.id}
+                  onClick={() => {
+                    setIngestMode(tab.id as any)
+                    setIngestError(null)
+                  }}
+                  className={`h-10 border-[3px] rounded-[12px] text-[12px] font-bold flex items-center gap-2 px-3 transition-all btn-press ${
+                    ingestMode === tab.id
+                      ? 'bg-[#00E676] border-[#10100F] soft'
+                      : 'bg-[#FFFCF5] border-[#10100F]/15 hover:border-[#10100F]'
+                  }`}
                 >
-                  {ingesting ? '⏳' : 'Fetch'}
+                  <span className="text-[12px]">{tab.icon}</span> {tab.label}
                 </button>
-              </div>
+              ))}
             </div>
-          )}
 
-          {/* TAB 4: Webpage URL */}
-          {ingestMode === 'webpage' && (
-            <div>
-              <label style={{ display: 'block', fontSize: 12, fontFamily: 'Space Grotesk', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#666', marginBottom: 6 }}>
-                Website / Article URL
-              </label>
-              <div style={{ display: 'flex', gap: 6 }}>
-                <input
-                  type="url"
-                  className="input"
-                  placeholder="https://en.wikipedia.org/wiki/..."
-                  value={webpageUrl}
-                  onChange={e => setWebpageUrl(e.target.value)}
-                  style={{ fontFamily: 'Inter', fontSize: 12 }}
+            {/* Ingestion Panel Body */}
+            {ingestMode === 'topic' && (
+              <div>
+                <label className="sg text-[11px] font-bold tracking-[0.08em] text-black/50 block mb-2">TOPIC / SUBJECT</label>
+                <textarea
+                  value={topicInput}
+                  onChange={e => setTopicInput(e.target.value)}
+                  placeholder="e.g. Cellular respiration, molecular taxonomy, chemistry of catalysts..."
+                  className="w-full h-[96px] bg-[#FFFCF5] border-[3px] border-[#10100F] rounded-[12px] p-3 text-[14px] font-medium outline-none resize-none leading-[1.4] placeholder:text-black/30"
                 />
-                <button
-                  className="btn btn-sm btn-mint"
-                  onClick={handleWebpageIngest}
-                  disabled={ingesting || !webpageUrl.trim()}
-                  style={{ whiteSpace: 'nowrap', fontWeight: 800 }}
-                >
-                  {ingesting ? '⏳' : 'Scrape'}
-                </button>
               </div>
-            </div>
-          )}
+            )}
 
-          {/* Ingest Error Display */}
-          {ingestError && (
-            <div style={{ fontSize: 12, color: 'var(--cherry)', background: '#FFEBEB', padding: '8px 10px', borderRadius: 8, border: '1px solid var(--cherry)' }}>
-              ⚠️ {ingestError}
-            </div>
-          )}
-
-          {/* Ingested Content Preview Card */}
-          {ingestedContent && ingestMode !== 'topic' && (
-            <div className="anim-fade-up" style={{ padding: 12, background: 'var(--paper)', border: '2px solid var(--ink)', borderRadius: 10, boxShadow: '3px 3px 0 var(--ink)' }}>
-              {ingestedContent.thumbnailUrl && (
-                <img src={ingestedContent.thumbnailUrl} alt="Thumbnail" style={{ width: '100%', height: 110, objectFit: 'cover', borderRadius: 8, marginBottom: 8, border: '1px solid var(--ink)' }} />
-              )}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 6 }}>
-                <div>
-                  <div style={{ fontFamily: 'Space Grotesk', fontSize: 13, fontWeight: 800, color: 'var(--ink)' }}>
-                    {ingestedContent.title}
-                  </div>
-                  <div style={{ fontSize: 11, color: '#666', marginTop: 2 }}>
-                    📊 Extracted ~{ingestedContent.wordCount.toLocaleString()} words
-                  </div>
+            {ingestMode === 'file' && (
+              <div>
+                <label className="sg text-[11px] font-bold tracking-[0.08em] text-black/50 block mb-2">UPLOAD DRAFT OR DOCUMENT</label>
+                <div className="border-[3px] border-dashed border-[#10100F]/20 rounded-[12px] p-5 text-center bg-[#FFFCF5]/50 hover:bg-[#FFFCF5] transition-colors relative cursor-pointer">
+                  <input
+                    type="file"
+                    accept=".pdf,.pptx,.ppt,.txt,.md,.json,.csv"
+                    onChange={handleFileUpload}
+                    className="absolute inset-0 opacity-0 cursor-pointer"
+                  />
+                  <div className="text-[26px] mb-1">📄</div>
+                  <div className="font-display font-[800] text-[13px]">Choose Document</div>
+                  <div className="text-[11px] text-black/50 mt-0.5">Supports PDF, PPTX, MD</div>
                 </div>
-                <button
-                  onClick={() => setIngestedContent(null)}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--cherry)', fontSize: 14, fontWeight: 800 }}
-                  title="Remove Content"
-                >
-                  ✕
-                </button>
               </div>
-            </div>
-          )}
+            )}
 
-          {/* Bloom's Taxonomy Dropdown */}
-          <div>
-            <label style={{ display: 'block', fontSize: 12, fontFamily: 'Space Grotesk', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--violet)', marginBottom: 6 }}>
-              🧠 Bloom&apos;s Taxonomy Level
-            </label>
-            <select
-              value={bloomLevel}
-              onChange={e => {
-                const lvl = e.target.value as BloomLevel
-                setBloomLevel(lvl)
-                setQuiz({ ...quiz, bloomLevel: lvl })
-              }}
-              className="input"
-              style={{ fontFamily: 'Space Grotesk', fontWeight: 700 }}
-            >
-              {BLOOM_LEVELS.map(lvl => (
-                <option key={lvl.value} value={lvl.value}>
-                  {lvl.icon} {lvl.label}
-                </option>
-              ))}
-            </select>
-          </div>
+            {ingestMode === 'youtube' && (
+              <div>
+                <label className="sg text-[11px] font-bold tracking-[0.08em] text-black/50 block mb-2">YOUTUBE VIDEO LINK</label>
+                <div className="flex gap-2">
+                  <input
+                    type="url"
+                    placeholder="https://youtube.com/watch?v=..."
+                    value={youtubeUrl}
+                    onChange={e => setYoutubeUrl(e.target.value)}
+                    className="flex-1 h-[44px] bg-[#FFFCF5] border-[3px] border-[#10100F] rounded-[12px] px-3 text-[13px] font-medium outline-none"
+                  />
+                  <button
+                    onClick={handleYouTubeIngest}
+                    disabled={ingesting || !youtubeUrl.trim()}
+                    className="h-[44px] bg-[#00E676] border-[3px] border-[#10100F] rounded-[12px] px-3 font-display font-bold text-[12px] btn-press soft"
+                  >
+                    {ingesting ? '⏳' : 'Fetch'}
+                  </button>
+                </div>
+              </div>
+            )}
 
-          <button
-            className="btn btn-violet"
-            onClick={handleGenerate}
-            disabled={generating || (ingestMode === 'topic' ? !topicInput.trim() : !ingestedContent)}
-            style={{ width: '100%', padding: '14px', fontSize: 15, fontWeight: 800 }}
-          >
-            {generating ? '🤖 Generating...' : `✨ Generate ${questionCount} Qs (${bloomLevel})`}
-          </button>
+            {ingestMode === 'webpage' && (
+              <div>
+                <label className="sg text-[11px] font-bold tracking-[0.08em] text-black/50 block mb-2">SCRAPE WEBPAGE URL</label>
+                <div className="flex gap-2">
+                  <input
+                    type="url"
+                    placeholder="https://en.wikipedia.org/wiki/..."
+                    value={webpageUrl}
+                    onChange={e => setWebpageUrl(e.target.value)}
+                    className="flex-1 h-[44px] bg-[#FFFCF5] border-[3px] border-[#10100F] rounded-[12px] px-3 text-[13px] font-medium outline-none"
+                  />
+                  <button
+                    onClick={handleWebpageIngest}
+                    disabled={ingesting || !webpageUrl.trim()}
+                    className="h-[44px] bg-[#00E676] border-[3px] border-[#10100F] rounded-[12px] px-3 font-display font-bold text-[12px] btn-press soft"
+                  >
+                    {ingesting ? '⏳' : 'Scrape'}
+                  </button>
+                </div>
+              </div>
+            )}
 
-          <hr className="ink" />
+            {ingestError && (
+              <div className="mt-3 text-[12px] font-bold text-[var(--cherry)] bg-red-50 border-[2px] border-[var(--cherry)] p-2.5 rounded-[8px]">
+                ⚠️ {ingestError}
+              </div>
+            )}
 
-          <div>
-            <label style={{ display: 'block', fontSize: 12, fontFamily: 'Space Grotesk', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#666', marginBottom: 6 }}>
-              Number of Questions
-            </label>
-            <select value={questionCount} onChange={e => setQuestionCount(Number(e.target.value))} className="input" style={{ fontFamily: 'Inter' }}>
-              <option value={3}>3 Questions (Fast)</option>
-              <option value={5}>5 Questions (Standard)</option>
-              <option value={10}>10 Questions (Full)</option>
-              <option value={15}>15 Questions (Long)</option>
-              <option value={20}>20 Questions (Exam)</option>
-            </select>
-          </div>
+            {ingestedContent && ingestMode !== 'topic' && (
+              <div className="mt-4 p-3 bg-[#FFFCF5] border-[3px] border-[#10100F] rounded-[12px] soft flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-[12px] font-display font-black truncate">{ingestedContent.title}</div>
+                  <div className="text-[10px] font-mono text-black/50 mt-0.5">📂 {ingestedContent.wordCount.toLocaleString()} words loaded</div>
+                </div>
+                <button onClick={() => setIngestedContent(null)} className="text-[var(--cherry)] font-bold">✕</button>
+              </div>
+            )}
 
-          <div>
-            <label style={{ display: 'block', fontSize: 12, fontFamily: 'Space Grotesk', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#666', marginBottom: 6 }}>
-              Language
-            </label>
-            <select value={selectedLang} onChange={e => setSelectedLang(e.target.value)} className="input" style={{ fontFamily: 'Inter' }}>
-              {LANGUAGES.map(lang => (
-                <option key={lang.code} value={lang.code}>{lang.flag} {lang.label}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        {/* CENTER PANEL: Question Editor */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14, overflowY: 'auto', maxHeight: 'calc(100vh - 120px)' }}>
-
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h3 style={{ fontFamily: 'Space Grotesk', fontSize: 17, fontWeight: 800 }}>
-              Questions ({quiz.questions.length})
-            </h3>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={addQuestion} className="btn btn-sm btn-mint">+ Add Question</button>
-            </div>
-          </div>
-
-          {quiz.questions.map((q, qIdx) => (
-            <div key={qIdx} className="card" style={{ padding: 20 }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
-                <span className="badge badge-ink">Q{qIdx + 1}</span>
-
-                {/* Bloom Level Badge Select */}
+            {/* Bloom Selection Dropdown */}
+            <div className="mt-5">
+              <label className="sg text-[11px] font-bold tracking-[0.08em] text-[var(--violet)] block mb-2">BLOOM&apos;S TAXONOMY LEVEL</label>
+              <div className="relative">
                 <select
-                  value={q.bloom_level || quiz.bloomLevel || 'Recall'}
-                  onChange={e => updateQuestion(qIdx, { bloom_level: e.target.value as BloomLevel })}
-                  style={{ fontSize: 12, fontWeight: 700, padding: '4px 8px', border: '1.5px solid var(--ink)', borderRadius: 8, background: '#F0EAFF', color: 'var(--violet)', fontFamily: 'Space Grotesk' }}
+                  value={bloomLevel}
+                  onChange={e => {
+                    const lvl = e.target.value as BloomLevel
+                    setBloomLevel(lvl)
+                    setQuiz({ ...quiz, bloomLevel: lvl })
+                  }}
+                  className="w-full h-[44px] bg-[#FFFCF5] border-[3px] border-[#10100F] rounded-[12px] px-3 text-[13px] font-semibold outline-none appearance-none"
                 >
-                  <option value="Recall">🧠 Recall</option>
-                  <option value="Comprehension">💡 Comprehension</option>
-                  <option value="Application">🛠️ Application</option>
-                  <option value="Analysis">🔬 Analysis</option>
+                  {BLOOM_LEVELS.map(lvl => (
+                    <option key={lvl.value} value={lvl.value}>
+                      {lvl.icon} {lvl.label}
+                    </option>
+                  ))}
                 </select>
-
-                <select value={q.difficulty} onChange={e => updateQuestion(qIdx, { difficulty: e.target.value as any })} style={{ fontSize: 12, padding: '4px 8px', border: '1.5px solid var(--ink)', borderRadius: 8, background: 'var(--paper)', fontFamily: 'Inter' }}>
-                  <option value="easy">🟢 Easy</option>
-                  <option value="medium">🟡 Medium</option>
-                  <option value="hard">🔴 Hard</option>
-                </select>
-
-                <select value={q.time_limit_ms} onChange={e => updateQuestion(qIdx, { time_limit_ms: Number(e.target.value) })} style={{ fontSize: 12, padding: '4px 8px', border: '1.5px solid var(--ink)', borderRadius: 8, background: 'var(--paper)', fontFamily: 'Inter' }}>
-                  <option value={10000}>⏱ 10s</option>
-                  <option value={15000}>⏱ 15s</option>
-                  <option value={20000}>⏱ 20s</option>
-                  <option value={30000}>⏱ 30s</option>
-                </select>
-
-                <button onClick={() => removeQuestion(qIdx)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: 'var(--cherry)' }} title="Delete">🗑️</button>
+                <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-black/55 font-bold">⌄</div>
               </div>
+            </div>
 
-              <input type="text" value={q.prompt} onChange={e => updateQuestion(qIdx, { prompt: e.target.value })} className="input" style={{ marginBottom: 12, fontFamily: 'Space Grotesk', fontWeight: 600, fontSize: 15 }} />
+            {/* Primary HERO Action Button */}
+            <button
+              onClick={handleGenerate}
+              disabled={generating || (ingestMode === 'topic' ? !topicInput.trim() : !ingestedContent)}
+              className="mt-5 w-full h-[52px] bg-[#FFE57F] border-[3px] border-[#10100F] rounded-[12px] hard sg font-extrabold text-[15px] tracking-[-0.02em] flex items-center justify-center gap-2 btn-press disabled:opacity-60"
+            >
+              {generating ? '🤖 Generating...' : `✨ Generate ${questionCount} Qs (${bloomLevel})`}
+            </button>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 12 }}>
-                {q.choices.map((choice, cIdx) => (
-                  <div key={cIdx} style={{ padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: 6, border: `2px solid ${q.correct_index === cIdx ? 'var(--mint)' : 'var(--ink)'}`, borderRadius: 10, background: q.correct_index === cIdx ? '#D4FAF0' : 'var(--paper)', boxShadow: '2px 2px 0 var(--ink)' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <input type="radio" name={`correct-${qIdx}`} checked={q.correct_index === cIdx} onChange={() => updateQuestion(qIdx, { correct_index: cIdx })} style={{ cursor: 'pointer', accentColor: 'var(--mint)' }} />
-                      <input type="text" value={choice} onChange={e => { const nc = [...q.choices]; nc[cIdx] = e.target.value; updateQuestion(qIdx, { choices: nc }) }} style={{ flex: 1, background: 'none', border: 'none', color: 'var(--ink)', fontSize: 13, outline: 'none', fontFamily: 'Inter', fontWeight: 600 }} />
+            <div className="h-[2px] bg-[#10100F]/10 my-5" />
+
+            {/* Supporting controls */}
+            <div className="space-y-4">
+              <div>
+                <label className="sg text-[11px] font-bold tracking-[0.08em] text-black/50 block mb-2">NUMBER OF QUESTIONS</label>
+                <select
+                  value={questionCount}
+                  onChange={e => setQuestionCount(Number(e.target.value))}
+                  className="w-full h-[44px] bg-[#FFFCF5] border-[3px] border-[#10100F] rounded-[12px] px-3 text-[13px] font-semibold outline-none"
+                >
+                  <option value={3}>3 Questions (Fast)</option>
+                  <option value={5}>5 Questions (Standard)</option>
+                  <option value={10}>10 Questions (Deep Dive)</option>
+                  <option value={15}>15 Questions (Exam)</option>
+                </select>
+              </div>
+              <div>
+                <label className="sg text-[11px] font-bold tracking-[0.08em] text-black/50 block mb-2">DEFAULT DIALECT / REGION</label>
+                <select
+                  value={selectedLang}
+                  onChange={e => setSelectedLang(e.target.value)}
+                  className="w-full h-[44px] bg-[#FFFCF5] border-[3px] border-[#10100F] rounded-[12px] px-3 text-[13px] font-semibold outline-none"
+                >
+                  {LANGUAGES.map(lang => (
+                    <option key={lang.code} value={lang.code}>{lang.flag} {lang.label}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+          </div>
+        </aside>
+
+        {/* CENTER COLUMN: Interactive Question Cards */}
+        <main className="w-full min-w-0 flex flex-col gap-5">
+          <div className="flex items-center justify-between">
+            <h2 className="sg font-extrabold text-[22px] tracking-[-0.03em]">
+              Questions ({quiz.questions.length})
+            </h2>
+            <button
+              onClick={addQuestion}
+              className="h-10 px-4 bg-[#00E676] border-[3px] border-[#10100F] rounded-[12px] text-[13px] font-bold soft btn-press"
+            >
+              + Add Question
+            </button>
+          </div>
+
+          <div className="flex flex-col gap-6 w-full">
+            {generating && (
+              <div className="flex flex-col gap-6 w-full">
+                {[0, 1, 2].map(skeletonIdx => (
+                  <div key={skeletonIdx} className="bg-[#FFFCF5] border-[3px] border-[#10100F] rounded-[16px] hard p-6 animate-pulse">
+                    <div className="h-5 w-28 bg-black/10 rounded-full mb-4"></div>
+                    <div className="h-6 w-5/6 bg-black/10 rounded-[8px] mb-3"></div>
+                    <div className="grid grid-cols-2 gap-3 mt-4">
+                      <div className="h-16 bg-black/5 rounded-[12px] border-[2px] border-black/5"></div>
+                      <div className="h-16 bg-black/5 rounded-[12px] border-[2px] border-black/5"></div>
                     </div>
-                    {/* Misconception input for wrong choice */}
-                    {q.correct_index !== cIdx && (
-                      <input
-                        type="text"
-                        placeholder="🔍 Diagnostic misconception explanation..."
-                        value={q.misconceptions?.[cIdx] || ''}
-                        onChange={e => updateMisconception(qIdx, cIdx, e.target.value)}
-                        style={{ fontSize: 11, padding: '4px 8px', border: '1px solid #ccc', borderRadius: 6, background: '#FFFCF5', color: '#555', outline: 'none' }}
-                      />
-                    )}
                   </div>
                 ))}
               </div>
+            )}
 
-              {q.explanation && (
-                <div style={{ fontSize: 12, color: '#666', background: 'var(--paper-2)', padding: '8px 12px', borderRadius: 8, border: '1px solid #ddd' }}>
-                  💡 <strong>Explanation:</strong> {q.explanation}
+            {!generating && quiz.questions.map((q, qIdx) => (
+              <div
+                key={qIdx}
+                className={`bg-[#FFFCF5] border-[3px] border-[#10100F] rounded-[16px] hard p-6 transition-all duration-200 ${
+                  deletingId === qIdx ? 'scale-[0.96] opacity-0' : ''
+                }`}
+              >
+                {/* Question Info Header */}
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                  <span className="h-7 px-3 bg-[#10100F] text-[#FFFCF5] rounded-[24px] text-[12px] font-bold sg tracking-[0.04em] grid place-items-center">
+                    Q{qIdx + 1}
+                  </span>
+
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {/* Bloom taxonomy select */}
+                    <select
+                      value={q.bloom_level || 'Recall'}
+                      onChange={e => updateQuestion(qIdx, { bloom_level: e.target.value as BloomLevel })}
+                      className="h-8 px-2.5 bg-[#EDE7FF] border-[2px] border-[#10100F] rounded-[24px] text-[11px] font-bold outline-none sg cursor-pointer"
+                    >
+                      <option value="Recall">🧠 Recall</option>
+                      <option value="Comprehension">💡 Comprehension</option>
+                      <option value="Application">🛠️ Application</option>
+                      <option value="Analysis">🔬 Analysis</option>
+                    </select>
+
+                    {/* Difficulty select */}
+                    <select
+                      value={q.difficulty}
+                      onChange={e => updateQuestion(qIdx, { difficulty: e.target.value as any })}
+                      className="h-8 px-2.5 bg-[#D9FDE8] border-[2px] border-[#10100F] rounded-[24px] text-[11px] font-bold outline-none cursor-pointer"
+                    >
+                      <option value="easy">🟢 Easy</option>
+                      <option value="medium">🟡 Medium</option>
+                      <option value="hard">🔴 Hard</option>
+                    </select>
+
+                    {/* Time limit select */}
+                    <select
+                      value={q.time_limit_ms}
+                      onChange={e => updateQuestion(qIdx, { time_limit_ms: Number(e.target.value) })}
+                      className="h-8 px-2.5 bg-white border-[2px] border-[#10100F] rounded-[24px] text-[11px] font-bold outline-none cursor-pointer"
+                    >
+                      <option value={10000}>⏱ 10s</option>
+                      <option value={15000}>⏱ 15s</option>
+                      <option value={20000}>⏱ 20s</option>
+                      <option value={30000}>⏱ 30s</option>
+                    </select>
+
+                    {/* Action delete */}
+                    <button
+                      onClick={() => removeQuestion(qIdx)}
+                      className="w-9 h-8 bg-[#FFF8EB] border-[2px] border-[#10100F] rounded-[10px] grid place-items-center hover:bg-[#FF5252] hover:text-white transition btn-press text-[13px] shrink-0"
+                    >
+                      ✕
+                    </button>
+                  </div>
                 </div>
-              )}
-            </div>
-          ))}
-        </div>
 
-        {/* RIGHT PANEL: AI Tools */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <div className="card" style={{ padding: 20 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-              <span style={{ fontSize: 18 }}>🤖</span>
-              <h3 style={{ fontFamily: 'Space Grotesk', fontSize: 15, fontWeight: 800 }}>AI Differentiate</h3>
+                {/* Question Prompt Editable Textarea */}
+                <textarea
+                  value={q.prompt}
+                  onChange={e => updateQuestion(qIdx, { prompt: e.target.value })}
+                  className="w-full mt-4 bg-transparent text-[18px] font-semibold leading-[1.5] outline-none resize-none border-b-[2px] border-dashed border-transparent focus:border-black/20"
+                  rows={2}
+                />
+
+                {/* 2-Column Options Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
+                  {q.choices.map((choice, cIdx) => {
+                    const isCorrect = q.correct_index === cIdx
+                    const labels = ['A', 'B', 'C', 'D']
+                    return (
+                      <div
+                        key={cIdx}
+                        className={`text-left min-h-[64px] border-[3px] rounded-[12px] p-3 flex gap-3 items-start transition-all cursor-pointer ${
+                          isCorrect
+                            ? 'bg-[#D9FDE8] border-[#00E676] soft'
+                            : 'bg-[#FFF8EB] border-[#10100F] hover:translate-y-[-1px]'
+                        }`}
+                        onClick={() => updateQuestion(qIdx, { correct_index: cIdx })}
+                      >
+                        <span className={`w-5 h-5 shrink-0 mt-0.5 rounded-full border-[3px] border-[#10100F] grid place-items-center ${
+                          isCorrect ? 'bg-[#00E676]' : 'bg-white'
+                        }`}>
+                          {isCorrect && <span className="w-2 h-2 rounded-full bg-[#10100F]" />}
+                        </span>
+                        
+                        <div className="flex-1 min-w-0">
+                          <input
+                            type="text"
+                            value={choice}
+                            onChange={e => {
+                              const nc = [...q.choices]
+                              nc[cIdx] = e.target.value
+                              updateQuestion(qIdx, { choices: nc })
+                            }}
+                            className="w-full bg-transparent font-extrabold text-[13px] outline-none border-none text-[#10100F]"
+                          />
+                          {!isCorrect ? (
+                            <input
+                              type="text"
+                              placeholder="🔍 Add misconceptions..."
+                              value={q.misconceptions?.[cIdx] || ''}
+                              onChange={e => updateMisconception(qIdx, cIdx, e.target.value)}
+                              onClick={e => e.stopPropagation()}
+                              className="w-full mt-1 bg-transparent text-[11px] text-black/50 outline-none border-none"
+                            />
+                          ) : (
+                            <div className="text-[11px] text-black/55 mt-1 font-semibold">Correct Answer</div>
+                          )}
+                        </div>
+
+                        {isCorrect && (
+                          <span className="shrink-0 w-6 h-6 rounded-full bg-[#00E676] border-[2px] border-[#10100F] grid place-items-center text-[12px] font-bold">
+                            ✓
+                          </span>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+
+                {/* Explanation Field */}
+                {showExplanations && q.explanation && (
+                  <div className="mt-4 border-[2px] border-dashed border-black/15 bg-[#F9F6F0] rounded-[12px] px-3.5 py-3">
+                    <span className="text-[13px] leading-[1.5] text-black/70 font-medium">
+                      <span className="font-bold">💡 Explanation:</span> {q.explanation}
+                    </span>
+                  </div>
+                )}
+
+              </div>
+            ))}
+
+            {!generating && quiz.questions.length < 6 && (
+              <div className="border-[3px] border-dashed border-[#10100F]/20 rounded-[16px] p-8 text-center bg-[#FFFCF5]/60 w-full">
+                <div className="w-10 h-10 mx-auto rounded-full bg-[#FFE57F] border-[2px] border-[#10100F] grid place-items-center text-[18px] mb-3">✦</div>
+                <p className="sg font-bold text-[15px]">Add questions or generate more</p>
+                <p className="text-[13px] text-black/50 font-medium mt-1">Use the generator or craft a custom question with AI assists.</p>
+                <div className="mt-4 flex gap-2 justify-center">
+                  <button onClick={addQuestion} className="h-10 px-4 bg-white border-[3px] border-[#10100F] rounded-[12px] text-[13px] font-bold soft btn-press">
+                    + Blank Question
+                  </button>
+                  <button onClick={handleGenerate} className="h-10 px-4 bg-[#FFE57F] border-[3px] border-[#10100F] rounded-[12px] text-[13px] font-bold soft btn-press">
+                    ✦ Generate 2 More
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </main>
+
+        {/* RIGHT COLUMN: AI Adaptations & Info Summary */}
+        <aside className="w-full lg:sticky lg:top-[92px] flex flex-col gap-5">
+          
+          {/* AI Differentiate Card */}
+          <div className="bg-[#FFF8EB] border-[3px] border-[#10100F] rounded-[16px] hard p-5">
+            <div className="flex items-center gap-2 sg font-bold text-[16px] tracking-[-0.02em] mb-4">
+              <span>🤖</span> AI Differentiate
             </div>
 
-            <div style={{ background: 'var(--paper-2)', border: '1.5px solid var(--ink)', borderRadius: 12, padding: 12, marginBottom: 12 }}>
-              <div style={{ fontSize: 12, fontWeight: 800, fontFamily: 'Space Grotesk', color: 'var(--violet)', marginBottom: 8 }}>🌐 TRANSLATE TO:</div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+            <div className="bg-[#FFFCF5] border-[2px] border-[#10100F] rounded-[12px] p-3 mb-4 soft">
+              <div className="sg text-[11px] font-extrabold tracking-[0.1em] text-[#7C4DFF] mb-3">🌐 TRANSLATE TO:</div>
+              <div className="grid grid-cols-2 gap-2">
                 {LANGUAGES.slice(0, 10).map(lang => (
-                  <button key={lang.code} onClick={() => handleDifferentiate('translate', lang.code)} disabled={adaptingAction !== null} className="btn btn-sm" style={{ fontSize: 11, background: quiz.language === lang.code ? 'var(--mint)' : 'var(--paper)', padding: '5px 8px' }}>
+                  <button
+                    key={lang.code}
+                    onClick={() => handleDifferentiate('translate', lang.code)}
+                    disabled={adaptingAction !== null}
+                    className={`h-9 border-[2px] border-[#10100F] rounded-[10px] text-[11px] font-bold tracking-[-0.01em] transition btn-press ${
+                      quiz.language === lang.code ? 'bg-[#FFE57F]' : 'bg-[#FFFCF5]'
+                    }`}
+                  >
                     {lang.flag} {lang.code}
                   </button>
                 ))}
               </div>
               {adaptingAction?.startsWith('translate-') && (
-                <div style={{ fontSize: 11, color: 'var(--violet)', textAlign: 'center', marginTop: 8 }}>⏳ Translating...</div>
+                <div className="text-[11px] text-[var(--violet)] text-center mt-3 animate-pulse">⏳ Translating...</div>
               )}
             </div>
-            <button onClick={() => handleDifferentiate('add_scenarios')} disabled={adaptingAction !== null} className="btn" style={{ width: '100%', fontSize: 13, marginBottom: 8 }}>
-              {adaptingAction === 'add_scenarios' ? '⏳ Writing...' : '💡 Real-World Scenarios'}
-            </button>
-            <button onClick={() => handleDifferentiate('harder_distractors')} disabled={adaptingAction !== null} className="btn" style={{ width: '100%', fontSize: 13, marginBottom: 8 }}>
-              {adaptingAction === 'harder_distractors' ? '⏳ Working...' : '⚡ Harder Distractors'}
-            </button>
-            <button onClick={() => handleDifferentiate('simplify')} disabled={adaptingAction !== null} className="btn" style={{ width: '100%', fontSize: 13 }}>
-              {adaptingAction === 'simplify' ? '⏳ Simplifying...' : '📘 Simplify Level'}
-            </button>
+
+            <div className="flex flex-col gap-2.5">
+              {[
+                { action: 'add_scenarios', label: 'Real-World Scenarios', icon: '🌏' },
+                { action: 'harder_distractors', label: 'Harder Distractors', icon: '🧩' },
+                { action: 'simplify', label: 'Simplify Level', icon: '🍃' }
+              ].map(opt => (
+                <button
+                  key={opt.action}
+                  onClick={() => handleDifferentiate(opt.action)}
+                  disabled={adaptingAction !== null}
+                  className="w-full h-11 bg-[#FFFCF5] border-[3px] border-[#10100F] rounded-[12px] text-[13px] font-bold flex items-center gap-2 px-3 soft btn-press"
+                >
+                  <span>{opt.icon}</span>
+                  {adaptingAction === opt.action ? 'Working...' : opt.label}
+                </button>
+              ))}
+            </div>
           </div>
 
-          {/* Printable PDF Worksheet Generator Card */}
-          <div className="card" style={{ padding: 18, background: '#FFF8E1', border: '2px solid var(--ink)', boxShadow: '3px 3px 0 var(--ink)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-              <span style={{ fontSize: 18 }}>🖨️</span>
-              <h3 style={{ fontFamily: 'Space Grotesk', fontSize: 15, fontWeight: 800 }}>Printable Test Sheet</h3>
+          {/* Settings Toggles */}
+          <div className="bg-[#FFF8EB] border-[3px] border-[#10100F] rounded-[16px] hard p-5">
+            <h3 className="sg font-bold text-[16px] mb-4">Settings</h3>
+            <div className="flex flex-col gap-3.5">
+              {[
+                { label: 'Shuffle Questions', checked: shuffleQuestions, set: setShuffleQuestions },
+                { label: 'Show Explanations', checked: showExplanations, set: setShowExplanations },
+                { label: 'Allow Power-Ups', checked: allowPowerUps, set: setAllowPowerUps },
+              ].map(cfg => (
+                <label key={cfg.label} className="flex items-center justify-between cursor-pointer group select-none">
+                  <span className="text-[13px] font-semibold">{cfg.label}</span>
+                  <button
+                    onClick={() => cfg.set(!cfg.checked)}
+                    className={`w-5 h-5 rounded-[6px] border-[2px] border-[#10100F] grid place-items-center transition ${
+                      cfg.checked ? 'bg-[#7C4DFF] text-white' : 'bg-white'
+                    }`}
+                  >
+                    {cfg.checked && <span className="text-[11px] font-bold">✓</span>}
+                  </button>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* Sticky Summary Card */}
+          <div className="bg-[#FFE57F] border-[3px] border-[#10100F] rounded-[16px] hard p-5 text-center">
+            <div className="sg text-[11px] font-bold tracking-[0.12em] text-black/60">QUIZ SUMMARY</div>
+            <div className="sg font-extrabold text-[36px] tracking-[-0.04em] leading-none mt-2">{quiz.questions.length} Qs</div>
+            <div className="flex items-center justify-center gap-2 mt-4 flex-wrap">
+              <span className="h-7 px-3 bg-[#40C4FF] border-[2px] border-[#10100F] rounded-[24px] text-[11px] font-bold grid place-items-center uppercase">
+                {quiz.language || 'English'}
+              </span>
+              <span className="h-7 px-3 bg-[#EDE7FF] border-[2px] border-[#10100F] rounded-[24px] text-[11px] font-bold grid place-items-center uppercase">
+                {quiz.bloomLevel || bloomLevel}
+              </span>
             </div>
 
-            <div style={{ marginBottom: 12 }}>
-              <label style={{ display: 'block', fontSize: 11, fontFamily: 'Space Grotesk', fontWeight: 700, textTransform: 'uppercase', color: '#555', marginBottom: 6 }}>
-                Test Version (Choice Order)
-              </label>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
-                {(['A', 'B', 'C', 'D'] as WorksheetVersion[]).map(ver => (
-                  <button
-                    key={ver}
-                    onClick={() => setSelectedVersion(ver)}
-                    className="btn btn-sm"
-                    style={{
-                      fontWeight: 800,
-                      fontFamily: 'Space Grotesk',
-                      background: selectedVersion === ver ? 'var(--sun)' : 'var(--paper)',
-                      border: '2px solid var(--ink)',
-                      boxShadow: selectedVersion === ver ? '2px 2px 0 var(--ink)' : 'none',
-                    }}
-                  >
-                    {ver}
-                  </button>
-                ))}
+            {/* Difficulty spread */}
+            <div className="mt-4 grid grid-cols-3 gap-2 text-[11px] font-bold">
+              <div className="bg-white border-[2px] border-[#10100F] rounded-[10px] py-2">
+                <div className="text-[16px] sg">{quiz.questions.filter(x => x.difficulty === 'easy').length}</div>
+                Easy
+              </div>
+              <div className="bg-white border-[2px] border-[#10100F] rounded-[10px] py-2">
+                <div className="text-[16px] sg">{quiz.questions.filter(x => x.difficulty === 'medium').length}</div>
+                Med
+              </div>
+              <div className="bg-white border-[2px] border-[#10100F] rounded-[10px] py-2">
+                <div className="text-[16px] sg">{quiz.questions.filter(x => x.difficulty === 'hard').length}</div>
+                Hard
               </div>
             </div>
-
-            <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 12, cursor: 'pointer', marginBottom: 12, fontFamily: 'Inter', fontWeight: 600 }}>
-              <span>🔑 Master Answer Key</span>
-              <input
-                type="checkbox"
-                checked={includeAnswerKey}
-                onChange={e => setIncludeAnswerKey(e.target.checked)}
-                style={{ accentColor: 'var(--violet)', width: 16, height: 16 }}
-              />
-            </label>
-
-            <button
-              onClick={() => generatePrintableWorksheet(quiz, selectedVersion, includeAnswerKey)}
-              disabled={quiz.questions.length === 0}
-              className="btn btn-mint"
-              style={{ width: '100%', padding: '10px', fontSize: 13, fontWeight: 800, border: '2px solid var(--ink)', boxShadow: '2px 2px 0 var(--ink)' }}
-            >
-              🖨️ Print Test Sheet (PDF)
-            </button>
           </div>
 
-          <div className="card" style={{ padding: 20 }}>
-            <h3 style={{ fontFamily: 'Space Grotesk', fontSize: 15, fontWeight: 800, marginBottom: 14 }}>Settings</h3>
-            {[
-              { label: '🔀 Shuffle Questions', val: shuffleQuestions, set: setShuffleQuestions },
-              { label: '💡 Show Explanations', val: showExplanations, set: setShowExplanations },
-              { label: '🧪 Allow Power-Ups',   val: allowPowerUps,    set: setAllowPowerUps },
-            ].map(({ label, val, set }) => (
-              <label key={label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 13, cursor: 'pointer', marginBottom: 10 }}>
-                <span>{label}</span>
-                <input type="checkbox" checked={val} onChange={e => set(e.target.checked)} style={{ accentColor: 'var(--violet)', width: 16, height: 16 }} />
-              </label>
-            ))}
-          </div>
+        </aside>
 
-          <div style={{ padding: 18, textAlign: 'center', background: 'var(--sun)', border: '2px solid var(--ink)', borderRadius: 14, boxShadow: '4px 4px 0 var(--ink)' }}>
-            <div className="section-label">QUIZ SUMMARY</div>
-            <div style={{ fontFamily: 'Space Grotesk', fontSize: 28, fontWeight: 900, color: 'var(--ink)', margin: '4px 0' }}>{quiz.questions.length} Qs</div>
-            <div style={{ display: 'flex', gap: 6, justifyContent: 'center', marginTop: 4 }}>
-              <span className="badge badge-sky">{quiz.language || 'English'}</span>
-              <span className="badge badge-violet">{quiz.bloomLevel || bloomLevel}</span>
+      </div>
+
+      {/* PDF Export Modal */}
+      {showPrintModal && (
+        <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-[2px] p-4 md:p-8 overflow-auto flex items-center justify-center">
+          <div className="w-full max-w-[560px] bg-[#FFFCF5] border-[3px] border-[#10100F] rounded-[16px] hard p-6 relative">
+            
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="sg font-extrabold text-[18px]">⎙ Print Worksheet Sheet Options</h3>
+              <button onClick={() => setShowPrintModal(false)} className="w-8 h-8 bg-white border-[2px] border-[#10100F] rounded-[8px] font-bold flex items-center justify-center hover:bg-[var(--cherry)] hover:text-white transition">✕</button>
             </div>
+
+            <div className="space-y-5">
+              <div>
+                <label className="sg text-[11px] font-bold tracking-[0.08em] text-black/60 block mb-2 uppercase">Test Version Variation</label>
+                <div className="grid grid-cols-4 gap-2">
+                  {(['A', 'B', 'C', 'D'] as WorksheetVersion[]).map(ver => (
+                    <button
+                      key={ver}
+                      onClick={() => setSelectedVersion(ver)}
+                      className={`h-11 rounded-[10px] border-[3px] border-[#10100F] font-display font-black text-[14px] transition-all btn-press ${
+                        selectedVersion === ver ? 'bg-[#FFE57F] soft' : 'bg-white hover:bg-[#FFF8EB]'
+                      }`}
+                    >
+                      Version {ver}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between border-t-[2px] border-black/10 pt-4">
+                <span className="text-[13px] font-semibold">Include Answer Key page</span>
+                <button
+                  onClick={() => setIncludeAnswerKey(!includeAnswerKey)}
+                  className={`w-5 h-5 rounded-[6px] border-[2px] border-[#10100F] grid place-items-center transition ${
+                    includeAnswerKey ? 'bg-[#7C4DFF] text-white' : 'bg-white'
+                  }`}
+                >
+                  {includeAnswerKey && <span className="text-[11px] font-bold">✓</span>}
+                </button>
+              </div>
+
+              <button
+                onClick={() => {
+                  generatePrintableWorksheet(quiz, selectedVersion, includeAnswerKey)
+                  setShowPrintModal(false)
+                }}
+                disabled={quiz.questions.length === 0}
+                className="w-full h-12 bg-[#00E676] border-[3px] border-[#10100F] rounded-[12px] font-display font-bold text-[14px] hard btn-press uppercase"
+              >
+                🖨️ Generate PDF Printout
+              </button>
+            </div>
+
           </div>
         </div>
-      </div>
+      )}
+
+      {/* Spacing bottom */}
+      <div className="h-10" />
+
     </div>
   )
 }
