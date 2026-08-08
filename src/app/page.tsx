@@ -1,6 +1,5 @@
-'use client'
-import QuizFlowHome from './quizflow/page'
+import { redirect } from 'next/navigation'
 
 export default function RootHomePage() {
-  return <QuizFlowHome />
+  redirect('/quizflow')
 }
