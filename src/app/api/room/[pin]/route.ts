@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { createClient } from '@supabase/supabase-js'
 
 /* ================================================================
    QuizFlow — Cloud Room Relay Server
@@ -6,6 +7,14 @@ import { NextResponse } from 'next/server'
    Allows any laptop, phone, or tablet anywhere on the internet
    to join live games via 6-digit PIN with zero latency.
    ================================================================ */
+
+const DEFAULT_SUPABASE_URL = 'https://ogciyskjrefwmazzckfg.supabase.co'
+const DEFAULT_SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9nY2l5c2tqcmVmd21henpja2ZnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYwMjgxMTgsImV4cCI6MjEwMTYwNDExOH0.JwBvcMMESPGo_4qcFHcreuUVVmdSk8RRq9jtGPIjm7I'
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || DEFAULT_SUPABASE_URL
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || DEFAULT_SUPABASE_ANON
+
+const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
 declare global {
   // eslint-disable-next-line no-var
@@ -27,17 +36,42 @@ export async function GET(
     return NextResponse.json({ error: 'PIN required' }, { status: 400 })
   }
 
-  const room = rooms.get(pin)
-  if (!room || !room.state) {
-    return NextResponse.json({ error: 'Room not found', pin }, { status: 404 })
+  // 1. Check in-memory map
+  let room = rooms.get(pin)
+  if (room?.state) {
+    return NextResponse.json({
+      success: true,
+      pin,
+      state: room.state,
+      updatedAt: room.updatedAt
+    })
   }
 
-  return NextResponse.json({
-    success: true,
-    pin,
-    state: room.state,
-    updatedAt: room.updatedAt
-  })
+  // 2. Fallback to Supabase Cloud Database if serverless lambda was cold
+  try {
+    const { data, error } = await supabase
+      .from('quizzes')
+      .select('quiz_data, updated_at')
+      .eq('id', 'room_' + pin)
+      .maybeSingle()
+
+    if (data?.quiz_data) {
+      rooms.set(pin, {
+        state: data.quiz_data,
+        updatedAt: data.updated_at ? new Date(data.updated_at).getTime() : Date.now()
+      })
+      return NextResponse.json({
+        success: true,
+        pin,
+        state: data.quiz_data,
+        updatedAt: Date.now()
+      })
+    }
+  } catch (err) {
+    // Graceful fallback
+  }
+
+  return NextResponse.json({ error: 'Room not found', pin }, { status: 404 })
 }
 
 export async function POST(
@@ -54,6 +88,18 @@ export async function POST(
     const { state, action, player, reaction } = body
 
     let current = rooms.get(pin)?.state
+
+    // If memory is empty, attempt to restore from Supabase
+    if (!current) {
+      try {
+        const { data } = await supabase
+          .from('quizzes')
+          .select('quiz_data')
+          .eq('id', 'room_' + pin)
+          .maybeSingle()
+        if (data?.quiz_data) current = data.quiz_data
+      } catch {}
+    }
 
     if (state) {
       current = state
@@ -89,16 +135,25 @@ export async function POST(
       return NextResponse.json({ error: 'Cannot update non-existent room' }, { status: 404 })
     }
 
+    // 1. Update in-memory Map
     rooms.set(pin, {
       state: current,
       updatedAt: Date.now()
     })
 
-    // Clean up rooms older than 4 hours
-    const fourHoursAgo = Date.now() - 4 * 60 * 60 * 1000
-    rooms.forEach((val, k) => {
-      if (val.updatedAt < fourHoursAgo) rooms.delete(k)
-    })
+    // 2. Persist to Supabase Cloud Database (so all Vercel lambdas share it)
+    try {
+      await supabase.from('quizzes').upsert({
+        id: 'room_' + pin,
+        host_id: current.hostId || 'host_live',
+        title: current.quiz?.title || 'Live Room ' + pin,
+        description: 'Live active game session',
+        question_count: current.quiz?.questions?.length || 0,
+        quiz_data: current,
+        is_draft: false,
+        updated_at: new Date().toISOString()
+      })
+    } catch {}
 
     return NextResponse.json({
       success: true,

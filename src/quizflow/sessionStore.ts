@@ -215,11 +215,13 @@ export function subscribeToSession(
     })
   }, 800)
 
-  // 6. Supabase Realtime WebSocket subscription (if configured)
+  // 6. Supabase Realtime WebSocket subscription (zero-latency internet sync)
   let sbSub: any = null
   if (supabase) {
     try {
-      sbSub = supabase.channel(`qf_room_${pin}`)
+      sbSub = supabase.channel(`qf_room_${pin}`, {
+        config: { broadcast: { self: true } }
+      })
       sbSub
         .on('broadcast', { event: 'state_sync' }, (res: any) => {
           if (res?.payload && res.payload.pin === pin) {
@@ -227,7 +229,55 @@ export function subscribeToSession(
             callback(res.payload)
           }
         })
-        .subscribe()
+        .on('broadcast', { event: 'player_join' }, (res: any) => {
+          if (res?.payload?.player && res?.payload?.pin === pin) {
+            const current = loadState(pin)
+            if (current) {
+              const updated = {
+                ...current,
+                players: {
+                  ...current.players,
+                  [res.payload.player.id]: {
+                    ...res.payload.player,
+                    score: 0,
+                    streak: 0,
+                    maxStreak: 0,
+                    totalCorrect: 0,
+                    totalAnswered: 0,
+                    totalResponseTimeMs: 0,
+                    rank: 0,
+                    lastAnswerCorrect: null,
+                    lastPointsEarned: 0,
+                    hasAnswered: false,
+                    selectedIndex: null,
+                    joinedAt: Date.now(),
+                    connected: true,
+                  }
+                }
+              }
+              saveState(updated)
+            }
+          }
+        })
+        .on('broadcast', { event: 'request_state' }, () => {
+          const current = loadState(pin)
+          if (current) {
+            sbSub.send({
+              type: 'broadcast',
+              event: 'state_sync',
+              payload: current
+            }).catch(() => {})
+          }
+        })
+        .subscribe((status: string) => {
+          if (status === 'SUBSCRIBED') {
+            sbSub.send({
+              type: 'broadcast',
+              event: 'request_state',
+              payload: { pin }
+            }).catch(() => {})
+          }
+        })
     } catch {
       // Offline fallback
     }
