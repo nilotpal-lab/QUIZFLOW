@@ -84,6 +84,7 @@ export const LOCAL_AVATARS = [
   '/avatars/anime_2.png',
   '/avatars/anime_3.png',
   '/avatars/anime_4.png',
+  '/avatars/custom_skeleton.png',
   '/avatars/retro_1.png',
   '/avatars/retro_2.png',
   '/avatars/retro_3.png',

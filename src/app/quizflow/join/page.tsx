@@ -26,6 +26,7 @@ const AVATARS = {
     { src: '/avatars/anime_4.png', emoji: '🔥' },
   ],
   retro: [
+    { src: '/avatars/custom_skeleton.png', emoji: '💀' },
     { src: '/avatars/retro_1.png', emoji: '👾' },
     { src: '/avatars/retro_2.png', emoji: '🕹️' },
     { src: '/avatars/retro_3.png', emoji: '🚀' },
