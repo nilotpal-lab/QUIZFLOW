@@ -7,7 +7,7 @@ import { playClickSound, playLockInSound } from '@/quizflow/sound'
 const RANDOM_NICKNAMES = [
   'QuantumNinja', 'NeonSage', 'ByteTiger', 'CosmicFox',
   'PixelPanda', 'TurboMantis', 'NovaOwl', 'AstroLynx',
-  'VaporWolf', 'CyberKoala'
+  'VaporWolf', 'CyberKoala', 'SolarFalcon', 'ShadowLeopard'
 ]
 
 const AVATAR_PREVIEWS = [
@@ -72,10 +72,10 @@ export default function QuizFlowHome() {
 
   const handleJoin = () => {
     const fullPin = pin.join('')
-    if (fullPin.length < 6) { setError('Enter the full 6-digit PIN'); return }
+    if (fullPin.length < 6) { setError('Please enter the complete 6-digit game PIN'); return }
     const trimmed = nickname.trim()
-    if (!trimmed) { setError('Enter a nickname'); return }
-    if (trimmed.length > 20) { setError('Nickname too long (max 20 chars)'); return }
+    if (!trimmed) { setError('Please enter your nickname'); return }
+    if (trimmed.length > 20) { setError('Nickname cannot exceed 20 characters'); return }
 
     const cleanNick = trimmed
       .replace(/<[^>]*>/g, '')
@@ -94,44 +94,47 @@ export default function QuizFlowHome() {
   }
 
   return (
-    <div className="min-h-screen w-full bg-[var(--paper)] selection:bg-[#FFE57F] overflow-x-hidden">
+    <div className="min-h-screen w-full bg-[var(--paper)] selection:bg-[#FFE57F] flex flex-col justify-between overflow-x-hidden">
       {/* Top Navigation */}
       <nav className="sticky top-0 z-40 bg-[var(--paper)] border-b-[3px] border-[var(--ink)]">
         <div className="max-w-[1280px] mx-auto px-4 md:px-6 h-[64px] flex items-center justify-between">
           <div className="flex items-center gap-6">
-            <div className="font-display font-[800] text-[24px] tracking-tight flex items-center gap-1">
+            <div className="font-display font-[800] text-[24px] tracking-tight flex items-center gap-1 cursor-pointer" onClick={() => router.push('/')}>
               <span>⚡</span> QuizFlow
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <a href="/dashboard"><button className="hidden lg:inline-flex hard bg-white rounded-full px-3 py-1.5 text-[12px] font-display font-bold">📊 Dashboard</button></a>
-            <a href="/auth"><button className="hidden lg:inline-flex hard bg-white rounded-full px-3 py-1.5 text-[12px] font-display font-bold">🔑 Login</button></a>
-            <a href="/host/new"><button className="hard bg-[var(--violet)] text-white rounded-full px-3.5 py-1.5 text-[12px] font-display font-bold">📡 Host Game</button></a>
             <a href="/studio"><button className="hard bg-[var(--sun)] text-[var(--ink)] rounded-full px-3.5 py-1.5 text-[12px] font-display font-bold">✨ AI Studio</button></a>
+            <a href="/host/new"><button className="hard bg-[var(--violet)] text-white rounded-full px-3.5 py-1.5 text-[12px] font-display font-bold">📡 Host Game</button></a>
+            <a href="/practice"><button className="hidden sm:inline-flex hard bg-white rounded-full px-3.5 py-1.5 text-[12px] font-display font-bold">🎴 Practice Hub</button></a>
           </div>
         </div>
       </nav>
 
       {/* Main Dual-Track Hero */}
-      <main className="max-w-[1280px] mx-auto px-4 md:px-6 py-6 md:py-10 grid grid-cols-1 lg:grid-cols-[1.5fr_1fr] gap-6">
-        {/* Left: Student Track */}
+      <main className="max-w-[1280px] w-full mx-auto px-4 md:px-6 py-6 md:py-10 grid grid-cols-1 lg:grid-cols-[1.4fr_1fr] gap-6">
+        {/* Left: Student Join Track */}
         <div className="hard bg-[var(--paper-2)] rounded-[var(--radius-card)] p-5 md:p-8 relative overflow-hidden">
           <div className="absolute -right-8 -top-8 w-32 h-32 opacity-[0.06] rotate-12 select-none text-[90px]">◐</div>
           <div className="absolute right-10 bottom-10 opacity-[0.05] text-[var(--ink)] font-display font-[800] text-[80px]">〰</div>
           
-          <h1 className="font-display font-[800] text-[38px] md:text-[48px] leading-[0.95] tracking-[-0.02em]">
-            JOIN THE<br />ARENA
+          <div className="inline-flex items-center gap-2 hard bg-[var(--cherry)] text-white px-3 py-1 rounded-full font-display font-[800] text-[11px] mb-3">
+            <span>🎮</span> LIVE ARENA JOIN
+          </div>
+
+          <h1 className="font-display font-[800] text-[36px] md:text-[44px] leading-[0.95] tracking-[-0.02em]">
+            ENTER GAME PIN &<br />JOIN LIVE ARENA
           </h1>
 
           {error && (
-            <div className="mt-3 text-[13px] font-bold text-[var(--cherry)] bg-red-100 border border-red-300 p-2 rounded-md">
+            <div className="mt-3 text-[13px] font-bold text-[var(--cherry)] bg-red-100 border-2 border-red-300 p-2.5 rounded-lg">
               ⚠️ {error}
             </div>
           )}
 
           {/* PIN Input */}
           <div className="mt-6">
-            <label className="font-display text-[12px] font-[800] tracking-widest block mb-2">GAME PIN</label>
+            <label className="font-display text-[12px] font-[800] tracking-widest block mb-2 opacity-80">6-DIGIT ROOM PIN</label>
             <div className="flex gap-2 flex-wrap">
               {pin.map((digit, idx) => (
                 <input
@@ -151,13 +154,13 @@ export default function QuizFlowHome() {
 
           {/* Nickname Input */}
           <div className="mt-6">
-            <label className="font-display text-[12px] font-[800] tracking-widest block mb-2">NICKNAME</label>
+            <label className="font-display text-[12px] font-[800] tracking-widest block mb-2 opacity-80">PLAYER NICKNAME</label>
             <div className="flex gap-2">
               <input
                 value={nickname}
                 onChange={e => setNickname(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && handleJoin()}
-                placeholder="Enter nickname..."
+                placeholder="Enter your name..."
                 className="flex-1 h-[48px] px-4 bg-white rounded-[12px] border-[3px] border-[var(--ink)] text-[16px] outline-none focus:ring-[3px] focus:ring-[#FFE57F] shadow-[3px_3px_0px_#10100F]"
               />
               <button
@@ -173,7 +176,7 @@ export default function QuizFlowHome() {
           {/* Avatar Selector */}
           <div className="mt-6">
             <div className="flex items-center justify-between mb-3">
-              <label className="font-display text-[12px] font-[800] tracking-widest">AVATAR STYLE</label>
+              <label className="font-display text-[12px] font-[800] tracking-widest opacity-80">CHOOSE AVATAR</label>
               <button
                 type="button"
                 onClick={handleShuffleSeed}
@@ -220,9 +223,6 @@ export default function QuizFlowHome() {
                 </button>
               ))}
             </div>
-            <div className="mt-2 font-display text-[10px] opacity-60">
-              seed: {seed} · style: {style.toLowerCase()}
-            </div>
           </div>
 
           {/* Big CTA */}
@@ -231,63 +231,80 @@ export default function QuizFlowHome() {
             onClick={handleJoin}
             className="mt-7 w-full h-[56px] rounded-[var(--radius-btn)] bg-[var(--violet)] text-[var(--paper)] font-display font-[800] text-[20px] hard btn-press tracking-tight"
           >
-            🚀 Join Game →
+            🚀 Join Game Arena →
           </button>
         </div>
 
-        {/* Right: Teacher & Highlights Track */}
-        <div className="flex flex-col gap-4">
+        {/* Right: Teacher & Fast Start Track */}
+        <div className="flex flex-col gap-5">
+          {/* Quick Host Card */}
           <div className="hard bg-[var(--paper)] rounded-[var(--radius-card)] p-6">
-            <div className="font-display font-[800] text-[20px] leading-tight">
-              Host your classroom<br />in 10 seconds
+            <div className="inline-flex items-center gap-1.5 hard bg-[var(--mint)] text-[var(--ink)] px-3 py-1 rounded-full font-display font-[800] text-[11px] mb-3">
+              <span>👩‍🏫</span> FOR TEACHERS & HOSTS
             </div>
-            <p className="text-[13px] opacity-70 mt-1">
-              Zero setup. Monotonic scoring + hard shadows.
+            
+            <h2 className="font-display font-[800] text-[22px] md:text-[24px] leading-tight">
+              Host in Your Classroom in 10 Seconds
+            </h2>
+            <p className="text-[13px] opacity-75 mt-1.5 leading-relaxed">
+              Generate AI quizzes instantly or host live multiplayer battles with real-time leaderboards.
             </p>
 
-            <a href="/studio">
-              <button className="mt-5 w-full h-[48px] rounded-[12px] hard btn-press bg-[var(--sky)] font-display font-[800] text-[14px]">
-                ✨ Create Quiz with AI → /studio
-              </button>
-            </a>
-            
-            <a href="/host/new">
-              <button className="mt-3 w-full h-[48px] rounded-[12px] hard btn-press bg-[var(--mint)] font-display font-[800] text-[14px]">
-                🎮 Instant Demo Match
-              </button>
-            </a>
+            <div className="mt-5 space-y-3">
+              <a href="/studio" className="block">
+                <button className="w-full h-[48px] rounded-[12px] hard btn-press bg-[var(--sky)] font-display font-[800] text-[14px]">
+                  ✨ Generate Quiz with AI → /studio
+                </button>
+              </a>
+              
+              <a href="/host/new" className="block">
+                <button className="w-full h-[48px] rounded-[12px] hard btn-press bg-[var(--sun)] font-display font-[800] text-[14px]">
+                  📡 Host Live Game Room
+                </button>
+              </a>
+            </div>
 
-            <div className="mt-5 grid grid-cols-3 gap-2 text-center">
-              {[
-                { k: '12k+', l: 'quizzes' },
-                { k: '<50ms', l: 'latency' },
-                { k: '99.9%', l: 'uptime' }
-              ].map(stat => (
-                <div key={stat.l} className="hard bg-[var(--paper-2)] rounded-[10px] py-2">
-                  <div className="font-display font-[800] text-[16px]">{stat.k}</div>
-                  <div className="text-[10px] font-display uppercase tracking-wide opacity-60">{stat.l}</div>
-                </div>
-              ))}
+            <div className="mt-6 pt-5 border-t-[2px] border-[var(--ink)]">
+              <div className="font-display text-[11px] font-[800] uppercase tracking-wider mb-2 opacity-70">
+                CLASSROOM MODES INCLUDED:
+              </div>
+              <div className="flex gap-2 flex-wrap">
+                <span className="hard bg-[var(--paper-2)] px-2.5 py-1 rounded-[6px] text-[11px] font-display font-bold">⚡ Classic Battle</span>
+                <span className="hard bg-[var(--paper-2)] px-2.5 py-1 rounded-[6px] text-[11px] font-display font-bold">🐉 Boss Raid Co-Op</span>
+                <span className="hard bg-[var(--paper-2)] px-2.5 py-1 rounded-[6px] text-[11px] font-display font-bold">🎴 3D Practice Deck</span>
+              </div>
             </div>
           </div>
 
-          {/* Feature Highlight Pill */}
-          <div className="hard bg-[var(--ink)] text-[var(--paper)] rounded-[var(--radius-card)] p-5">
-            <div className="font-display font-[800] text-[12px] tracking-widest opacity-70">
-              REAL-TIME ARCHITECTURE
+          {/* Classroom Features Card */}
+          <div className="hard bg-[var(--paper-2)] rounded-[var(--radius-card)] p-5">
+            <div className="font-display font-[800] text-[13px] tracking-wider uppercase mb-3">
+              🎯 WHY STUDENTS & TEACHERS LOVE IT
             </div>
-            <div className="mt-3 space-y-1.5 font-mono text-[11px] leading-[1.4]">
-              <div><span className="text-[#00E676]">subscribeToSession</span>(pin, cb)</div>
-              <div><span className="text-[#40C4FF]">joinSessionAsync</span>(pin, player)</div>
-              <div><span className="text-[#FFE57F]">submitAnswer</span>(pin, pid, idx)</div>
-              <div className="opacity-60">Monotonic state merging · Zero split-brain</div>
+            <div className="space-y-2 text-[12px] leading-[1.4]">
+              <div className="flex items-center gap-2">
+                <span className="w-5 h-5 rounded-full bg-[var(--mint)] border border-[var(--ink)] flex items-center justify-center text-[10px] font-bold">✓</span>
+                <span><strong>Instant PIN Join</strong> — No student account or email needed.</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="w-5 h-5 rounded-full bg-[var(--sky)] border border-[var(--ink)] flex items-center justify-center text-[10px] font-bold">✓</span>
+                <span><strong>Cross-Device</strong> — Works on Chromebooks, iPads, phones & laptops.</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="w-5 h-5 rounded-full bg-[var(--sun)] border border-[var(--ink)] flex items-center justify-center text-[10px] font-bold">✓</span>
+                <span><strong>Anti-Cheat Focus Shield</strong> — Monitors tab switches to protect integrity.</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="w-5 h-5 rounded-full bg-[var(--violet)] text-white border border-[var(--ink)] flex items-center justify-center text-[10px] font-bold">✓</span>
+                <span><strong>Bloom&apos;s Taxonomy AI</strong> — Deep thinking with targeted diagnostic feedback.</span>
+              </div>
             </div>
           </div>
         </div>
       </main>
 
       {/* Marquee Ticker */}
-      <section className="w-full bg-[var(--ink)] text-[var(--paper)] h-[44px] overflow-hidden flex items-center border-y-[3px] border-[var(--ink)] relative max-w-[100vw]">
+      <section className="w-full bg-[var(--ink)] text-[var(--paper)] h-[44px] overflow-hidden flex items-center border-y-[3px] border-[var(--ink)] relative max-w-[100vw] my-4">
         <div className="whitespace-nowrap flex animate-[marquee_30s_linear_infinite] will-change-transform max-w-none">
           <span className="font-display font-[800] tracking-widest text-[14px] px-4">
             Quantum Mechanics · Ancient Rome · Cell Biology · World Geography · Web Engineering · Photosynthesis · World War II · React Hooks · 
@@ -304,26 +321,26 @@ export default function QuizFlowHome() {
       </section>
 
       {/* 4-Card Feature Grid */}
-      <section className="max-w-[1280px] mx-auto px-4 md:px-6 py-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <section className="max-w-[1280px] w-full mx-auto px-4 md:px-6 py-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { icon: '⚡', title: 'Zero-Latency Multiplayer', desc: 'Supabase Realtime WebSocket sync + monotonic non-destructive state merging.', bg: 'var(--sun)' },
-          { icon: '🧠', title: "AI Bloom's Taxonomy", desc: 'Recall, Comprehension, Application, and Analysis with diagnostic misconceptions.', bg: 'var(--sky)' },
-          { icon: '🛡️', title: 'Anti-Cheat Focus Shield', desc: 'Tab switch detection, clipboard lock, and honest gameplay accolades.', bg: 'var(--mint)' },
-          { icon: '🐉', title: 'Boss Raid Co-Op Mode', desc: 'Whole classroom vs Monster health bar with shared attack mechanics.', bg: 'var(--cherry)' }
+          { icon: '⚡', title: 'Live Real-Time Multiplayer', desc: 'Instant WebSocket sync across all laptops and phones with monotonic score merging.', bg: 'var(--sun)' },
+          { icon: '🧠', title: "AI Bloom's Taxonomy", desc: 'Questions automatically tiered from Recall to Analysis with targeted misconception breakdowns.', bg: 'var(--sky)' },
+          { icon: '🛡️', title: 'Anti-Cheat Focus Shield', desc: 'Monitors tab switching, blocks unauthorized copy/pasting, and rewards focused gameplay.', bg: 'var(--mint)' },
+          { icon: '🐉', title: 'Boss Raid Co-Op Mode', desc: 'Transform learning into a shared team battle where the entire classroom fights a boss monster.', bg: 'var(--cherry)' }
         ].map(item => (
           <div key={item.title} className="hard bg-[var(--paper-2)] rounded-[var(--radius-card)] p-5 relative overflow-hidden">
             <div className="w-10 h-10 rounded-[10px] hard flex items-center justify-center text-[20px]" style={{ background: item.bg }}>
               {item.icon}
             </div>
             <h3 className="font-display font-[800] text-[18px] mt-3 leading-tight">{item.title}</h3>
-            <p className="text-[14px] leading-[1.4] mt-1 opacity-70">{item.desc}</p>
+            <p className="text-[13px] leading-[1.4] mt-1.5 opacity-70">{item.desc}</p>
           </div>
         ))}
       </section>
 
-      {/* Footer */}
-      <footer className="border-t-[3px] border-[var(--ink)] bg-[var(--paper-2)] py-4 text-center font-display text-[11px] tracking-wide opacity-60">
-        ⚡ QuizFlow · Neo-Brutalist Memphis · Space Grotesk + Inter · Hard shadows only · Zero glassmorphism
+      {/* Clean Footer */}
+      <footer className="border-t-[3px] border-[var(--ink)] bg-[var(--paper-2)] py-4 text-center font-display text-[12px] tracking-wide opacity-70">
+        © 2026 QuizFlow · The Next-Generation Live Classroom & AI Quiz Platform
       </footer>
     </div>
   )
