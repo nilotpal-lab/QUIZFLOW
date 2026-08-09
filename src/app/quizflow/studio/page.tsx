@@ -266,10 +266,12 @@ export default function AIQuizStudio() {
         }
         @keyframes scale-in { from { opacity: 0; transform: scale(0.98); } to { opacity: 1; transform: scale(1); } }
         .animate-scale-in { animation: scale-in 0.3s ease-out forwards; }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
       `}</style>
 
       {/* HEADER BAR (68px ink) */}
-      <header className="h-[68px] bg-[#10100F] border-b-[3px] border-[#10100F] flex items-center justify-between px-5 sticky top-0 z-50 gap-4">
+      <header className="h-[68px] bg-[#10100F] border-b-[3px] border-[#10100F] flex items-center justify-between px-5 sticky top-0 z-50 gap-4 overflow-x-auto hide-scrollbar shrink-0">
         <div className="flex items-center gap-3 shrink-0">
           <button
             onClick={() => {
@@ -329,6 +331,15 @@ export default function AIQuizStudio() {
         <div className="flex items-center gap-[10px] shrink-0">
           {viewMode === 'editor' && (
             <>
+              {/* QUIZ SUMMARY PILL (Moved from Sidebar) */}
+              <div className="flex h-10 px-3 bg-white/10 border-[2px] border-white/20 rounded-[12px] items-center gap-3 text-[12px] font-bold text-white mr-1 shrink-0">
+                 <span className="sg text-[14px] text-[#FFE57F]">{quiz.questions.length} Qs</span>
+                 <span className="w-[2px] h-4 bg-white/20"></span>
+                 <span className="uppercase">{quiz.language?.substring(0,3) || 'ENG'}</span>
+                 <span className="w-[2px] h-4 bg-white/20"></span>
+                 <span className="uppercase">{quiz.bloomLevel}</span>
+              </div>
+
               <button
                 onClick={() => setShowPrintModal(true)}
                 className="hidden sm:flex h-10 px-4 bg-[#00E676] border-[3px] border-[#10100F] rounded-[12px] text-[13px] font-bold items-center gap-2 hard-white btn-press-white text-[#10100F] animate-scale-in"
@@ -340,7 +351,7 @@ export default function AIQuizStudio() {
                   saveQuizDraft(quiz, true)
                   alert('✅ Quiz saved to Teacher Dashboard!')
                 }}
-                className="hidden lg:flex h-10 px-4 bg-[#FFF8EB] border-[3px] border-white/20 rounded-[12px] text-[13px] font-bold hard-white btn-press-white text-white animate-scale-in"
+                className="hidden lg:flex h-10 px-4 bg-[#FF5252] border-[3px] border-white/20 rounded-[12px] text-[13px] font-bold hard-white btn-press-white text-[#10100F] animate-scale-in"
               >
                 Save Draft
               </button>
@@ -604,22 +615,7 @@ export default function AIQuizStudio() {
             </div>
 
             <div className="flex flex-col gap-6 w-full">
-              {generating && (
-                <div className="flex flex-col gap-6 w-full">
-                  {[0, 1, 2].map(skeletonIdx => (
-                    <div key={skeletonIdx} className="bg-[#FFFCF5] border-[3px] border-[#10100F] rounded-[16px] hard p-6 animate-pulse">
-                      <div className="h-5 w-28 bg-black/10 rounded-full mb-4"></div>
-                      <div className="h-6 w-5/6 bg-black/10 rounded-[8px] mb-3"></div>
-                      <div className="grid grid-cols-2 gap-3 mt-4">
-                        <div className="h-16 bg-black/5 rounded-[12px] border-[2px] border-black/5"></div>
-                        <div className="h-16 bg-black/5 rounded-[12px] border-[2px] border-black/5"></div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {!generating && quiz.questions.map((q, qIdx) => (
+              {quiz.questions.map((q, qIdx) => (
                 <div
                   key={qIdx}
                   className={`bg-[#FFFCF5] border-[3px] border-[#10100F] rounded-[16px] hard p-6 transition-all duration-200 ${
@@ -753,17 +749,23 @@ export default function AIQuizStudio() {
                 </div>
               ))}
 
-              {!generating && quiz.questions.length < 6 && (
+              {generating ? (
+                <div className="border-[3px] border-dashed border-[#10100F]/20 rounded-[16px] p-8 text-center bg-[#FFFCF5]/60 w-full animate-pulse">
+                  <div className="w-10 h-10 mx-auto rounded-full bg-[#00E676] border-[2px] border-[#10100F] grid place-items-center text-[18px] mb-3 animate-spin">⏳</div>
+                  <p className="sg font-bold text-[15px]">Questions being generated... wait</p>
+                  <p className="text-[13px] text-black/50 font-medium mt-1">Our AI is crafting the perfect questions for you.</p>
+                </div>
+              ) : quiz.questions.length < 20 && (
                 <div className="border-[3px] border-dashed border-[#10100F]/20 rounded-[16px] p-8 text-center bg-[#FFFCF5]/60 w-full">
                   <div className="w-10 h-10 mx-auto rounded-full bg-[#FFE57F] border-[2px] border-[#10100F] grid place-items-center text-[18px] mb-3">✦</div>
                   <p className="sg font-bold text-[15px]">Add questions or generate more</p>
                   <p className="text-[13px] text-black/50 font-medium mt-1">Use the generator or craft a custom question with AI assists.</p>
-                  <div className="mt-4 flex gap-2 justify-center">
+                  <div className="mt-4 flex gap-2 justify-center flex-wrap">
                     <button onClick={addQuestion} className="h-10 px-4 bg-white border-[3px] border-[#10100F] rounded-[12px] text-[13px] font-bold soft btn-press">
                       + Blank Question
                     </button>
                     <button onClick={handleGenerate} className="h-10 px-4 bg-[#FFE57F] border-[3px] border-[#10100F] rounded-[12px] text-[13px] font-bold soft btn-press">
-                      ✦ Generate 2 More
+                      ✦ Re-generate Quiz
                     </button>
                   </div>
                 </div>
@@ -841,36 +843,6 @@ export default function AIQuizStudio() {
                     </button>
                   </label>
                 ))}
-              </div>
-            </div>
-
-            {/* Sticky Summary Card */}
-            <div className="bg-[#FFE57F] border-[3px] border-[#10100F] rounded-[16px] hard p-5 text-center">
-              <div className="sg text-[11px] font-bold tracking-[0.12em] text-black/60">QUIZ SUMMARY</div>
-              <div className="sg font-extrabold text-[36px] tracking-[-0.04em] leading-none mt-2">{quiz.questions.length} Qs</div>
-              <div className="flex items-center justify-center gap-2 mt-4 flex-wrap">
-                <span className="h-7 px-3 bg-[#40C4FF] border-[2px] border-[#10100F] rounded-[24px] text-[11px] font-bold grid place-items-center uppercase">
-                  {quiz.language || 'English'}
-                </span>
-                <span className="h-7 px-3 bg-[#EDE7FF] border-[2px] border-[#10100F] rounded-[24px] text-[11px] font-bold grid place-items-center uppercase">
-                  {quiz.bloomLevel || bloomLevel}
-                </span>
-              </div>
-
-              {/* Difficulty spread */}
-              <div className="mt-4 grid grid-cols-3 gap-2 text-[11px] font-bold">
-                <div className="bg-white border-[2px] border-[#10100F] rounded-[10px] py-2">
-                  <div className="text-[16px] sg">{quiz.questions.filter(x => x.difficulty === 'easy').length}</div>
-                  Easy
-                </div>
-                <div className="bg-white border-[2px] border-[#10100F] rounded-[10px] py-2">
-                  <div className="text-[16px] sg">{quiz.questions.filter(x => x.difficulty === 'medium').length}</div>
-                  Med
-                </div>
-                <div className="bg-white border-[2px] border-[#10100F] rounded-[10px] py-2">
-                  <div className="text-[16px] sg">{quiz.questions.filter(x => x.difficulty === 'hard').length}</div>
-                  Hard
-                </div>
               </div>
             </div>
 
