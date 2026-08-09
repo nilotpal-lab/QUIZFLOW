@@ -76,6 +76,7 @@ export default function AIQuizStudio() {
   const [deletingId, setDeletingId] = useState<number | null>(null)
 
   const [viewMode, setViewMode] = useState<'generate' | 'editor'>('generate')
+  const [rightTab, setRightTab] = useState<'adapt' | 'translate' | 'settings'>('adapt')
 
   useEffect(() => {
     if (quiz.questions && quiz.questions.length > 0) {
@@ -285,16 +286,15 @@ export default function AIQuizStudio() {
           >
             <span>←</span> {viewMode === 'editor' ? 'Generator' : 'Exit Studio'}
           </button>
-          <div className="hidden lg:flex items-center gap-2 text-[#FFFCF5] sg font-extrabold text-[18px] tracking-[-0.03em]">
+          <div className="flex items-center gap-2 text-[#FFFCF5] sg font-extrabold text-[17px] md:text-[18px] tracking-[-0.03em]">
             <span className="w-7 h-7 bg-[#FFE57F] rounded-[8px] border-[2px] border-white/20 grid place-items-center text-[#10100F] text-[13px]">✦</span>
             AI Quiz Studio
           </div>
-          {provider && <span className="h-7 px-2.5 bg-[#00E676] text-[#10100F] border-[2px] border-white/20 rounded-[8px] text-[11px] font-display font-bold flex items-center">⚡ {provider}</span>}
         </div>
 
-        {/* Title Editing Pill */}
+        {/* Title Editing Pill - Always visible */}
         {viewMode === 'editor' && (
-          <div className="hidden xl:flex flex-1 justify-center max-w-[320px] mx-2 shrink min-w-0">
+          <div className="flex flex-1 justify-center min-w-[150px] max-w-[340px] mx-1 md:mx-3">
             {editingTitle ? (
               <input
                 ref={titleInputRef}
@@ -321,10 +321,10 @@ export default function AIQuizStudio() {
                   setTempTitle(quiz.title)
                   setEditingTitle(true)
                 }}
-                className="w-full h-10 px-4 bg-[#FFF8EB] border-[3px] border-[#10100F] rounded-[24px] text-[13px] font-semibold flex items-center justify-between gap-2 text-left text-[#10100F] btn-press animate-scale-in"
+                className="w-full h-10 px-3.5 bg-[#FFF8EB] border-[3px] border-[#10100F] rounded-[24px] text-[13px] font-semibold flex items-center justify-between gap-2 text-left text-[#10100F] btn-press animate-scale-in"
               >
-                <span className="truncate">{quiz.title}</span>
-                <span className="shrink-0 w-6 h-6 grid place-items-center rounded-full bg-white border-[2px] border-[#10100F] text-[#10100F] text-[12px] hover:bg-[var(--sun)] transition-colors">✎</span>
+                <span className="truncate">{quiz.title || 'Untitled Quiz'}</span>
+                <span className="shrink-0 w-5 h-5 grid place-items-center rounded-full bg-white border-[2px] border-[#10100F] text-[#10100F] text-[11px] hover:bg-[var(--sun)] transition-colors">✎</span>
               </button>
             )}
           </div>
@@ -335,17 +335,15 @@ export default function AIQuizStudio() {
           {viewMode === 'editor' && (
             <>
               {/* QUIZ SUMMARY PILL */}
-              <div className="hidden xl:flex h-10 px-3 bg-white/10 border-[2px] border-white/20 rounded-[12px] items-center gap-2 text-[12px] font-bold text-white shrink-0">
+              <div className="hidden sm:flex h-10 px-3 bg-white/10 border-[2px] border-white/20 rounded-[12px] items-center gap-2 text-[12px] font-bold text-white shrink-0">
                  <span className="sg text-[13px] text-[#FFE57F]">{quiz.questions.length} Qs</span>
                  <span className="w-[1px] h-3.5 bg-white/20"></span>
                  <span className="uppercase">{quiz.language?.substring(0,3) || 'ENG'}</span>
-                 <span className="w-[1px] h-3.5 bg-white/20"></span>
-                 <span className="uppercase">{quiz.bloomLevel}</span>
               </div>
 
               <button
                 onClick={() => setShowPrintModal(true)}
-                className="hidden sm:flex h-10 px-3.5 bg-[#00E676] border-[3px] border-[#10100F] rounded-[12px] text-[12px] font-bold items-center gap-1.5 hard-white btn-press-white text-[#10100F] animate-scale-in"
+                className="hidden md:flex h-10 px-3.5 bg-[#00E676] border-[3px] border-[#10100F] rounded-[12px] text-[12px] font-bold items-center gap-1.5 hard-white btn-press-white text-[#10100F] animate-scale-in"
               >
                 <span>⎙</span> Print PDF
               </button>
@@ -354,17 +352,12 @@ export default function AIQuizStudio() {
                   saveQuizDraft(quiz, true)
                   alert('✅ Quiz saved to Teacher Dashboard!')
                 }}
-                className="hidden lg:flex h-10 px-3.5 bg-[#FF5252] border-[3px] border-white/20 rounded-[12px] text-[12px] font-bold hard-white btn-press-white text-[#10100F] animate-scale-in"
+                className="h-10 px-3.5 bg-[#FF5252] border-[3px] border-white/20 rounded-[12px] text-[12px] font-bold hard-white btn-press-white text-[#10100F] animate-scale-in"
               >
-                Save Draft
+                💾 Save Draft
               </button>
             </>
           )}
-          <a href="/dashboard" className="hidden md:block">
-            <button className="h-10 px-3.5 bg-[#7C4DFF] border-[3px] border-white/20 rounded-[12px] text-[12px] font-bold hard-white btn-press-white text-white">
-              Dashboard
-            </button>
-          </a>
           <button
             disabled={publishing || quiz.questions.length === 0}
             onClick={async () => {
@@ -514,7 +507,7 @@ export default function AIQuizStudio() {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-5">
               
               <div>
-                <label className="sg text-[11px] font-bold tracking-[0.08em] text-[var(--violet)] block mb-2 uppercase">BLOOM&apos;S TAXONOMY LEVEL</label>
+                <label className="sg text-[11px] font-bold tracking-[0.08em] text-[var(--violet)] block mb-2 uppercase">QUESTION THINKING LEVEL</label>
                 <div className="relative">
                   <select
                     value={bloomLevel}
@@ -789,77 +782,102 @@ export default function AIQuizStudio() {
             </div>
           </main>
 
-          {/* RIGHT COLUMN: AI Adaptations & Info Summary */}
+          {/* RIGHT COLUMN: Clean Studio Control Box */}
           <aside className="w-full lg:sticky lg:top-[92px] flex flex-col gap-5">
             
-            {/* AI Differentiate Card */}
-            <div className="bg-[#FFF8EB] border-[3px] border-[#10100F] rounded-[16px] hard p-5">
-              <div className="flex items-center gap-2 sg font-bold text-[16px] tracking-[-0.02em] mb-4">
-                <span>🤖</span> AI Differentiate
-              </div>
-
-              <div className="bg-[#FFFCF5] border-[2px] border-[#10100F] rounded-[12px] p-3 mb-4 soft">
-                <div className="sg text-[11px] font-extrabold tracking-[0.1em] text-[#7C4DFF] mb-3">🌐 TRANSLATE TO:</div>
-                <div className="grid grid-cols-2 gap-2">
-                  {LANGUAGES.slice(0, 10).map(lang => (
-                    <button
-                      key={lang.code}
-                      onClick={() => handleDifferentiate('translate', lang.code)}
-                      disabled={adaptingAction !== null}
-                      className={`h-9 border-[2px] border-[#10100F] rounded-[10px] text-[11px] font-bold tracking-[-0.01em] transition btn-press ${
-                        quiz.language === lang.code ? 'bg-[#FFE57F]' : 'bg-[#FFFCF5]'
-                      }`}
-                    >
-                      {lang.flag} {lang.code}
-                    </button>
-                  ))}
-                </div>
-                {adaptingAction?.startsWith('translate-') && (
-                  <div className="text-[11px] text-[var(--violet)] text-center mt-3 animate-pulse">⏳ Translating...</div>
-                )}
-              </div>
-
-              <div className="flex flex-col gap-2.5">
+            <div className="bg-[#FFF8EB] border-[3px] border-[#10100F] rounded-[16px] hard p-4">
+              
+              {/* Clean Segmented Tab Switcher */}
+              <div className="grid grid-cols-3 gap-1 bg-[#FFFCF5] p-1 border-[2px] border-[#10100F] rounded-[12px] mb-4">
                 {[
-                  { action: 'add_scenarios', label: 'Real-World Scenarios', icon: '🌏' },
-                  { action: 'harder_distractors', label: 'Harder Distractors', icon: '🧩' },
-                  { action: 'simplify', label: 'Simplify Level', icon: '🍃' }
-                ].map(opt => (
+                  { id: 'adapt', label: '🪄 Adapt', title: 'AI Magic Tools' },
+                  { id: 'translate', label: '🌐 Translate', title: 'Language Options' },
+                  { id: 'settings', label: '⚙️ Settings', title: 'Game Controls' }
+                ].map(tab => (
                   <button
-                    key={opt.action}
-                    onClick={() => handleDifferentiate(opt.action)}
-                    disabled={adaptingAction !== null}
-                    className="w-full h-11 bg-[#FFFCF5] border-[3px] border-[#10100F] rounded-[12px] text-[13px] font-bold flex items-center gap-2 px-3 soft btn-press"
+                    key={tab.id}
+                    onClick={() => setRightTab(tab.id as any)}
+                    className={`h-9 rounded-[8px] text-[11px] font-bold transition-all ${
+                      rightTab === tab.id
+                        ? 'bg-[#FFE57F] text-[#10100F] border-[2px] border-[#10100F] soft'
+                        : 'text-black/60 hover:text-black hover:bg-black/5'
+                    }`}
                   >
-                    <span>{opt.icon}</span>
-                    {adaptingAction === opt.action ? 'Working...' : opt.label}
+                    {tab.label}
                   </button>
                 ))}
               </div>
-            </div>
 
-            {/* Settings Toggles */}
-            <div className="bg-[#FFF8EB] border-[3px] border-[#10100F] rounded-[16px] hard p-5">
-              <h3 className="sg font-bold text-[16px] mb-4">Settings</h3>
-              <div className="flex flex-col gap-3.5">
-                {[
-                  { label: 'Shuffle Questions', checked: shuffleQuestions, set: setShuffleQuestions },
-                  { label: 'Show Explanations', checked: showExplanations, set: setShowExplanations },
-                  { label: 'Allow Power-Ups', checked: allowPowerUps, set: setAllowPowerUps },
-                ].map(cfg => (
-                  <label key={cfg.label} className="flex items-center justify-between cursor-pointer group select-none">
-                    <span className="text-[13px] font-semibold">{cfg.label}</span>
+              {/* Tab 1: AI Adapt Tools */}
+              {rightTab === 'adapt' && (
+                <div className="flex flex-col gap-2.5 animate-scale-in">
+                  <div className="text-[11px] font-bold sg text-black/50 uppercase tracking-[0.05em] mb-1">AI Differentiation</div>
+                  {[
+                    { action: 'add_scenarios', label: 'Real-World Scenarios', icon: '🌏' },
+                    { action: 'harder_distractors', label: 'Harder Distractors', icon: '🧩' },
+                    { action: 'simplify', label: 'Simplify Level', icon: '🍃' }
+                  ].map(opt => (
                     <button
-                      onClick={() => cfg.set(!cfg.checked)}
-                      className={`w-5 h-5 rounded-[6px] border-[2px] border-[#10100F] grid place-items-center transition ${
-                        cfg.checked ? 'bg-[#7C4DFF] text-white' : 'bg-white'
-                      }`}
+                      key={opt.action}
+                      onClick={() => handleDifferentiate(opt.action)}
+                      disabled={adaptingAction !== null}
+                      className="w-full h-11 bg-[#FFFCF5] border-[2px] border-[#10100F] rounded-[12px] text-[12px] font-bold flex items-center gap-2 px-3 soft btn-press"
                     >
-                      {cfg.checked && <span className="text-[11px] font-bold">✓</span>}
+                      <span>{opt.icon}</span>
+                      {adaptingAction === opt.action ? 'Working...' : opt.label}
                     </button>
-                  </label>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Tab 2: Translation */}
+              {rightTab === 'translate' && (
+                <div className="animate-scale-in">
+                  <div className="text-[11px] font-bold sg text-[#7C4DFF] uppercase tracking-[0.05em] mb-2">Translate Quiz To:</div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {LANGUAGES.slice(0, 10).map(lang => (
+                      <button
+                        key={lang.code}
+                        onClick={() => handleDifferentiate('translate', lang.code)}
+                        disabled={adaptingAction !== null}
+                        className={`h-9 border-[2px] border-[#10100F] rounded-[10px] text-[11px] font-bold transition btn-press ${
+                          quiz.language === lang.code ? 'bg-[#FFE57F]' : 'bg-[#FFFCF5]'
+                        }`}
+                      >
+                        {lang.flag} {lang.code}
+                      </button>
+                    ))}
+                  </div>
+                  {adaptingAction?.startsWith('translate-') && (
+                    <div className="text-[11px] text-[var(--violet)] text-center mt-3 animate-pulse font-bold">⏳ Translating...</div>
+                  )}
+                </div>
+              )}
+
+              {/* Tab 3: Settings */}
+              {rightTab === 'settings' && (
+                <div className="flex flex-col gap-3 animate-scale-in">
+                  <div className="text-[11px] font-bold sg text-black/50 uppercase tracking-[0.05em] mb-1">Game Rules & Features</div>
+                  {[
+                    { label: 'Shuffle Questions', checked: shuffleQuestions, set: setShuffleQuestions },
+                    { label: 'Show Explanations', checked: showExplanations, set: setShowExplanations },
+                    { label: 'Allow Power-Ups', checked: allowPowerUps, set: setAllowPowerUps },
+                  ].map(cfg => (
+                    <label key={cfg.label} className="flex items-center justify-between cursor-pointer select-none bg-[#FFFCF5] p-2.5 border-[2px] border-[#10100F] rounded-[10px]">
+                      <span className="text-[12px] font-bold">{cfg.label}</span>
+                      <button
+                        onClick={() => cfg.set(!cfg.checked)}
+                        className={`w-5 h-5 rounded-[6px] border-[2px] border-[#10100F] grid place-items-center transition ${
+                          cfg.checked ? 'bg-[#7C4DFF] text-white' : 'bg-white'
+                        }`}
+                      >
+                        {cfg.checked && <span className="text-[11px] font-bold">✓</span>}
+                      </button>
+                    </label>
+                  ))}
+                </div>
+              )}
+
             </div>
 
           </aside>
