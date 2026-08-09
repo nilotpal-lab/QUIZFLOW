@@ -156,7 +156,7 @@ export default function JoinPage() {
           <Link href="/quizflow" className="font-display font-[800] text-[24px] tracking-tight flex items-center gap-1 cursor-pointer">
             <span>⚡</span> QuizFlow
           </Link>
-          <Link href="/studio">
+          <Link href="/quizflow/studio">
             <button className="hard bg-[var(--sun)] text-[var(--ink)] rounded-full px-3.5 py-1 text-[12px] font-display font-bold">
               ✨ AI Studio
             </button>

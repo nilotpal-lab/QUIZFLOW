@@ -1,6 +1,7 @@
 'use client'
 export const dynamic = 'force-dynamic'
 import { useState, useEffect } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { getHostUser, logoutHostAsync, updateHostProfile, type HostUser } from '@/quizflow/authStore'
 import { getSavedQuizzes, deleteSavedQuiz, type SavedQuizItem } from '@/quizflow/quizStore'
@@ -26,7 +27,7 @@ export default function TeacherDashboard() {
   useEffect(() => {
     const hostUser = getHostUser()
     if (!hostUser) {
-      router.push('/auth')
+      router.push('/quizflow/auth')
       return
     }
     setUser(hostUser)
@@ -39,7 +40,7 @@ export default function TeacherDashboard() {
 
   const handleLogout = async () => {
     await logoutHostAsync()
-    router.push('/auth')
+    router.push('/quizflow/auth')
   }
 
   const handleDeleteQuiz = (id: string) => {
@@ -51,12 +52,12 @@ export default function TeacherDashboard() {
 
   const handleHostSavedQuiz = (item: SavedQuizItem) => {
     const state = createSession(item.quiz, 'host-' + Date.now())
-    router.push(`/host?pin=${state.pin}`)
+    router.push(`/quizflow/host?pin=${state.pin}`)
   }
 
   const handleEditQuizInStudio = (item: SavedQuizItem) => {
     localStorage.setItem('qf_saved_quiz', JSON.stringify(item.quiz))
-    router.push('/studio')
+    router.push('/quizflow/studio')
   }
 
   const handleSaveProfile = (e: React.FormEvent) => {
@@ -77,7 +78,7 @@ export default function TeacherDashboard() {
       {/* TOP COMMAND CENTER BAR */}
       <div className="top-bar">
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          <a href="/"><button className="btn btn-sm" style={{ background: 'var(--paper)', color: 'var(--ink)' }}>← Exit Dashboard</button></a>
+          <Link href="/quizflow"><button className="btn btn-sm" style={{ background: 'var(--paper)', color: 'var(--ink)' }}>← Exit Dashboard</button></Link>
           <span style={{ fontFamily: 'Space Grotesk', fontSize: 18, fontWeight: 800 }}>📊 Teacher Workspace</span>
           <span className="badge badge-sun">🎓 {user.school}</span>
         </div>
@@ -106,7 +107,7 @@ export default function TeacherDashboard() {
 
         {/* User Info & Actions */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <a href="/studio"><button className="btn btn-violet btn-sm">✨ + New AI Quiz</button></a>
+          <Link href="/quizflow/studio"><button className="btn btn-violet btn-sm">✨ + New AI Quiz</button></Link>
           <button className="btn btn-sm" style={{ background: 'var(--cherry)', color: '#fff' }} onClick={handleLogout}>
             🚪 Logout
           </button>
@@ -128,7 +129,7 @@ export default function TeacherDashboard() {
                   Manage your created quizzes, launch live sessions, or edit questions in AI Studio.
                 </div>
               </div>
-              <a href="/studio"><button className="btn btn-sun btn-lg">✨ Create Quiz in Studio →</button></a>
+              <Link href="/quizflow/studio"><button className="btn btn-sun btn-lg">✨ Create Quiz in Studio →</button></Link>
             </div>
 
             {quizzes.length === 0 ? (
@@ -136,7 +137,7 @@ export default function TeacherDashboard() {
                 <div style={{ fontSize: 36, marginBottom: 10 }}>📝</div>
                 <h3 style={{ fontFamily: 'Space Grotesk', fontSize: 18, fontWeight: 800 }}>No Saved Quizzes Yet</h3>
                 <p style={{ fontSize: 14, color: '#666', marginBottom: 16 }}>Use AI Studio to create or draft your first interactive classroom quiz.</p>
-                <a href="/studio"><button className="btn btn-violet">✨ Open AI Studio</button></a>
+                <Link href="/quizflow/studio"><button className="btn btn-violet">✨ Open AI Studio</button></Link>
               </div>
             ) : (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: 20 }}>

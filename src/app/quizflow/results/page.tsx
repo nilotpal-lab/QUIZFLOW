@@ -175,14 +175,14 @@ function ResultsInner() {
       {/* Top Bar */}
       <nav className="sticky top-0 z-40 bg-[var(--paper)] border-b-[3px] border-[var(--ink)]">
         <div className="max-w-[1280px] mx-auto px-4 md:px-6 h-[64px] flex items-center justify-between">
-          <div className="font-display font-[800] text-[24px] tracking-tight flex items-center gap-1 cursor-pointer" onClick={() => router.push('/')}>
+          <div className="font-display font-[800] text-[24px] tracking-tight flex items-center gap-1 cursor-pointer" onClick={() => router.push('/quizflow')}>
             <span>⚡</span> QuizFlow
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={() => router.push('/')} className="hard bg-white rounded-full px-3.5 py-1.5 text-[12px] font-display font-bold">
+            <button onClick={() => router.push('/quizflow')} className="hard bg-white rounded-full px-3.5 py-1.5 text-[12px] font-display font-bold">
               🏠 Home
             </button>
-            <button onClick={() => router.push('/host/new')} className="hard bg-[var(--violet)] text-white rounded-full px-3.5 py-1.5 text-[12px] font-display font-bold">
+            <button onClick={() => router.push('/quizflow/host/new')} className="hard bg-[var(--violet)] text-white rounded-full px-3.5 py-1.5 text-[12px] font-display font-bold">
               🎮 Host New Game
             </button>
           </div>
@@ -469,19 +469,19 @@ function ResultsInner() {
         {/* 🎮 ACTION CTA DECK */}
         <div className="w-full max-w-[680px] grid grid-cols-1 sm:grid-cols-3 gap-3 mb-8">
           <button
-            onClick={() => { playClickSound(); router.push('/host/new') }}
+            onClick={() => { playClickSound(); router.push('/quizflow/host/new') }}
             className="h-[52px] hard btn-press bg-[var(--ink)] text-white rounded-[12px] font-display font-[800] text-[14px] flex items-center justify-center gap-2"
           >
             <span>🎮</span> Play Again
           </button>
           <button
-            onClick={() => { playClickSound(); router.push('/practice') }}
+            onClick={() => { playClickSound(); router.push('/quizflow/practice') }}
             className="h-[52px] hard btn-press bg-[var(--sun)] text-[var(--ink)] rounded-[12px] font-display font-[800] text-[14px] flex items-center justify-center gap-2"
           >
             <span>🎴</span> Review in Practice Mode
           </button>
           <button
-            onClick={() => { playClickSound(); router.push('/') }}
+            onClick={() => { playClickSound(); router.push('/quizflow') }}
             className="h-[52px] hard btn-press bg-white text-[var(--ink)] rounded-[12px] font-display font-[800] text-[14px] flex items-center justify-center gap-2"
           >
             <span>🏠</span> Back to Home

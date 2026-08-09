@@ -50,6 +50,7 @@ export default function AIQuizStudio() {
   const [quiz, setQuiz]                     = useState<AIGeneratedQuiz>(DEFAULT_QUIZ)
   const [selectedVersion, setSelectedVersion] = useState<WorksheetVersion>('A')
   const [includeAnswerKey, setIncludeAnswerKey] = useState(true)
+  const [toastMsg, setToastMsg]             = useState<string | null>(null)
 
   // Ingestion Mode & States
   const [ingestMode, setIngestMode]         = useState<'topic' | 'file' | 'youtube' | 'webpage'>('topic')
@@ -350,7 +351,8 @@ export default function AIQuizStudio() {
               <button
                 onClick={() => {
                   saveQuizDraft(quiz, true)
-                  alert('✅ Quiz saved to Teacher Dashboard!')
+                  setToastMsg('✅ Quiz saved to Teacher Dashboard!')
+                  setTimeout(() => setToastMsg(null), 3000)
                 }}
                 className="h-10 px-3.5 bg-[#FF5252] border-[3px] border-white/20 rounded-[12px] text-[12px] font-bold hard-white btn-press-white text-[#10100F] animate-scale-in"
               >
@@ -364,7 +366,7 @@ export default function AIQuizStudio() {
               try {
                 setPublishing(true)
                 const state = createSession(quiz, 'host-' + Date.now())
-                router.push(`/host?pin=${state.pin}`)
+                router.push(`/quizflow/host?pin=${state.pin}`)
               } catch (err) {
                 console.error('Failed to publish session:', err)
                 setPublishing(false)
@@ -938,6 +940,13 @@ export default function AIQuizStudio() {
             </div>
 
           </div>
+        </div>
+      )}
+
+      {/* Floating Toast Notification */}
+      {toastMsg && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[110] hard bg-[#10100F] text-white rounded-[14px] px-6 py-3 font-display font-bold text-[13px] border-[2px] border-white/20 animate-scale-in shadow-[4px_4px_0px_rgba(0,0,0,0.4)]">
+          {toastMsg}
         </div>
       )}
 

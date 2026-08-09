@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
+import Link from 'next/link'
 import { createSession } from '@/quizflow/sessionStore'
 import { getSavedQuizzes, type SavedQuizItem } from '@/quizflow/quizStore'
 import type { AIGeneratedQuiz } from '@/quizflow/types'
@@ -63,7 +64,7 @@ export default function HostNewPage() {
   const launchQuiz = (quiz: AIGeneratedQuiz) => {
     setCreating(true)
     const state = createSession(quiz, 'host-' + Date.now(), gameMode)
-    const hostPath = (typeof window !== 'undefined' && window.location.pathname.startsWith('/quizflow')) ? '/quizflow/host' : '/host'
+    const hostPath = '/quizflow/host'
     setTimeout(() => {
       router.push(`${hostPath}?pin=${state.pin}`)
     }, 250)
@@ -83,8 +84,8 @@ export default function HostNewPage() {
           <span className="badge badge-sun">📡 HOST COMMAND</span>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
-          <a href="/dashboard"><button className="btn btn-sm" style={{ background: 'var(--paper)', color: 'var(--ink)' }}>📊 Dashboard</button></a>
-          <a href="/"><button className="btn btn-sm" style={{ background: 'var(--paper)', color: 'var(--ink)' }}>← Home</button></a>
+          <Link href="/quizflow/dashboard"><button className="btn btn-sm" style={{ background: 'var(--paper)', color: 'var(--ink)' }}>📊 Dashboard</button></Link>
+          <Link href="/quizflow"><button className="btn btn-sm" style={{ background: 'var(--paper)', color: 'var(--ink)' }}>← Home</button></Link>
         </div>
       </div>
 
@@ -108,9 +109,9 @@ export default function HostNewPage() {
               <h2 style={{ fontFamily: 'Space Grotesk', fontSize: 20, fontWeight: 800, color: 'var(--ink)' }}>
                 📂 Your Saved Quizzes ({savedQuizzes.length})
               </h2>
-              <a href="/studio">
+              <Link href="/quizflow/studio">
                 <button className="btn btn-sm btn-violet" style={{ fontSize: 12 }}>✨ + Create in Studio</button>
-              </a>
+              </Link>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
@@ -233,7 +234,7 @@ export default function HostNewPage() {
             })}
 
             {/* AI Studio card */}
-            <a href="/studio" style={{ textDecoration: 'none' }}>
+            <Link href="/quizflow/studio" style={{ textDecoration: 'none' }}>
               <div
                 style={{
                   height: '100%', minHeight: 180, padding: 22,
@@ -252,7 +253,7 @@ export default function HostNewPage() {
                 <div style={{ fontFamily: 'Space Grotesk', fontSize: 16, fontWeight: 800, color: 'var(--violet)' }}>Create with AI</div>
                 <div style={{ color: '#666', fontSize: 12, textAlign: 'center', fontFamily: 'Inter' }}>Generate on any custom topic in seconds</div>
               </div>
-            </a>
+            </Link>
           </div>
         </div>
 

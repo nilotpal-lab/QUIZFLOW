@@ -1,9 +1,20 @@
 'use client'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { getHostUser, initAuthSync, type HostUser } from '@/quizflow/authStore'
 
 export default function MarketingHomepage() {
   const router = useRouter()
+  const [user, setUser] = useState<HostUser | null>(null)
+
+  useEffect(() => {
+    setUser(getHostUser())
+    const unsubscribe = initAuthSync(updatedUser => {
+      setUser(updatedUser)
+    })
+    return () => unsubscribe()
+  }, [])
 
   return (
     <div className="min-h-screen w-full bg-[var(--paper)] selection:bg-[var(--sun)] flex flex-col overflow-x-hidden text-[var(--ink)] relative">
@@ -41,16 +52,33 @@ export default function MarketingHomepage() {
         <div className="max-w-[1280px] mx-auto px-4 md:px-6 h-[72px] flex items-center justify-between">
           <div 
             className="font-display font-[900] text-[26px] tracking-tight flex items-center gap-2 cursor-pointer select-none"
-            onClick={() => router.push('/')}
+            onClick={() => router.push('/quizflow')}
           >
             <span className="text-[var(--violet)] drop-shadow-[1px_1px_0px_var(--ink)]">⚡</span> QuizFlow
           </div>
           <div className="flex items-center gap-3">
-            <Link href="/auth">
-              <button className="hard bg-white text-[var(--ink)] rounded-full px-5 py-2 text-[13px] font-display font-black uppercase tracking-wider btn-press">
-                Login
-              </button>
-            </Link>
+            {user ? (
+              <div className="flex items-center gap-2.5">
+                <Link href="/quizflow/studio">
+                  <button className="hard bg-[var(--sun)] text-[var(--ink)] rounded-full px-4 py-1.5 text-[12px] font-display font-black uppercase tracking-wider btn-press hidden sm:inline-block">
+                    ✨ AI Studio
+                  </button>
+                </Link>
+                <Link href="/quizflow/dashboard">
+                  <div className="hard bg-white border-[2.5px] border-[var(--ink)] rounded-full px-4 py-1.5 text-[13px] font-display font-black text-[var(--ink)] flex items-center gap-2 btn-press cursor-pointer">
+                    <span>🎓</span>
+                    <span className="max-w-[140px] truncate">{user.name}</span>
+                    <span className="text-[11px] opacity-60">→</span>
+                  </div>
+                </Link>
+              </div>
+            ) : (
+              <Link href="/quizflow/auth">
+                <button className="hard bg-white text-[var(--ink)] rounded-full px-5 py-2 text-[13px] font-display font-black uppercase tracking-wider btn-press">
+                  Teacher Login
+                </button>
+              </Link>
+            )}
           </div>
         </div>
       </nav>
@@ -102,7 +130,7 @@ export default function MarketingHomepage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mt-14 w-full max-w-[960px]">
             
             {/* CTA 1: Join Live Game (Students) */}
-            <Link href="/join" className="group">
+            <Link href="/quizflow/join" className="group">
               <div className="w-full h-24 hard bg-[var(--violet)] hover:bg-[#8f66ff] text-white rounded-[var(--radius-card)] p-4 flex items-center justify-between btn-press shadow-[5px_5px_0px_#10100F] transition-all hover:shadow-[7px_7px_0px_#10100F] cursor-pointer">
                 <div className="text-left">
                   <span className="text-[10px] font-display font-black tracking-widest text-[var(--sun)] uppercase block mb-1">STUDENTS</span>
@@ -112,23 +140,23 @@ export default function MarketingHomepage() {
               </div>
             </Link>
 
-            {/* CTA 2: Teacher Studio & Host (Unified Hub) */}
-            <Link href="/studio" className="group">
+            {/* CTA 2: AI Quiz Studio */}
+            <Link href="/quizflow/studio" className="group">
               <div className="w-full h-24 hard bg-[var(--sun)] hover:bg-[#ffe799] text-[var(--ink)] rounded-[var(--radius-card)] p-4 flex items-center justify-between btn-press shadow-[5px_5px_0px_#10100F] transition-all hover:shadow-[7px_7px_0px_#10100F] cursor-pointer">
                 <div className="text-left">
                   <span className="text-[10px] font-display font-black tracking-widest text-[var(--cherry)] uppercase block mb-1">TEACHERS</span>
-                  <span className="font-display font-[900] text-[20px] uppercase tracking-tight">Studio & Host</span>
+                  <span className="font-display font-[900] text-[20px] uppercase tracking-tight">AI Quiz Studio</span>
                 </div>
                 <div className="w-10 h-10 rounded-full bg-white text-[var(--ink)] flex items-center justify-center font-display font-black text-[18px] hard border-[2px] border-[var(--ink)] shrink-0">→</div>
               </div>
             </Link>
 
-            {/* CTA 3: Teacher Dashboard */}
-            <Link href="/dashboard" className="group">
+            {/* CTA 3: Teacher Workspace & Host */}
+            <Link href="/quizflow/dashboard" className="group">
               <div className="w-full h-24 hard bg-[var(--mint)] hover:bg-[#2eff99] text-[var(--ink)] rounded-[var(--radius-card)] p-4 flex items-center justify-between btn-press shadow-[5px_5px_0px_#10100F] transition-all hover:shadow-[7px_7px_0px_#10100F] cursor-pointer">
                 <div className="text-left">
-                  <span className="text-[10px] font-display font-black tracking-widest text-[var(--ink)] uppercase block mb-1">ACCOUNT</span>
-                  <span className="font-display font-[900] text-[20px] uppercase tracking-tight">Dashboard</span>
+                  <span className="text-[10px] font-display font-black tracking-widest text-[var(--ink)] uppercase block mb-1">WORKSPACE</span>
+                  <span className="font-display font-[900] text-[20px] uppercase tracking-tight">Host & Dashboard</span>
                 </div>
                 <div className="w-10 h-10 rounded-full bg-white text-[var(--ink)] flex items-center justify-center font-display font-black text-[18px] hard border-[2px] border-[var(--ink)] shrink-0">→</div>
               </div>
@@ -251,9 +279,11 @@ export default function MarketingHomepage() {
           <div className="flex gap-4 text-[12px] font-display font-black uppercase tracking-wider text-[var(--violet)]">
             <Link href="/quizflow/join" className="hover:underline">Join Game</Link>
             <span>·</span>
-            <Link href="/host/new" className="hover:underline">Host Quiz</Link>
+            <Link href="/quizflow/host/new" className="hover:underline">Host Quiz</Link>
             <span>·</span>
-            <Link href="/studio" className="hover:underline">AI Studio</Link>
+            <Link href="/quizflow/studio" className="hover:underline">AI Studio</Link>
+            <span>·</span>
+            <Link href="/quizflow/dashboard" className="hover:underline">Dashboard</Link>
           </div>
         </div>
       </footer>

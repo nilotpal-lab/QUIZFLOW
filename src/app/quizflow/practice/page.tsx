@@ -122,14 +122,14 @@ export default function PracticeHubPage() {
       {/* Top Bar */}
       <nav className="sticky top-0 z-40 bg-[var(--paper)] border-b-[3px] border-[var(--ink)]">
         <div className="max-w-[1280px] mx-auto px-4 md:px-6 h-[64px] flex items-center justify-between">
-          <div className="font-display font-[800] text-[24px] tracking-tight flex items-center gap-1 cursor-pointer" onClick={() => router.push('/')}>
+          <div className="font-display font-[800] text-[24px] tracking-tight flex items-center gap-1 cursor-pointer" onClick={() => router.push('/quizflow')}>
             <span>⚡</span> QuizFlow
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={() => router.push('/')} className="hard bg-white rounded-full px-3.5 py-1.5 text-[12px] font-display font-bold">
+            <button onClick={() => router.push('/quizflow')} className="hard bg-white rounded-full px-3.5 py-1.5 text-[12px] font-display font-bold">
               🏠 Home
             </button>
-            <button onClick={() => router.push('/host/new')} className="hard bg-[var(--violet)] text-white rounded-full px-3.5 py-1.5 text-[12px] font-display font-bold">
+            <button onClick={() => router.push('/quizflow/host/new')} className="hard bg-[var(--violet)] text-white rounded-full px-3.5 py-1.5 text-[12px] font-display font-bold">
               🎮 Live Arena
             </button>
           </div>

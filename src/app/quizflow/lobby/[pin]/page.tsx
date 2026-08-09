@@ -1,6 +1,7 @@
 'use client'
 export const dynamic = 'force-dynamic'
 import { useEffect, useState, useCallback } from 'react'
+import Link from 'next/link'
 import { useParams, useSearchParams, useRouter } from 'next/navigation'
 import { subscribeToSession, joinSessionAsync, sendReaction } from '@/quizflow/sessionStore'
 import type { GameState } from '@/quizflow/sessionStore'
@@ -253,9 +254,9 @@ export default function LobbyPage() {
           </div>
 
           {/* Leave button */}
-          <a href="/quizflow" style={{ display: 'block', marginTop: 24 }}>
+          <Link href="/quizflow" style={{ display: 'block', marginTop: 24 }}>
             <button className="btn btn-primary" style={{ width: '100%' }}>← Leave Lobby</button>
-          </a>
+          </Link>
         </div>
 
         {/* Players joined grid */}

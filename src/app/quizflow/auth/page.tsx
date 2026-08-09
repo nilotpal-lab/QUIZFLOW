@@ -1,6 +1,7 @@
 'use client'
 export const dynamic = 'force-dynamic'
 import { useState, useEffect } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
   getHostUser,
@@ -50,12 +51,12 @@ export default function TeacherAuthPage() {
         if (res.message) {
           setAuthNotice(res.message)
         } else {
-          router.push('/dashboard')
+          router.push('/quizflow/dashboard')
         }
       } else {
         const loggedIn = await loginHostAsync(email.trim(), password)
         setUser(loggedIn)
-        router.push('/dashboard')
+        router.push('/quizflow/dashboard')
       }
     } catch (err: any) {
       setAuthError(err.message || 'Authentication failed. Please check your credentials.')
@@ -69,7 +70,7 @@ export default function TeacherAuthPage() {
     setAuthNotice('')
     const demo = loginAsDemoHost()
     setUser(demo)
-    router.push('/dashboard')
+    router.push('/quizflow/dashboard')
   }
 
   return (
@@ -77,11 +78,11 @@ export default function TeacherAuthPage() {
       
       {/* BRANDING HEADER */}
       <div style={{ textAlign: 'center', marginBottom: 24 }}>
-        <a href="/" style={{ textDecoration: 'none' }}>
+        <Link href="/quizflow" style={{ textDecoration: 'none' }}>
           <div style={{ fontFamily: 'Space Grotesk', fontSize: 36, fontWeight: 900, color: 'var(--ink)', display: 'inline-flex', alignItems: 'center', gap: 10 }}>
             <span style={{ fontSize: 40 }}>⚡</span> QuizFlow Studio
           </div>
-        </a>
+        </Link>
         <div style={{ fontFamily: 'Inter', fontSize: 15, color: '#555', marginTop: 4 }}>
           Teacher & Host Command Center
         </div>
@@ -100,7 +101,7 @@ export default function TeacherAuthPage() {
             {user.email} • {user.school}
           </div>
           <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
-            <button className="btn btn-sun btn-lg" onClick={() => router.push('/dashboard')}>
+            <button className="btn btn-sun btn-lg" onClick={() => router.push('/quizflow/dashboard')}>
               📊 Go to Dashboard →
             </button>
           </div>
@@ -247,9 +248,9 @@ export default function TeacherAuthPage() {
 
       {/* BACK TO HOME */}
       <div style={{ marginTop: 20 }}>
-        <a href="/" style={{ textDecoration: 'none', fontSize: 13, fontFamily: 'Space Grotesk', fontWeight: 700, color: 'var(--ink)' }}>
+        <Link href="/quizflow" style={{ textDecoration: 'none', fontSize: 13, fontFamily: 'Space Grotesk', fontWeight: 700, color: 'var(--ink)' }}>
           ← Back to Main Page
-        </a>
+        </Link>
       </div>
 
     </div>
