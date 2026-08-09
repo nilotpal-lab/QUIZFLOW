@@ -75,6 +75,14 @@ export default function AIQuizStudio() {
   // Question deleting animation
   const [deletingId, setDeletingId] = useState<number | null>(null)
 
+  const [viewMode, setViewMode] = useState<'generate' | 'editor'>('generate')
+
+  useEffect(() => {
+    if (quiz.questions && quiz.questions.length > 0) {
+      setViewMode('editor')
+    }
+  }, [])
+
   useEffect(() => {
     if (editingTitle) {
       titleInputRef.current?.focus()
@@ -144,6 +152,7 @@ export default function AIQuizStudio() {
 
     if (!topic && !sourceText) return
     setGenerating(true)
+    setViewMode('editor')
     try {
       const res = await fetch('/api/generate-quiz', {
         method: 'POST',
@@ -255,16 +264,25 @@ export default function AIQuizStudio() {
           content:''; position:absolute; inset:0; pointer-events:none; opacity:0.025;
           background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
         }
+        @keyframes scale-in { from { opacity: 0; transform: scale(0.98); } to { opacity: 1; transform: scale(1); } }
+        .animate-scale-in { animation: scale-in 0.3s ease-out forwards; }
       `}</style>
 
       {/* HEADER BAR (68px ink) */}
       <header className="h-[68px] bg-[#10100F] border-b-[3px] border-[#10100F] flex items-center justify-between px-5 sticky top-0 z-50 gap-4">
         <div className="flex items-center gap-3 shrink-0">
-          <a href="/quizflow">
-            <button className="h-10 px-4 bg-[#FFFCF5] border-[3px] border-[#10100F] rounded-[12px] text-[13px] font-bold tracking-[-0.02em] flex items-center gap-2 btn-press hard-white">
-              <span>←</span> Exit Studio
-            </button>
-          </a>
+          <button
+            onClick={() => {
+              if (viewMode === 'editor') {
+                setViewMode('generate')
+              } else {
+                router.push('/quizflow')
+              }
+            }}
+            className="h-10 px-4 bg-[#FFFCF5] border-[3px] border-[#10100F] rounded-[12px] text-[13px] font-bold tracking-[-0.02em] flex items-center gap-2 btn-press hard-white text-[#10100F]"
+          >
+            <span>←</span> {viewMode === 'editor' ? 'Back to Generator' : 'Exit Studio'}
+          </button>
           <div className="hidden lg:flex items-center gap-2 text-[#FFFCF5] sg font-extrabold text-[20px] tracking-[-0.03em]">
             <span className="w-8 h-8 bg-[#FFE57F] rounded-[8px] border-[2px] border-white/20 grid place-items-center text-[#10100F] text-[14px]">✦</span>
             AI Quiz Studio
@@ -273,55 +291,61 @@ export default function AIQuizStudio() {
         </div>
 
         {/* Title Editing Pill */}
-        <div className="hidden md:flex flex-1 justify-center max-w-[420px] mx-4">
-          {editingTitle ? (
-            <input
-              ref={titleInputRef}
-              value={tempTitle}
-              onChange={e => setTempTitle(e.target.value)}
-              onBlur={() => {
-                setEditingTitle(false)
-                setQuiz({ ...quiz, title: tempTitle })
-              }}
-              onKeyDown={e => {
-                if (e.key === 'Enter') {
+        {viewMode === 'editor' && (
+          <div className="hidden md:flex flex-1 justify-center max-w-[420px] mx-4">
+            {editingTitle ? (
+              <input
+                ref={titleInputRef}
+                value={tempTitle}
+                onChange={e => setTempTitle(e.target.value)}
+                onBlur={() => {
                   setEditingTitle(false)
                   setQuiz({ ...quiz, title: tempTitle })
-                }
-              }}
-              className="w-full h-10 px-4 bg-white border-[3px] border-[#10100F] rounded-[24px] text-[13px] font-semibold outline-none text-[#10100F]"
-            />
-          ) : (
-            <button
-              onClick={() => {
-                setTempTitle(quiz.title)
-                setEditingTitle(true)
-              }}
-              className="w-full h-10 px-4 bg-[#FFF8EB] border-[3px] border-[#10100F] rounded-[24px] text-[13px] font-semibold flex items-center justify-between gap-2 text-left text-[#10100F] btn-press"
-            >
-              <span className="truncate">{quiz.title}</span>
-              <span className="shrink-0 w-6 h-6 grid place-items-center rounded-full bg-white border-[2px] border-[#10100F] text-[#10100F] text-[12px] hover:bg-[var(--sun)] transition-colors">✎</span>
-            </button>
-          )}
-        </div>
+                }}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') {
+                    setEditingTitle(false)
+                    setQuiz({ ...quiz, title: tempTitle })
+                  }
+                }}
+                className="w-full h-10 px-4 bg-white border-[3px] border-[#10100F] rounded-[24px] text-[13px] font-semibold outline-none text-[#10100F]"
+              />
+            ) : (
+              <button
+                onClick={() => {
+                  setTempTitle(quiz.title)
+                  setEditingTitle(true)
+                }}
+                className="w-full h-10 px-4 bg-[#FFF8EB] border-[3px] border-[#10100F] rounded-[24px] text-[13px] font-semibold flex items-center justify-between gap-2 text-left text-[#10100F] btn-press animate-scale-in"
+              >
+                <span className="truncate">{quiz.title}</span>
+                <span className="shrink-0 w-6 h-6 grid place-items-center rounded-full bg-white border-[2px] border-[#10100F] text-[#10100F] text-[12px] hover:bg-[var(--sun)] transition-colors">✎</span>
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Action Buttons */}
         <div className="flex items-center gap-[10px] shrink-0">
-          <button
-            onClick={() => setShowPrintModal(true)}
-            className="hidden sm:flex h-10 px-4 bg-[#00E676] border-[3px] border-[#10100F] rounded-[12px] text-[13px] font-bold items-center gap-2 hard-white btn-press-white text-[#10100F]"
-          >
-            <span>⎙</span> Print Test PDF
-          </button>
-          <button
-            onClick={() => {
-              saveQuizDraft(quiz, true)
-              alert('✅ Quiz saved to Teacher Dashboard!')
-            }}
-            className="hidden lg:flex h-10 px-4 bg-[#FFF8EB] border-[3px] border-white/20 rounded-[12px] text-[13px] font-bold hard-white btn-press-white text-white"
-          >
-            Save Draft
-          </button>
+          {viewMode === 'editor' && (
+            <>
+              <button
+                onClick={() => setShowPrintModal(true)}
+                className="hidden sm:flex h-10 px-4 bg-[#00E676] border-[3px] border-[#10100F] rounded-[12px] text-[13px] font-bold items-center gap-2 hard-white btn-press-white text-[#10100F] animate-scale-in"
+              >
+                <span>⎙</span> Print Test PDF
+              </button>
+              <button
+                onClick={() => {
+                  saveQuizDraft(quiz, true)
+                  alert('✅ Quiz saved to Teacher Dashboard!')
+                }}
+                className="hidden lg:flex h-10 px-4 bg-[#FFF8EB] border-[3px] border-white/20 rounded-[12px] text-[13px] font-bold hard-white btn-press-white text-white animate-scale-in"
+              >
+                Save Draft
+              </button>
+            </>
+          )}
           <a href="/dashboard">
             <button className="h-10 px-4 bg-[#7C4DFF] border-[3px] border-white/20 rounded-[12px] text-[13px] font-bold hard-white btn-press-white text-white">
               Dashboard
@@ -341,19 +365,16 @@ export default function AIQuizStudio() {
         </div>
       </header>
 
-      {/* 3-COLUMN STUDIO LAYOUT */}
-      <div className="max-w-[1440px] mx-auto p-6 flex flex-col lg:grid lg:grid-cols-[340px_1fr_320px] gap-6 items-start w-full">
-        
-        {/* LEFT COLUMN: Input Source Studio */}
-        <aside className="w-full lg:sticky lg:top-[92px] flex flex-col gap-6">
-          <div className="bg-[#FFF8EB] border-[3px] border-[#10100F] rounded-[16px] hard p-6 relative overflow-hidden">
+      {viewMode === 'generate' ? (
+        <div className="flex-1 flex items-center justify-center p-4 md:p-8 w-full max-w-[1440px] mx-auto animate-scale-in">
+          <div className="w-full max-w-[640px] bg-[#FFF8EB] border-[3px] border-[#10100F] rounded-[20px] hard p-6 md:p-8 relative overflow-hidden">
             
-            <div className="flex items-center gap-2 sg font-bold text-[16px] tracking-[-0.02em] mb-5">
-              <span className="text-[16px]">✦</span> Multimodal AI Input
+            <div className="flex items-center gap-2.5 sg font-extrabold text-[22px] tracking-[-0.02em] mb-6">
+              <span className="text-[24px]">✦</span> Multimodal AI Input
             </div>
 
             {/* Input Method Switcher */}
-            <div className="grid grid-cols-2 gap-2 mb-6">
+            <div className="grid grid-cols-4 gap-2 mb-6">
               {[
                 { id: 'topic', label: 'Prompt', icon: '✦' },
                 { id: 'file', label: 'Document', icon: '◫' },
@@ -366,127 +387,191 @@ export default function AIQuizStudio() {
                     setIngestMode(tab.id as any)
                     setIngestError(null)
                   }}
-                  className={`h-10 border-[3px] rounded-[12px] text-[12px] font-bold flex items-center gap-2 px-3 transition-all btn-press ${
+                  className={`h-11 border-[3px] rounded-[12px] text-[12px] font-bold flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 px-1 transition-all btn-press ${
                     ingestMode === tab.id
                       ? 'bg-[#00E676] border-[#10100F] soft'
                       : 'bg-[#FFFCF5] border-[#10100F]/15 hover:border-[#10100F]'
                   }`}
                 >
-                  <span className="text-[12px]">{tab.icon}</span> {tab.label}
+                  <span className="text-[14px]">{tab.icon}</span>
+                  <span className="hidden sm:inline">{tab.label}</span>
                 </button>
               ))}
             </div>
 
             {/* Ingestion Panel Body */}
-            {ingestMode === 'topic' && (
-              <div>
-                <label className="sg text-[11px] font-bold tracking-[0.08em] text-black/50 block mb-2">TOPIC / SUBJECT</label>
-                <textarea
-                  value={topicInput}
-                  onChange={e => setTopicInput(e.target.value)}
-                  placeholder="e.g. Cellular respiration, molecular taxonomy, chemistry of catalysts..."
-                  className="w-full h-[96px] bg-[#FFFCF5] border-[3px] border-[#10100F] rounded-[12px] p-3 text-[14px] font-medium outline-none resize-none leading-[1.4] placeholder:text-black/30"
-                />
-              </div>
-            )}
-
-            {ingestMode === 'file' && (
-              <div>
-                <label className="sg text-[11px] font-bold tracking-[0.08em] text-black/50 block mb-2">UPLOAD DRAFT OR DOCUMENT</label>
-                <div className="border-[3px] border-dashed border-[#10100F]/20 rounded-[12px] p-5 text-center bg-[#FFFCF5]/50 hover:bg-[#FFFCF5] transition-colors relative cursor-pointer">
-                  <input
-                    type="file"
-                    accept=".pdf,.pptx,.ppt,.txt,.md,.json,.csv"
-                    onChange={handleFileUpload}
-                    className="absolute inset-0 opacity-0 cursor-pointer"
+            <div className="mb-5">
+              {ingestMode === 'topic' && (
+                <div>
+                  <label className="sg text-[11px] font-bold tracking-[0.08em] text-black/50 block mb-2">TOPIC / SUBJECT</label>
+                  <textarea
+                    value={topicInput}
+                    onChange={e => setTopicInput(e.target.value)}
+                    placeholder="e.g. Cellular respiration, molecular taxonomy, chemistry of catalysts..."
+                    className="w-full h-[110px] bg-[#FFFCF5] border-[3px] border-[#10100F] rounded-[12px] p-3.5 text-[14px] font-medium outline-none resize-none leading-[1.4] placeholder:text-black/30"
                   />
-                  <div className="text-[26px] mb-1">📄</div>
-                  <div className="font-display font-[800] text-[13px]">Choose Document</div>
-                  <div className="text-[11px] text-black/50 mt-0.5">Supports PDF, PPTX, MD</div>
                 </div>
-              </div>
-            )}
+              )}
 
-            {ingestMode === 'youtube' && (
+              {ingestMode === 'file' && (
+                <div>
+                  <label className="sg text-[11px] font-bold tracking-[0.08em] text-black/50 block mb-2">UPLOAD DRAFT OR DOCUMENT</label>
+                  <div className="border-[3px] border-dashed border-[#10100F]/20 rounded-[12px] p-6 text-center bg-[#FFFCF5]/50 hover:bg-[#FFFCF5] transition-colors relative cursor-pointer">
+                    <input
+                      type="file"
+                      accept=".pdf,.pptx,.ppt,.txt,.md,.json,.csv"
+                      onChange={handleFileUpload}
+                      className="absolute inset-0 opacity-0 cursor-pointer"
+                    />
+                    <div className="text-[32px] mb-2">📄</div>
+                    <div className="font-display font-[800] text-[14px]">Choose Document</div>
+                    <div className="text-[11px] text-black/50 mt-1">Supports PDF, PPTX, MD, TXT</div>
+                  </div>
+                </div>
+              )}
+
+              {ingestMode === 'youtube' && (
+                <div>
+                  <label className="sg text-[11px] font-bold tracking-[0.08em] text-black/50 block mb-2">YOUTUBE VIDEO LINK</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="url"
+                      placeholder="https://youtube.com/watch?v=..."
+                      value={youtubeUrl}
+                      onChange={e => setYoutubeUrl(e.target.value)}
+                      className="flex-1 h-[48px] bg-[#FFFCF5] border-[3px] border-[#10100F] rounded-[12px] px-3.5 text-[13px] font-medium outline-none"
+                    />
+                    <button
+                      onClick={handleYouTubeIngest}
+                      disabled={ingesting || !youtubeUrl.trim()}
+                      className="h-[48px] bg-[#00E676] border-[3px] border-[#10100F] rounded-[12px] px-4 font-display font-bold text-[12px] btn-press soft"
+                    >
+                      {ingesting ? '⏳' : 'Fetch'}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {ingestMode === 'webpage' && (
+                <div>
+                  <label className="sg text-[11px] font-bold tracking-[0.08em] text-black/50 block mb-2">SCRAPE WEBPAGE URL</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="url"
+                      placeholder="https://en.wikipedia.org/wiki/..."
+                      value={webpageUrl}
+                      onChange={e => setWebpageUrl(e.target.value)}
+                      className="flex-1 h-[48px] bg-[#FFFCF5] border-[3px] border-[#10100F] rounded-[12px] px-3.5 text-[13px] font-medium outline-none"
+                    />
+                    <button
+                      onClick={handleWebpageIngest}
+                      disabled={ingesting || !webpageUrl.trim()}
+                      className="h-[48px] bg-[#00E676] border-[3px] border-[#10100F] rounded-[12px] px-4 font-display font-bold text-[12px] btn-press soft"
+                    >
+                      {ingesting ? '⏳' : 'Scrape'}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {ingestError && (
+                <div className="mt-3 text-[12px] font-bold text-[var(--cherry)] bg-red-50 border-[2px] border-[var(--cherry)] p-2.5 rounded-[8px]">
+                  ⚠️ {ingestError}
+                </div>
+              )}
+
+              {ingestedContent && ingestMode !== 'topic' && (
+                <div className="mt-4 p-3 bg-[#FFFCF5] border-[3px] border-[#10100F] rounded-[12px] soft flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-[12px] font-display font-black truncate">{ingestedContent.title}</div>
+                    <div className="text-[10px] font-mono text-black/50 mt-0.5">📂 {ingestedContent.wordCount.toLocaleString()} words loaded</div>
+                  </div>
+                  <button onClick={() => setIngestedContent(null)} className="text-[var(--cherry)] font-bold">✕</button>
+                </div>
+              )}
+            </div>
+
+            {/* Bloom & Question Count & Language */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-5">
+              
               <div>
-                <label className="sg text-[11px] font-bold tracking-[0.08em] text-black/50 block mb-2">YOUTUBE VIDEO LINK</label>
-                <div className="flex gap-2">
-                  <input
-                    type="url"
-                    placeholder="https://youtube.com/watch?v=..."
-                    value={youtubeUrl}
-                    onChange={e => setYoutubeUrl(e.target.value)}
-                    className="flex-1 h-[44px] bg-[#FFFCF5] border-[3px] border-[#10100F] rounded-[12px] px-3 text-[13px] font-medium outline-none"
-                  />
-                  <button
-                    onClick={handleYouTubeIngest}
-                    disabled={ingesting || !youtubeUrl.trim()}
-                    className="h-[44px] bg-[#00E676] border-[3px] border-[#10100F] rounded-[12px] px-3 font-display font-bold text-[12px] btn-press soft"
+                <label className="sg text-[11px] font-bold tracking-[0.08em] text-[var(--violet)] block mb-2 uppercase">BLOOM&apos;S TAXONOMY LEVEL</label>
+                <div className="relative">
+                  <select
+                    value={bloomLevel}
+                    onChange={e => {
+                      const lvl = e.target.value as BloomLevel
+                      setBloomLevel(lvl)
+                      setQuiz({ ...quiz, bloomLevel: lvl })
+                    }}
+                    className="w-full h-[44px] bg-[#FFFCF5] border-[3px] border-[#10100F] rounded-[12px] px-3 text-[13px] font-semibold outline-none appearance-none"
                   >
-                    {ingesting ? '⏳' : 'Fetch'}
-                  </button>
+                    {BLOOM_LEVELS.map(lvl => (
+                      <option key={lvl.value} value={lvl.value}>
+                        {lvl.emoji} {lvl.value}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-black/55 font-bold">⌄</div>
                 </div>
               </div>
-            )}
 
-            {ingestMode === 'webpage' && (
               <div>
-                <label className="sg text-[11px] font-bold tracking-[0.08em] text-black/50 block mb-2">SCRAPE WEBPAGE URL</label>
-                <div className="flex gap-2">
-                  <input
-                    type="url"
-                    placeholder="https://en.wikipedia.org/wiki/..."
-                    value={webpageUrl}
-                    onChange={e => setWebpageUrl(e.target.value)}
-                    className="flex-1 h-[44px] bg-[#FFFCF5] border-[3px] border-[#10100F] rounded-[12px] px-3 text-[13px] font-medium outline-none"
-                  />
-                  <button
-                    onClick={handleWebpageIngest}
-                    disabled={ingesting || !webpageUrl.trim()}
-                    className="h-[44px] bg-[#00E676] border-[3px] border-[#10100F] rounded-[12px] px-3 font-display font-bold text-[12px] btn-press soft"
+                <label className="sg text-[11px] font-bold tracking-[0.08em] text-black/50 block mb-2 uppercase">NUMBER OF QUESTIONS</label>
+                <div className="relative">
+                  <select
+                    value={questionCount}
+                    onChange={e => setQuestionCount(Number(e.target.value))}
+                    className="w-full h-[44px] bg-[#FFFCF5] border-[3px] border-[#10100F] rounded-[12px] px-3 text-[13px] font-semibold outline-none appearance-none"
                   >
-                    {ingesting ? '⏳' : 'Scrape'}
-                  </button>
+                    <option value={3}>3 Questions</option>
+                    <option value={5}>5 Questions</option>
+                    <option value={10}>10 Questions</option>
+                    <option value={15}>15 Questions</option>
+                  </select>
+                  <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-black/55 font-bold">⌄</div>
                 </div>
               </div>
-            )}
 
-            {ingestError && (
-              <div className="mt-3 text-[12px] font-bold text-[var(--cherry)] bg-red-50 border-[2px] border-[var(--cherry)] p-2.5 rounded-[8px]">
-                ⚠️ {ingestError}
-              </div>
-            )}
-
-            {ingestedContent && ingestMode !== 'topic' && (
-              <div className="mt-4 p-3 bg-[#FFFCF5] border-[3px] border-[#10100F] rounded-[12px] soft flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="text-[12px] font-display font-black truncate">{ingestedContent.title}</div>
-                  <div className="text-[10px] font-mono text-black/50 mt-0.5">📂 {ingestedContent.wordCount.toLocaleString()} words loaded</div>
+              <div>
+                <label className="sg text-[11px] font-bold tracking-[0.08em] text-black/50 block mb-2 uppercase">DEFAULT DIALECT / REGION</label>
+                <div className="relative">
+                  <select
+                    value={selectedLang}
+                    onChange={e => setSelectedLang(e.target.value)}
+                    className="w-full h-[44px] bg-[#FFFCF5] border-[3px] border-[#10100F] rounded-[12px] px-3 text-[13px] font-semibold outline-none appearance-none"
+                  >
+                    {LANGUAGES.map(lang => (
+                      <option key={lang.code} value={lang.code}>{lang.flag} {lang.code}</option>
+                    ))}
+                  </select>
+                  <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-black/55 font-bold">⌄</div>
                 </div>
-                <button onClick={() => setIngestedContent(null)} className="text-[var(--cherry)] font-bold">✕</button>
               </div>
-            )}
 
-            {/* Bloom Selection Dropdown */}
-            <div className="mt-5">
-              <label className="sg text-[11px] font-bold tracking-[0.08em] text-[var(--violet)] block mb-2">BLOOM&apos;S TAXONOMY LEVEL</label>
-              <div className="relative">
-                <select
-                  value={bloomLevel}
-                  onChange={e => {
-                    const lvl = e.target.value as BloomLevel
-                    setBloomLevel(lvl)
-                    setQuiz({ ...quiz, bloomLevel: lvl })
-                  }}
-                  className="w-full h-[44px] bg-[#FFFCF5] border-[3px] border-[#10100F] rounded-[12px] px-3 text-[13px] font-semibold outline-none appearance-none"
-                >
-                  {BLOOM_LEVELS.map(lvl => (
-                    <option key={lvl.value} value={lvl.value}>
-                      {lvl.icon} {lvl.label}
-                    </option>
-                  ))}
-                </select>
-                <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-black/55 font-bold">⌄</div>
+            </div>
+
+            {/* Settings Toggles */}
+            <div className="border-t-[2px] border-black/10 pt-5 mb-6">
+              <h4 className="sg text-[11px] font-bold tracking-[0.08em] text-black/50 mb-3 uppercase">Generator Settings</h4>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                {[
+                  { label: 'Shuffle Questions', checked: shuffleQuestions, set: setShuffleQuestions },
+                  { label: 'Show Explanations', checked: showExplanations, set: setShowExplanations },
+                  { label: 'Allow Power-Ups', checked: allowPowerUps, set: setAllowPowerUps },
+                ].map(cfg => (
+                  <label key={cfg.label} className="flex items-center justify-between cursor-pointer group select-none bg-[#FFFCF5] border-[2px] border-[#10100F]/15 hover:border-[#10100F] rounded-[10px] p-2.5">
+                    <span className="text-[12px] font-bold">{cfg.label}</span>
+                    <button
+                      onClick={() => cfg.set(!cfg.checked)}
+                      className={`w-5 h-5 rounded-[6px] border-[2px] border-[#10100F] grid place-items-center transition ${
+                        cfg.checked ? 'bg-[#7C4DFF] text-white' : 'bg-white'
+                      }`}
+                    >
+                      {cfg.checked && <span className="text-[11px] font-bold">✓</span>}
+                    </button>
+                  </label>
+                ))}
               </div>
             </div>
 
@@ -494,334 +579,305 @@ export default function AIQuizStudio() {
             <button
               onClick={handleGenerate}
               disabled={generating || (ingestMode === 'topic' ? !topicInput.trim() : !ingestedContent)}
-              className="mt-5 w-full h-[52px] bg-[#FFE57F] border-[3px] border-[#10100F] rounded-[12px] hard sg font-extrabold text-[15px] tracking-[-0.02em] flex items-center justify-center gap-2 btn-press disabled:opacity-60"
+              className="w-full h-[54px] bg-[#FFE57F] border-[3px] border-[#10100F] rounded-[12px] hard sg font-extrabold text-[16px] tracking-[-0.02em] flex items-center justify-center gap-2 btn-press disabled:opacity-60"
             >
               {generating ? '🤖 Generating...' : `✨ Generate ${questionCount} Qs (${bloomLevel})`}
             </button>
 
-            <div className="h-[2px] bg-[#10100F]/10 my-5" />
-
-            {/* Supporting controls */}
-            <div className="space-y-4">
-              <div>
-                <label className="sg text-[11px] font-bold tracking-[0.08em] text-black/50 block mb-2">NUMBER OF QUESTIONS</label>
-                <select
-                  value={questionCount}
-                  onChange={e => setQuestionCount(Number(e.target.value))}
-                  className="w-full h-[44px] bg-[#FFFCF5] border-[3px] border-[#10100F] rounded-[12px] px-3 text-[13px] font-semibold outline-none"
-                >
-                  <option value={3}>3 Questions (Fast)</option>
-                  <option value={5}>5 Questions (Standard)</option>
-                  <option value={10}>10 Questions (Deep Dive)</option>
-                  <option value={15}>15 Questions (Exam)</option>
-                </select>
-              </div>
-              <div>
-                <label className="sg text-[11px] font-bold tracking-[0.08em] text-black/50 block mb-2">DEFAULT DIALECT / REGION</label>
-                <select
-                  value={selectedLang}
-                  onChange={e => setSelectedLang(e.target.value)}
-                  className="w-full h-[44px] bg-[#FFFCF5] border-[3px] border-[#10100F] rounded-[12px] px-3 text-[13px] font-semibold outline-none"
-                >
-                  {LANGUAGES.map(lang => (
-                    <option key={lang.code} value={lang.code}>{lang.flag} {lang.label}</option>
-                  ))}
-                </select>
-              </div>
+          </div>
+        </div>
+      ) : (
+        <div className="max-w-[1440px] mx-auto p-6 flex flex-col lg:grid lg:grid-cols-[1fr_320px] gap-6 items-start w-full animate-scale-in">
+          
+          {/* CENTER COLUMN: Interactive Question Cards */}
+          <main className="w-full min-w-0 flex flex-col gap-5">
+            <div className="flex items-center justify-between">
+              <h2 className="sg font-extrabold text-[22px] tracking-[-0.03em]">
+                Questions ({quiz.questions.length})
+              </h2>
+              <button
+                onClick={addQuestion}
+                className="h-10 px-4 bg-[#00E676] border-[3px] border-[#10100F] rounded-[12px] text-[13px] font-bold soft btn-press"
+              >
+                + Add Question
+              </button>
             </div>
 
-          </div>
-        </aside>
+            <div className="flex flex-col gap-6 w-full">
+              {generating && (
+                <div className="flex flex-col gap-6 w-full">
+                  {[0, 1, 2].map(skeletonIdx => (
+                    <div key={skeletonIdx} className="bg-[#FFFCF5] border-[3px] border-[#10100F] rounded-[16px] hard p-6 animate-pulse">
+                      <div className="h-5 w-28 bg-black/10 rounded-full mb-4"></div>
+                      <div className="h-6 w-5/6 bg-black/10 rounded-[8px] mb-3"></div>
+                      <div className="grid grid-cols-2 gap-3 mt-4">
+                        <div className="h-16 bg-black/5 rounded-[12px] border-[2px] border-black/5"></div>
+                        <div className="h-16 bg-black/5 rounded-[12px] border-[2px] border-black/5"></div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
 
-        {/* CENTER COLUMN: Interactive Question Cards */}
-        <main className="w-full min-w-0 flex flex-col gap-5">
-          <div className="flex items-center justify-between">
-            <h2 className="sg font-extrabold text-[22px] tracking-[-0.03em]">
-              Questions ({quiz.questions.length})
-            </h2>
-            <button
-              onClick={addQuestion}
-              className="h-10 px-4 bg-[#00E676] border-[3px] border-[#10100F] rounded-[12px] text-[13px] font-bold soft btn-press"
-            >
-              + Add Question
-            </button>
-          </div>
+              {!generating && quiz.questions.map((q, qIdx) => (
+                <div
+                  key={qIdx}
+                  className={`bg-[#FFFCF5] border-[3px] border-[#10100F] rounded-[16px] hard p-6 transition-all duration-200 ${
+                    deletingId === qIdx ? 'scale-[0.96] opacity-0' : ''
+                  }`}
+                >
+                  {/* Question Info Header */}
+                  <div className="flex items-center justify-between gap-3 flex-wrap">
+                    <span className="h-7 px-3 bg-[#10100F] text-[#FFFCF5] rounded-[24px] text-[12px] font-bold sg tracking-[0.04em] grid place-items-center">
+                      Q{qIdx + 1}
+                    </span>
 
-          <div className="flex flex-col gap-6 w-full">
-            {generating && (
-              <div className="flex flex-col gap-6 w-full">
-                {[0, 1, 2].map(skeletonIdx => (
-                  <div key={skeletonIdx} className="bg-[#FFFCF5] border-[3px] border-[#10100F] rounded-[16px] hard p-6 animate-pulse">
-                    <div className="h-5 w-28 bg-black/10 rounded-full mb-4"></div>
-                    <div className="h-6 w-5/6 bg-black/10 rounded-[8px] mb-3"></div>
-                    <div className="grid grid-cols-2 gap-3 mt-4">
-                      <div className="h-16 bg-black/5 rounded-[12px] border-[2px] border-black/5"></div>
-                      <div className="h-16 bg-black/5 rounded-[12px] border-[2px] border-black/5"></div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {/* Bloom taxonomy select */}
+                      <select
+                        value={q.bloom_level || 'Recall'}
+                        onChange={e => updateQuestion(qIdx, { bloom_level: e.target.value as BloomLevel })}
+                        className="h-8 px-2.5 bg-[#EDE7FF] border-[2px] border-[#10100F] rounded-[24px] text-[11px] font-bold outline-none sg cursor-pointer"
+                      >
+                        <option value="Recall">🧠 Recall</option>
+                        <option value="Comprehension">💡 Comprehension</option>
+                        <option value="Application">🛠️ Application</option>
+                        <option value="Analysis">🔬 Analysis</option>
+                      </select>
+
+                      {/* Difficulty select */}
+                      <select
+                        value={q.difficulty}
+                        onChange={e => updateQuestion(qIdx, { difficulty: e.target.value as any })}
+                        className="h-8 px-2.5 bg-[#D9FDE8] border-[2px] border-[#10100F] rounded-[24px] text-[11px] font-bold outline-none cursor-pointer"
+                      >
+                        <option value="easy">🟢 Easy</option>
+                        <option value="medium">🟡 Medium</option>
+                        <option value="hard">🔴 Hard</option>
+                      </select>
+
+                      {/* Time limit select */}
+                      <select
+                        value={q.time_limit_ms}
+                        onChange={e => updateQuestion(qIdx, { time_limit_ms: Number(e.target.value) })}
+                        className="h-8 px-2.5 bg-white border-[2px] border-[#10100F] rounded-[24px] text-[11px] font-bold outline-none cursor-pointer"
+                      >
+                        <option value={10000}>⏱ 10s</option>
+                        <option value={15000}>⏱ 15s</option>
+                        <option value={20000}>⏱ 20s</option>
+                        <option value={30000}>⏱ 30s</option>
+                      </select>
+
+                      {/* Action delete */}
+                      <button
+                        onClick={() => removeQuestion(qIdx)}
+                        className="w-9 h-8 bg-[#FFF8EB] border-[2px] border-[#10100F] rounded-[10px] grid place-items-center hover:bg-[#FF5252] hover:text-white transition btn-press text-[13px] shrink-0"
+                      >
+                        ✕
+                      </button>
                     </div>
                   </div>
-                ))}
-              </div>
-            )}
 
-            {!generating && quiz.questions.map((q, qIdx) => (
-              <div
-                key={qIdx}
-                className={`bg-[#FFFCF5] border-[3px] border-[#10100F] rounded-[16px] hard p-6 transition-all duration-200 ${
-                  deletingId === qIdx ? 'scale-[0.96] opacity-0' : ''
-                }`}
-              >
-                {/* Question Info Header */}
-                <div className="flex items-center justify-between gap-3 flex-wrap">
-                  <span className="h-7 px-3 bg-[#10100F] text-[#FFFCF5] rounded-[24px] text-[12px] font-bold sg tracking-[0.04em] grid place-items-center">
-                    Q{qIdx + 1}
-                  </span>
+                  {/* Question Prompt Editable Textarea */}
+                  <textarea
+                    value={q.prompt}
+                    onChange={e => updateQuestion(qIdx, { prompt: e.target.value })}
+                    className="w-full mt-4 bg-transparent text-[18px] font-semibold leading-[1.5] outline-none resize-none border-b-[2px] border-dashed border-transparent focus:border-black/20"
+                    rows={2}
+                  />
 
-                  <div className="flex items-center gap-2 flex-wrap">
-                    {/* Bloom taxonomy select */}
-                    <select
-                      value={q.bloom_level || 'Recall'}
-                      onChange={e => updateQuestion(qIdx, { bloom_level: e.target.value as BloomLevel })}
-                      className="h-8 px-2.5 bg-[#EDE7FF] border-[2px] border-[#10100F] rounded-[24px] text-[11px] font-bold outline-none sg cursor-pointer"
-                    >
-                      <option value="Recall">🧠 Recall</option>
-                      <option value="Comprehension">💡 Comprehension</option>
-                      <option value="Application">🛠️ Application</option>
-                      <option value="Analysis">🔬 Analysis</option>
-                    </select>
+                  {/* 2-Column Options Grid */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
+                    {q.choices.map((choice, cIdx) => {
+                      const isCorrect = q.correct_index === cIdx
+                      return (
+                        <div
+                          key={cIdx}
+                          className={`text-left min-h-[64px] border-[3px] rounded-[12px] p-3 flex gap-3 items-start transition-all cursor-pointer ${
+                            isCorrect
+                              ? 'bg-[#D9FDE8] border-[#00E676] soft'
+                              : 'bg-[#FFF8EB] border-[#10100F] hover:translate-y-[-1px]'
+                          }`}
+                          onClick={() => updateQuestion(qIdx, { correct_index: cIdx })}
+                        >
+                          <span className={`w-5 h-5 shrink-0 mt-0.5 rounded-full border-[3px] border-[#10100F] grid place-items-center ${
+                            isCorrect ? 'bg-[#00E676]' : 'bg-white'
+                          }`}>
+                            {isCorrect && <span className="w-2 h-2 rounded-full bg-[#10100F]" />}
+                          </span>
+                          
+                          <div className="flex-1 min-w-0">
+                            <input
+                              type="text"
+                              value={choice}
+                              onChange={e => {
+                                const nc = [...q.choices]
+                                nc[cIdx] = e.target.value
+                                updateQuestion(qIdx, { choices: nc })
+                              }}
+                              className="w-full bg-transparent font-extrabold text-[13px] outline-none border-none text-[#10100F]"
+                            />
+                            {!isCorrect ? (
+                              <input
+                                type="text"
+                                placeholder="🔍 Add misconceptions..."
+                                value={q.misconceptions?.[cIdx] || ''}
+                                onChange={e => updateMisconception(qIdx, cIdx, e.target.value)}
+                                onClick={e => e.stopPropagation()}
+                                className="w-full mt-1 bg-transparent text-[11px] text-black/50 outline-none border-none"
+                              />
+                            ) : (
+                              <div className="text-[11px] text-black/55 mt-1 font-semibold">Correct Answer</div>
+                            )}
+                          </div>
 
-                    {/* Difficulty select */}
-                    <select
-                      value={q.difficulty}
-                      onChange={e => updateQuestion(qIdx, { difficulty: e.target.value as any })}
-                      className="h-8 px-2.5 bg-[#D9FDE8] border-[2px] border-[#10100F] rounded-[24px] text-[11px] font-bold outline-none cursor-pointer"
-                    >
-                      <option value="easy">🟢 Easy</option>
-                      <option value="medium">🟡 Medium</option>
-                      <option value="hard">🔴 Hard</option>
-                    </select>
+                          {isCorrect && (
+                            <span className="shrink-0 w-6 h-6 rounded-full bg-[#00E676] border-[2px] border-[#10100F] grid place-items-center text-[12px] font-bold">
+                              ✓
+                            </span>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
 
-                    {/* Time limit select */}
-                    <select
-                      value={q.time_limit_ms}
-                      onChange={e => updateQuestion(qIdx, { time_limit_ms: Number(e.target.value) })}
-                      className="h-8 px-2.5 bg-white border-[2px] border-[#10100F] rounded-[24px] text-[11px] font-bold outline-none cursor-pointer"
-                    >
-                      <option value={10000}>⏱ 10s</option>
-                      <option value={15000}>⏱ 15s</option>
-                      <option value={20000}>⏱ 20s</option>
-                      <option value={30000}>⏱ 30s</option>
-                    </select>
+                  {/* Explanation Field */}
+                  {showExplanations && q.explanation && (
+                    <div className="mt-4 border-[2px] border-dashed border-black/15 bg-[#F9F6F0] rounded-[12px] px-3.5 py-3">
+                      <span className="text-[13px] leading-[1.5] text-black/70 font-medium">
+                        <span className="font-bold">💡 Explanation:</span> {q.explanation}
+                      </span>
+                    </div>
+                  )}
 
-                    {/* Action delete */}
-                    <button
-                      onClick={() => removeQuestion(qIdx)}
-                      className="w-9 h-8 bg-[#FFF8EB] border-[2px] border-[#10100F] rounded-[10px] grid place-items-center hover:bg-[#FF5252] hover:text-white transition btn-press text-[13px] shrink-0"
-                    >
-                      ✕
+                </div>
+              ))}
+
+              {!generating && quiz.questions.length < 6 && (
+                <div className="border-[3px] border-dashed border-[#10100F]/20 rounded-[16px] p-8 text-center bg-[#FFFCF5]/60 w-full">
+                  <div className="w-10 h-10 mx-auto rounded-full bg-[#FFE57F] border-[2px] border-[#10100F] grid place-items-center text-[18px] mb-3">✦</div>
+                  <p className="sg font-bold text-[15px]">Add questions or generate more</p>
+                  <p className="text-[13px] text-black/50 font-medium mt-1">Use the generator or craft a custom question with AI assists.</p>
+                  <div className="mt-4 flex gap-2 justify-center">
+                    <button onClick={addQuestion} className="h-10 px-4 bg-white border-[3px] border-[#10100F] rounded-[12px] text-[13px] font-bold soft btn-press">
+                      + Blank Question
+                    </button>
+                    <button onClick={handleGenerate} className="h-10 px-4 bg-[#FFE57F] border-[3px] border-[#10100F] rounded-[12px] text-[13px] font-bold soft btn-press">
+                      ✦ Generate 2 More
                     </button>
                   </div>
                 </div>
-
-                {/* Question Prompt Editable Textarea */}
-                <textarea
-                  value={q.prompt}
-                  onChange={e => updateQuestion(qIdx, { prompt: e.target.value })}
-                  className="w-full mt-4 bg-transparent text-[18px] font-semibold leading-[1.5] outline-none resize-none border-b-[2px] border-dashed border-transparent focus:border-black/20"
-                  rows={2}
-                />
-
-                {/* 2-Column Options Grid */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
-                  {q.choices.map((choice, cIdx) => {
-                    const isCorrect = q.correct_index === cIdx
-                    const labels = ['A', 'B', 'C', 'D']
-                    return (
-                      <div
-                        key={cIdx}
-                        className={`text-left min-h-[64px] border-[3px] rounded-[12px] p-3 flex gap-3 items-start transition-all cursor-pointer ${
-                          isCorrect
-                            ? 'bg-[#D9FDE8] border-[#00E676] soft'
-                            : 'bg-[#FFF8EB] border-[#10100F] hover:translate-y-[-1px]'
-                        }`}
-                        onClick={() => updateQuestion(qIdx, { correct_index: cIdx })}
-                      >
-                        <span className={`w-5 h-5 shrink-0 mt-0.5 rounded-full border-[3px] border-[#10100F] grid place-items-center ${
-                          isCorrect ? 'bg-[#00E676]' : 'bg-white'
-                        }`}>
-                          {isCorrect && <span className="w-2 h-2 rounded-full bg-[#10100F]" />}
-                        </span>
-                        
-                        <div className="flex-1 min-w-0">
-                          <input
-                            type="text"
-                            value={choice}
-                            onChange={e => {
-                              const nc = [...q.choices]
-                              nc[cIdx] = e.target.value
-                              updateQuestion(qIdx, { choices: nc })
-                            }}
-                            className="w-full bg-transparent font-extrabold text-[13px] outline-none border-none text-[#10100F]"
-                          />
-                          {!isCorrect ? (
-                            <input
-                              type="text"
-                              placeholder="🔍 Add misconceptions..."
-                              value={q.misconceptions?.[cIdx] || ''}
-                              onChange={e => updateMisconception(qIdx, cIdx, e.target.value)}
-                              onClick={e => e.stopPropagation()}
-                              className="w-full mt-1 bg-transparent text-[11px] text-black/50 outline-none border-none"
-                            />
-                          ) : (
-                            <div className="text-[11px] text-black/55 mt-1 font-semibold">Correct Answer</div>
-                          )}
-                        </div>
-
-                        {isCorrect && (
-                          <span className="shrink-0 w-6 h-6 rounded-full bg-[#00E676] border-[2px] border-[#10100F] grid place-items-center text-[12px] font-bold">
-                            ✓
-                          </span>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
-
-                {/* Explanation Field */}
-                {showExplanations && q.explanation && (
-                  <div className="mt-4 border-[2px] border-dashed border-black/15 bg-[#F9F6F0] rounded-[12px] px-3.5 py-3">
-                    <span className="text-[13px] leading-[1.5] text-black/70 font-medium">
-                      <span className="font-bold">💡 Explanation:</span> {q.explanation}
-                    </span>
-                  </div>
-                )}
-
-              </div>
-            ))}
-
-            {!generating && quiz.questions.length < 6 && (
-              <div className="border-[3px] border-dashed border-[#10100F]/20 rounded-[16px] p-8 text-center bg-[#FFFCF5]/60 w-full">
-                <div className="w-10 h-10 mx-auto rounded-full bg-[#FFE57F] border-[2px] border-[#10100F] grid place-items-center text-[18px] mb-3">✦</div>
-                <p className="sg font-bold text-[15px]">Add questions or generate more</p>
-                <p className="text-[13px] text-black/50 font-medium mt-1">Use the generator or craft a custom question with AI assists.</p>
-                <div className="mt-4 flex gap-2 justify-center">
-                  <button onClick={addQuestion} className="h-10 px-4 bg-white border-[3px] border-[#10100F] rounded-[12px] text-[13px] font-bold soft btn-press">
-                    + Blank Question
-                  </button>
-                  <button onClick={handleGenerate} className="h-10 px-4 bg-[#FFE57F] border-[3px] border-[#10100F] rounded-[12px] text-[13px] font-bold soft btn-press">
-                    ✦ Generate 2 More
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        </main>
-
-        {/* RIGHT COLUMN: AI Adaptations & Info Summary */}
-        <aside className="w-full lg:sticky lg:top-[92px] flex flex-col gap-5">
-          
-          {/* AI Differentiate Card */}
-          <div className="bg-[#FFF8EB] border-[3px] border-[#10100F] rounded-[16px] hard p-5">
-            <div className="flex items-center gap-2 sg font-bold text-[16px] tracking-[-0.02em] mb-4">
-              <span>🤖</span> AI Differentiate
+              )}
             </div>
+          </main>
 
-            <div className="bg-[#FFFCF5] border-[2px] border-[#10100F] rounded-[12px] p-3 mb-4 soft">
-              <div className="sg text-[11px] font-extrabold tracking-[0.1em] text-[#7C4DFF] mb-3">🌐 TRANSLATE TO:</div>
-              <div className="grid grid-cols-2 gap-2">
-                {LANGUAGES.slice(0, 10).map(lang => (
+          {/* RIGHT COLUMN: AI Adaptations & Info Summary */}
+          <aside className="w-full lg:sticky lg:top-[92px] flex flex-col gap-5">
+            
+            {/* AI Differentiate Card */}
+            <div className="bg-[#FFF8EB] border-[3px] border-[#10100F] rounded-[16px] hard p-5">
+              <div className="flex items-center gap-2 sg font-bold text-[16px] tracking-[-0.02em] mb-4">
+                <span>🤖</span> AI Differentiate
+              </div>
+
+              <div className="bg-[#FFFCF5] border-[2px] border-[#10100F] rounded-[12px] p-3 mb-4 soft">
+                <div className="sg text-[11px] font-extrabold tracking-[0.1em] text-[#7C4DFF] mb-3">🌐 TRANSLATE TO:</div>
+                <div className="grid grid-cols-2 gap-2">
+                  {LANGUAGES.slice(0, 10).map(lang => (
+                    <button
+                      key={lang.code}
+                      onClick={() => handleDifferentiate('translate', lang.code)}
+                      disabled={adaptingAction !== null}
+                      className={`h-9 border-[2px] border-[#10100F] rounded-[10px] text-[11px] font-bold tracking-[-0.01em] transition btn-press ${
+                        quiz.language === lang.code ? 'bg-[#FFE57F]' : 'bg-[#FFFCF5]'
+                      }`}
+                    >
+                      {lang.flag} {lang.code}
+                    </button>
+                  ))}
+                </div>
+                {adaptingAction?.startsWith('translate-') && (
+                  <div className="text-[11px] text-[var(--violet)] text-center mt-3 animate-pulse">⏳ Translating...</div>
+                )}
+              </div>
+
+              <div className="flex flex-col gap-2.5">
+                {[
+                  { action: 'add_scenarios', label: 'Real-World Scenarios', icon: '🌏' },
+                  { action: 'harder_distractors', label: 'Harder Distractors', icon: '🧩' },
+                  { action: 'simplify', label: 'Simplify Level', icon: '🍃' }
+                ].map(opt => (
                   <button
-                    key={lang.code}
-                    onClick={() => handleDifferentiate('translate', lang.code)}
+                    key={opt.action}
+                    onClick={() => handleDifferentiate(opt.action)}
                     disabled={adaptingAction !== null}
-                    className={`h-9 border-[2px] border-[#10100F] rounded-[10px] text-[11px] font-bold tracking-[-0.01em] transition btn-press ${
-                      quiz.language === lang.code ? 'bg-[#FFE57F]' : 'bg-[#FFFCF5]'
-                    }`}
+                    className="w-full h-11 bg-[#FFFCF5] border-[3px] border-[#10100F] rounded-[12px] text-[13px] font-bold flex items-center gap-2 px-3 soft btn-press"
                   >
-                    {lang.flag} {lang.code}
+                    <span>{opt.icon}</span>
+                    {adaptingAction === opt.action ? 'Working...' : opt.label}
                   </button>
                 ))}
               </div>
-              {adaptingAction?.startsWith('translate-') && (
-                <div className="text-[11px] text-[var(--violet)] text-center mt-3 animate-pulse">⏳ Translating...</div>
-              )}
             </div>
 
-            <div className="flex flex-col gap-2.5">
-              {[
-                { action: 'add_scenarios', label: 'Real-World Scenarios', icon: '🌏' },
-                { action: 'harder_distractors', label: 'Harder Distractors', icon: '🧩' },
-                { action: 'simplify', label: 'Simplify Level', icon: '🍃' }
-              ].map(opt => (
-                <button
-                  key={opt.action}
-                  onClick={() => handleDifferentiate(opt.action)}
-                  disabled={adaptingAction !== null}
-                  className="w-full h-11 bg-[#FFFCF5] border-[3px] border-[#10100F] rounded-[12px] text-[13px] font-bold flex items-center gap-2 px-3 soft btn-press"
-                >
-                  <span>{opt.icon}</span>
-                  {adaptingAction === opt.action ? 'Working...' : opt.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Settings Toggles */}
-          <div className="bg-[#FFF8EB] border-[3px] border-[#10100F] rounded-[16px] hard p-5">
-            <h3 className="sg font-bold text-[16px] mb-4">Settings</h3>
-            <div className="flex flex-col gap-3.5">
-              {[
-                { label: 'Shuffle Questions', checked: shuffleQuestions, set: setShuffleQuestions },
-                { label: 'Show Explanations', checked: showExplanations, set: setShowExplanations },
-                { label: 'Allow Power-Ups', checked: allowPowerUps, set: setAllowPowerUps },
-              ].map(cfg => (
-                <label key={cfg.label} className="flex items-center justify-between cursor-pointer group select-none">
-                  <span className="text-[13px] font-semibold">{cfg.label}</span>
-                  <button
-                    onClick={() => cfg.set(!cfg.checked)}
-                    className={`w-5 h-5 rounded-[6px] border-[2px] border-[#10100F] grid place-items-center transition ${
-                      cfg.checked ? 'bg-[#7C4DFF] text-white' : 'bg-white'
-                    }`}
-                  >
-                    {cfg.checked && <span className="text-[11px] font-bold">✓</span>}
-                  </button>
-                </label>
-              ))}
-            </div>
-          </div>
-
-          {/* Sticky Summary Card */}
-          <div className="bg-[#FFE57F] border-[3px] border-[#10100F] rounded-[16px] hard p-5 text-center">
-            <div className="sg text-[11px] font-bold tracking-[0.12em] text-black/60">QUIZ SUMMARY</div>
-            <div className="sg font-extrabold text-[36px] tracking-[-0.04em] leading-none mt-2">{quiz.questions.length} Qs</div>
-            <div className="flex items-center justify-center gap-2 mt-4 flex-wrap">
-              <span className="h-7 px-3 bg-[#40C4FF] border-[2px] border-[#10100F] rounded-[24px] text-[11px] font-bold grid place-items-center uppercase">
-                {quiz.language || 'English'}
-              </span>
-              <span className="h-7 px-3 bg-[#EDE7FF] border-[2px] border-[#10100F] rounded-[24px] text-[11px] font-bold grid place-items-center uppercase">
-                {quiz.bloomLevel || bloomLevel}
-              </span>
-            </div>
-
-            {/* Difficulty spread */}
-            <div className="mt-4 grid grid-cols-3 gap-2 text-[11px] font-bold">
-              <div className="bg-white border-[2px] border-[#10100F] rounded-[10px] py-2">
-                <div className="text-[16px] sg">{quiz.questions.filter(x => x.difficulty === 'easy').length}</div>
-                Easy
-              </div>
-              <div className="bg-white border-[2px] border-[#10100F] rounded-[10px] py-2">
-                <div className="text-[16px] sg">{quiz.questions.filter(x => x.difficulty === 'medium').length}</div>
-                Med
-              </div>
-              <div className="bg-white border-[2px] border-[#10100F] rounded-[10px] py-2">
-                <div className="text-[16px] sg">{quiz.questions.filter(x => x.difficulty === 'hard').length}</div>
-                Hard
+            {/* Settings Toggles */}
+            <div className="bg-[#FFF8EB] border-[3px] border-[#10100F] rounded-[16px] hard p-5">
+              <h3 className="sg font-bold text-[16px] mb-4">Settings</h3>
+              <div className="flex flex-col gap-3.5">
+                {[
+                  { label: 'Shuffle Questions', checked: shuffleQuestions, set: setShuffleQuestions },
+                  { label: 'Show Explanations', checked: showExplanations, set: setShowExplanations },
+                  { label: 'Allow Power-Ups', checked: allowPowerUps, set: setAllowPowerUps },
+                ].map(cfg => (
+                  <label key={cfg.label} className="flex items-center justify-between cursor-pointer group select-none">
+                    <span className="text-[13px] font-semibold">{cfg.label}</span>
+                    <button
+                      onClick={() => cfg.set(!cfg.checked)}
+                      className={`w-5 h-5 rounded-[6px] border-[2px] border-[#10100F] grid place-items-center transition ${
+                        cfg.checked ? 'bg-[#7C4DFF] text-white' : 'bg-white'
+                      }`}
+                    >
+                      {cfg.checked && <span className="text-[11px] font-bold">✓</span>}
+                    </button>
+                  </label>
+                ))}
               </div>
             </div>
-          </div>
 
-        </aside>
+            {/* Sticky Summary Card */}
+            <div className="bg-[#FFE57F] border-[3px] border-[#10100F] rounded-[16px] hard p-5 text-center">
+              <div className="sg text-[11px] font-bold tracking-[0.12em] text-black/60">QUIZ SUMMARY</div>
+              <div className="sg font-extrabold text-[36px] tracking-[-0.04em] leading-none mt-2">{quiz.questions.length} Qs</div>
+              <div className="flex items-center justify-center gap-2 mt-4 flex-wrap">
+                <span className="h-7 px-3 bg-[#40C4FF] border-[2px] border-[#10100F] rounded-[24px] text-[11px] font-bold grid place-items-center uppercase">
+                  {quiz.language || 'English'}
+                </span>
+                <span className="h-7 px-3 bg-[#EDE7FF] border-[2px] border-[#10100F] rounded-[24px] text-[11px] font-bold grid place-items-center uppercase">
+                  {quiz.bloomLevel || bloomLevel}
+                </span>
+              </div>
 
-      </div>
+              {/* Difficulty spread */}
+              <div className="mt-4 grid grid-cols-3 gap-2 text-[11px] font-bold">
+                <div className="bg-white border-[2px] border-[#10100F] rounded-[10px] py-2">
+                  <div className="text-[16px] sg">{quiz.questions.filter(x => x.difficulty === 'easy').length}</div>
+                  Easy
+                </div>
+                <div className="bg-white border-[2px] border-[#10100F] rounded-[10px] py-2">
+                  <div className="text-[16px] sg">{quiz.questions.filter(x => x.difficulty === 'medium').length}</div>
+                  Med
+                </div>
+                <div className="bg-white border-[2px] border-[#10100F] rounded-[10px] py-2">
+                  <div className="text-[16px] sg">{quiz.questions.filter(x => x.difficulty === 'hard').length}</div>
+                  Hard
+                </div>
+              </div>
+            </div>
+
+          </aside>
+
+        </div>
+      )}
 
       {/* PDF Export Modal */}
       {showPrintModal && (

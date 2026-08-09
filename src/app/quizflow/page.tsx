@@ -8,6 +8,25 @@ export default function MarketingHomepage() {
   return (
     <div className="min-h-screen w-full bg-[var(--paper)] selection:bg-[var(--sun)] flex flex-col overflow-x-hidden text-[var(--ink)] relative">
       
+      <style>{`
+        .interactive-shape {
+          transition: transform 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275), filter 0.35s ease, box-shadow 0.35s ease;
+          cursor: pointer;
+        }
+        .interactive-shape:hover {
+          transform: scale(1.18) translateY(-10px) rotate(8deg) !important;
+          box-shadow: 6px 6px 0px #10100F !important;
+        }
+        .interactive-shape-circle:hover {
+          transform: scale(1.18) translate(8px, -8px) rotate(180deg) !important;
+          box-shadow: 6px 6px 0px #10100F !important;
+        }
+        .interactive-shape-triangle:hover {
+          transform: scale(1.18) translate(-6px, -6px) rotate(-15deg) !important;
+          filter: drop-shadow(6px 6px 0px #10100F) !important;
+        }
+      `}</style>
+      
       {/* Premium Dotted Grid Texture Background */}
       <div 
         className="absolute inset-0 pointer-events-none opacity-[0.22]"
@@ -43,9 +62,24 @@ export default function MarketingHomepage() {
         <section className="w-full max-w-[1280px] mx-auto px-4 md:px-6 py-16 md:py-24 relative flex flex-col items-center text-center">
           
           {/* Asymmetric Memphis Graphic Elements */}
-          <div className="absolute top-8 left-10 md:left-24 w-14 h-20 bg-[var(--cherry)] border-[3px] border-[var(--ink)] shadow-[4px_4px_0px_#10100F] -rotate-[15deg] hidden md:block"></div>
-          <div className="absolute top-28 right-12 md:right-32 w-16 h-16 bg-[var(--mint)] border-[3px] border-[var(--ink)] shadow-[4px_4px_0px_#10100F] rotate-[20deg] rounded-full hidden md:block"></div>
-          <div className="absolute bottom-8 left-16 md:left-40 w-12 h-12 bg-[var(--sun)] border-[3px] border-[var(--ink)] shadow-[4px_4px_0px_#10100F] rotate-[45deg] hidden lg:block"></div>
+          <div className="interactive-shape absolute top-8 left-10 md:left-24 w-14 h-20 bg-[var(--cherry)] border-[3px] border-[var(--ink)] shadow-[4px_4px_0px_#10100F] -rotate-[15deg] hidden md:block"></div>
+          <div className="interactive-shape interactive-shape-circle absolute top-28 right-12 md:right-32 w-16 h-16 bg-[var(--mint)] border-[3px] border-[var(--ink)] shadow-[4px_4px_0px_#10100F] rotate-[20deg] rounded-full hidden md:block"></div>
+          
+          {/* Actual Yellow Triangle */}
+          <svg viewBox="0 0 100 100" className="interactive-shape interactive-shape-triangle absolute bottom-8 left-16 md:left-40 w-14 h-14 rotate-[15deg] hidden lg:block filter drop-shadow-[4px_4px_0px_#10100F]">
+            <polygon points="50,15 90,85 10,85" fill="var(--sun)" stroke="var(--ink)" strokeWidth="6" strokeLinejoin="miter" />
+          </svg>
+          
+          {/* New Additional Graphic Elements */}
+          <div className="interactive-shape interactive-shape-circle absolute top-64 left-4 md:left-12 w-10 h-10 bg-[var(--sky)] border-[3px] border-[var(--ink)] shadow-[4px_4px_0px_#10100F] rounded-full hidden md:block"></div>
+          <div className="interactive-shape absolute bottom-32 right-10 md:right-20 w-14 h-14 bg-[var(--violet)] border-[3px] border-[var(--ink)] shadow-[4px_4px_0px_#10100F] rotate-[-10deg] hidden md:block"></div>
+          
+          {/* Actual Small Yellow Triangle */}
+          <svg viewBox="0 0 100 100" className="interactive-shape interactive-shape-triangle absolute top-12 right-1/3 w-10 h-10 rotate-[45deg] hidden lg:block filter drop-shadow-[2px_2px_0px_#10100F]">
+            <polygon points="50,15 90,85 10,85" fill="var(--sun)" stroke="var(--ink)" strokeWidth="8" strokeLinejoin="miter" />
+          </svg>
+          
+          <div className="interactive-shape absolute top-48 right-8 md:right-16 w-8 h-20 bg-[var(--cherry)] border-[3px] border-[var(--ink)] shadow-[4px_4px_0px_#10100F] rotate-[80deg] hidden lg:block"></div>
 
           {/* Premium Pill Badge */}
           <div className="inline-flex items-center gap-2 bg-[var(--ink)] text-[var(--paper)] px-4 py-1.5 rounded-full font-display font-[800] text-[12px] tracking-wider uppercase mb-6 hard shadow-[2px_2px_0px_var(--violet)]">
