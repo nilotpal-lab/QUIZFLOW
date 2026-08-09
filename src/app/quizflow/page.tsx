@@ -99,49 +99,38 @@ export default function MarketingHomepage() {
           </p>
 
           {/* Action Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-14 w-full max-w-[840px]">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mt-14 w-full max-w-[960px]">
             
-            {/* CTA 1: Join Live Game */}
-            <Link href="/quizflow/join" className="group">
-              <div className="w-full h-20 md:h-24 hard bg-[var(--violet)] hover:bg-[#8f66ff] text-white rounded-[var(--radius-card)] p-4 flex items-center justify-between btn-press shadow-[5px_5px_0px_#10100F] transition-all hover:shadow-[7px_7px_0px_#10100F] cursor-pointer">
+            {/* CTA 1: Join Live Game (Students) */}
+            <Link href="/join" className="group">
+              <div className="w-full h-24 hard bg-[var(--violet)] hover:bg-[#8f66ff] text-white rounded-[var(--radius-card)] p-4 flex items-center justify-between btn-press shadow-[5px_5px_0px_#10100F] transition-all hover:shadow-[7px_7px_0px_#10100F] cursor-pointer">
                 <div className="text-left">
                   <span className="text-[10px] font-display font-black tracking-widest text-[var(--sun)] uppercase block mb-1">STUDENTS</span>
-                  <span className="font-display font-[900] text-[20px] md:text-[24px] uppercase tracking-tight">Join Live Arena</span>
+                  <span className="font-display font-[900] text-[20px] uppercase tracking-tight">Join Game</span>
                 </div>
-                <div className="w-11 h-11 rounded-full bg-white text-[var(--ink)] flex items-center justify-center font-display font-black text-[20px] hard border-[2px] border-[var(--ink)] shrink-0">→</div>
+                <div className="w-10 h-10 rounded-full bg-white text-[var(--ink)] flex items-center justify-center font-display font-black text-[18px] hard border-[2px] border-[var(--ink)] shrink-0">→</div>
               </div>
             </Link>
 
-            {/* CTA 2: Host Game */}
-            <Link href="/host/new" className="group">
-              <div className="w-full h-20 md:h-24 hard bg-[var(--sky)] hover:bg-[#59d0ff] text-[var(--ink)] rounded-[var(--radius-card)] p-4 flex items-center justify-between btn-press shadow-[5px_5px_0px_#10100F] transition-all hover:shadow-[7px_7px_0px_#10100F] cursor-pointer">
-                <div className="text-left">
-                  <span className="text-[10px] font-display font-black tracking-widest text-[var(--violet)] uppercase block mb-1">TEACHERS</span>
-                  <span className="font-display font-[900] text-[20px] md:text-[24px] uppercase tracking-tight">Host Game Room</span>
-                </div>
-                <div className="w-11 h-11 rounded-full bg-white text-[var(--ink)] flex items-center justify-center font-display font-black text-[20px] hard border-[2px] border-[var(--ink)] shrink-0">→</div>
-              </div>
-            </Link>
-
-            {/* CTA 3: AI Quiz Studio */}
+            {/* CTA 2: Teacher Studio & Host (Unified Hub) */}
             <Link href="/studio" className="group">
-              <div className="w-full h-20 md:h-24 hard bg-[var(--sun)] hover:bg-[#ffe799] text-[var(--ink)] rounded-[var(--radius-card)] p-4 flex items-center justify-between btn-press shadow-[5px_5px_0px_#10100F] transition-all hover:shadow-[7px_7px_0px_#10100F] cursor-pointer">
+              <div className="w-full h-24 hard bg-[var(--sun)] hover:bg-[#ffe799] text-[var(--ink)] rounded-[var(--radius-card)] p-4 flex items-center justify-between btn-press shadow-[5px_5px_0px_#10100F] transition-all hover:shadow-[7px_7px_0px_#10100F] cursor-pointer">
                 <div className="text-left">
-                  <span className="text-[10px] font-display font-black tracking-widest text-[var(--cherry)] uppercase block mb-1">CREATION</span>
-                  <span className="font-display font-[900] text-[20px] md:text-[24px] uppercase tracking-tight">AI Quiz Studio</span>
+                  <span className="text-[10px] font-display font-black tracking-widest text-[var(--cherry)] uppercase block mb-1">TEACHERS</span>
+                  <span className="font-display font-[900] text-[20px] uppercase tracking-tight">Studio & Host</span>
                 </div>
-                <div className="w-11 h-11 rounded-full bg-white text-[var(--ink)] flex items-center justify-center font-display font-black text-[20px] hard border-[2px] border-[var(--ink)] shrink-0">→</div>
+                <div className="w-10 h-10 rounded-full bg-white text-[var(--ink)] flex items-center justify-center font-display font-black text-[18px] hard border-[2px] border-[var(--ink)] shrink-0">→</div>
               </div>
             </Link>
 
-            {/* CTA 4: Login / Dashboard */}
-            <Link href="/auth" className="group">
-              <div className="w-full h-20 md:h-24 hard bg-[var(--mint)] hover:bg-[#2eff99] text-[var(--ink)] rounded-[var(--radius-card)] p-4 flex items-center justify-between btn-press shadow-[5px_5px_0px_#10100F] transition-all hover:shadow-[7px_7px_0px_#10100F] cursor-pointer">
+            {/* CTA 3: Teacher Dashboard */}
+            <Link href="/dashboard" className="group">
+              <div className="w-full h-24 hard bg-[var(--mint)] hover:bg-[#2eff99] text-[var(--ink)] rounded-[var(--radius-card)] p-4 flex items-center justify-between btn-press shadow-[5px_5px_0px_#10100F] transition-all hover:shadow-[7px_7px_0px_#10100F] cursor-pointer">
                 <div className="text-left">
-                  <span className="text-[10px] font-display font-black tracking-widest text-[var(--ink)] uppercase block mb-1">DASHBOARD</span>
-                  <span className="font-display font-[900] text-[20px] md:text-[24px] uppercase tracking-tight">Login and Stats</span>
+                  <span className="text-[10px] font-display font-black tracking-widest text-[var(--ink)] uppercase block mb-1">ACCOUNT</span>
+                  <span className="font-display font-[900] text-[20px] uppercase tracking-tight">Dashboard</span>
                 </div>
-                <div className="w-11 h-11 rounded-full bg-white text-[var(--ink)] flex items-center justify-center font-display font-black text-[20px] hard border-[2px] border-[var(--ink)] shrink-0">→</div>
+                <div className="w-10 h-10 rounded-full bg-white text-[var(--ink)] flex items-center justify-center font-display font-black text-[18px] hard border-[2px] border-[var(--ink)] shrink-0">→</div>
               </div>
             </Link>
 
