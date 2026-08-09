@@ -28,9 +28,42 @@ function StudentPlayScreen() {
 
   const pin        = searchParams.get('pin')      || ''
   const playerId   = searchParams.get('pid')      || ''
-  const nickname   = searchParams.get('nickname') || 'Player'
-  const avatarSeed = searchParams.get('seed')     || 'Totoro'
-  const avatarStyle= (searchParams.get('style')   || 'adventurer') as any
+
+  const [nickname] = useState(() => {
+    const fromUrl = searchParams.get('nickname')
+    if (fromUrl) {
+      if (typeof window !== 'undefined') sessionStorage.setItem(`qf_nick_${pin}`, fromUrl)
+      return fromUrl
+    }
+    if (typeof window !== 'undefined') {
+      return sessionStorage.getItem(`qf_nick_${pin}`) || 'Player'
+    }
+    return 'Player'
+  })
+
+  const [avatarSeed] = useState(() => {
+    const fromUrl = searchParams.get('seed')
+    if (fromUrl) {
+      if (typeof window !== 'undefined') sessionStorage.setItem(`qf_seed_${pin}`, fromUrl)
+      return fromUrl
+    }
+    if (typeof window !== 'undefined') {
+      return sessionStorage.getItem(`qf_seed_${pin}`) || 'Totoro'
+    }
+    return 'Totoro'
+  })
+
+  const [avatarStyle] = useState(() => {
+    const fromUrl = searchParams.get('style')
+    if (fromUrl) {
+      if (typeof window !== 'undefined') sessionStorage.setItem(`qf_style_${pin}`, fromUrl)
+      return fromUrl
+    }
+    if (typeof window !== 'undefined') {
+      return sessionStorage.getItem(`qf_style_${pin}`) || 'custom'
+    }
+    return 'custom'
+  })
 
   const [gameState, setGameState]       = useState<GameState | null>(null)
   const [timeMs, setTimeMs]             = useState(20000)

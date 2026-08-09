@@ -364,24 +364,25 @@ export function subscribeToSession(
           if (res?.payload?.player && res?.payload?.pin === pin) {
             const current = loadState(pin)
             if (current) {
+              const existing = current.players?.[res.payload.player.id]
               const updated = {
                 ...current,
                 players: {
                   ...current.players,
                   [res.payload.player.id]: {
                     ...res.payload.player,
-                    score: 0,
-                    streak: 0,
-                    maxStreak: 0,
-                    totalCorrect: 0,
-                    totalAnswered: 0,
-                    totalResponseTimeMs: 0,
-                    rank: 0,
-                    lastAnswerCorrect: null,
-                    lastPointsEarned: 0,
-                    hasAnswered: false,
-                    selectedIndex: null,
-                    joinedAt: Date.now(),
+                    score: existing ? existing.score : 0,
+                    streak: existing ? existing.streak : 0,
+                    maxStreak: existing ? existing.maxStreak : 0,
+                    totalCorrect: existing ? existing.totalCorrect : 0,
+                    totalAnswered: existing ? existing.totalAnswered : 0,
+                    totalResponseTimeMs: existing ? existing.totalResponseTimeMs : 0,
+                    rank: existing ? existing.rank : 0,
+                    lastAnswerCorrect: existing ? existing.lastAnswerCorrect : null,
+                    lastPointsEarned: existing ? existing.lastPointsEarned : 0,
+                    hasAnswered: existing ? existing.hasAnswered : false,
+                    selectedIndex: existing ? existing.selectedIndex : null,
+                    joinedAt: existing ? existing.joinedAt : Date.now(),
                     connected: true,
                   }
                 }

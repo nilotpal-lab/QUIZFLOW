@@ -99,7 +99,7 @@ export function buildAvatarUrl(
 ): string {
   if (!seed) return LOCAL_AVATARS[0]
   if (seed.startsWith('/avatars/')) return seed
-  if (seed.startsWith('clay_') || seed.startsWith('anime_') || seed.startsWith('retro_')) {
+  if (seed.startsWith('clay_') || seed.startsWith('anime_') || seed.startsWith('retro_') || seed.startsWith('custom_')) {
     const ext = seed.startsWith('retro_') ? 'svg' : 'png'
     return `/avatars/${seed}.${ext}`
   }

@@ -14,24 +14,62 @@ export default function LobbyPage() {
   const router = useRouter()
   const pin = params.pin as string
 
-  const nickname   = searchParams.get('nickname')  || 'Player'
-  const avatarSeed = searchParams.get('seed')       || 'Totoro'
-  const avatarStyle = (searchParams.get('style')   || 'adventurer') as any
+  const pidFromUrl = searchParams.get('pid')
+
+  const [playerId] = useState(() => {
+    if (pidFromUrl) {
+      if (typeof window !== 'undefined') sessionStorage.setItem('qf_pid_' + pin, pidFromUrl)
+      return pidFromUrl
+    }
+    if (typeof window !== 'undefined') {
+      const saved = sessionStorage.getItem('qf_pid_' + pin)
+      if (saved) return saved
+    }
+    const newId = 'player_' + Date.now() + '_' + Math.random().toString(36).slice(2)
+    if (typeof window !== 'undefined') sessionStorage.setItem('qf_pid_' + pin, newId)
+    return newId
+  })
+
+  const [nickname] = useState(() => {
+    const fromUrl = searchParams.get('nickname')
+    if (fromUrl) {
+      if (typeof window !== 'undefined') sessionStorage.setItem(`qf_nick_${pin}`, fromUrl)
+      return fromUrl
+    }
+    if (typeof window !== 'undefined') {
+      return sessionStorage.getItem(`qf_nick_${pin}`) || 'Player'
+    }
+    return 'Player'
+  })
+
+  const [avatarSeed] = useState(() => {
+    const fromUrl = searchParams.get('seed')
+    if (fromUrl) {
+      if (typeof window !== 'undefined') sessionStorage.setItem(`qf_seed_${pin}`, fromUrl)
+      return fromUrl
+    }
+    if (typeof window !== 'undefined') {
+      return sessionStorage.getItem(`qf_seed_${pin}`) || 'Totoro'
+    }
+    return 'Totoro'
+  })
+
+  const [avatarStyle] = useState(() => {
+    const fromUrl = searchParams.get('style')
+    if (fromUrl) {
+      if (typeof window !== 'undefined') sessionStorage.setItem(`qf_style_${pin}`, fromUrl)
+      return fromUrl
+    }
+    if (typeof window !== 'undefined') {
+      return sessionStorage.getItem(`qf_style_${pin}`) || 'custom'
+    }
+    return 'custom'
+  })
 
   const [gameState, setGameState]  = useState<GameState | null>(null)
   const [joined, setJoined]        = useState(false)
   const [error, setError]          = useState('')
   const [avatarRotation, setAvatarRotation] = useState(0)
-  const pidFromUrl = searchParams.get('pid')
-  const [playerId] = useState(() => {
-    if (typeof window !== 'undefined') {
-      const saved = sessionStorage.getItem('qf_pid_' + pin)
-      if (saved) return saved
-    }
-    const newId = pidFromUrl || ('player_' + Date.now() + '_' + Math.random().toString(36).slice(2))
-    if (typeof window !== 'undefined') sessionStorage.setItem('qf_pid_' + pin, newId)
-    return newId
-  })
   const [dots, setDots]            = useState('.')
 
   const handleAvatarFlip = () => {
