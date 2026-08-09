@@ -1,10 +1,8 @@
 import type { Metadata } from 'next';
 import './globals.css';
+import { constructMetadata } from '@/quizflow/metadata';
 
-export const metadata: Metadata = {
-  title: 'QuizFlow — Live Classroom Quiz Competition',
-  description: 'Real-time quiz competition platform for teachers and students. Create quizzes, host live games, and compete with power-ups.',
-};
+export const metadata: Metadata = constructMetadata();
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -13,3 +11,4 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     </html>
   );
 }
+

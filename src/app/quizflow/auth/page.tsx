@@ -74,62 +74,56 @@ export default function TeacherAuthPage() {
   }
 
   return (
-    <div className="page-wrapper memphis-bg" style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+    <div className="min-h-screen w-full bg-[var(--paper)] selection:bg-[var(--sun)] flex flex-col items-center justify-center p-4 md:p-6 text-[var(--ink)] relative">
       
       {/* BRANDING HEADER */}
-      <div style={{ textAlign: 'center', marginBottom: 24 }}>
-        <Link href="/quizflow" style={{ textDecoration: 'none' }}>
-          <div style={{ fontFamily: 'Space Grotesk', fontSize: 36, fontWeight: 900, color: 'var(--ink)', display: 'inline-flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ fontSize: 40 }}>⚡</span> QuizFlow Studio
-          </div>
+      <div className="text-center mb-6">
+        <Link href="/quizflow" className="inline-flex items-center gap-2.5 font-display font-[900] text-[32px] md:text-[38px] tracking-tight hover:opacity-90 transition-opacity">
+          <span className="text-[36px] md:text-[42px] text-[var(--violet)] drop-shadow-[1px_1px_0px_var(--ink)]">⚡</span> QuizFlow Studio
         </Link>
-        <div style={{ fontFamily: 'Inter', fontSize: 15, color: '#555', marginTop: 4 }}>
-          Teacher & Host Command Center
+        <div className="font-body text-[14px] md:text-[15px] font-semibold text-[var(--ink)] opacity-75 mt-1">
+          Teacher &amp; Host Command Center
         </div>
       </div>
 
       {/* ALREADY LOGGED IN CARD */}
       {user ? (
-        <div className="card anim-scale-in" style={{ maxWidth: 440, width: '100%', padding: 28, textAlign: 'center' }}>
-          <div className="badge badge-mint" style={{ display: 'inline-block', marginBottom: 12 }}>
+        <div className="w-full max-w-[460px] hard bg-[var(--paper-2)] border-[3px] border-[var(--ink)] rounded-[var(--radius-card)] p-6 md:p-8 text-center animate-scale-in">
+          <div className="hard bg-[var(--mint)] text-[var(--ink)] font-display font-bold text-[12px] uppercase px-3.5 py-1 rounded-full inline-block mb-3 border-[2px] border-[var(--ink)]">
             ✅ LOGGED IN SESSION
           </div>
-          <h2 style={{ fontFamily: 'Space Grotesk', fontSize: 22, fontWeight: 800, color: 'var(--ink)', marginBottom: 4 }}>
+          <h2 className="font-display font-[900] text-[24px] text-[var(--ink)] mb-1">
             {user.name}
           </h2>
-          <div style={{ fontSize: 13, color: '#666', fontFamily: 'Inter', marginBottom: 16 }}>
+          <div className="font-body text-[13px] font-semibold text-[var(--ink)] opacity-70 mb-6">
             {user.email} • {user.school}
           </div>
-          <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
-            <button className="btn btn-sun btn-lg" onClick={() => router.push('/quizflow/dashboard')}>
+          <div className="flex gap-3 justify-center">
+            <button className="hard btn-press bg-[var(--sun)] text-[var(--ink)] font-display font-[900] text-[15px] px-6 py-3 rounded-[12px] border-[2.5px] border-[var(--ink)] shadow-[3px_3px_0px_#10100F] cursor-pointer" onClick={() => router.push('/quizflow/dashboard')}>
               📊 Go to Dashboard →
             </button>
           </div>
         </div>
       ) : (
         /* LOGIN / SIGNUP CARD */
-        <div className="card anim-scale-in" style={{ maxWidth: 460, width: '100%', padding: 28 }}>
+        <div className="w-full max-w-[480px] hard bg-[var(--paper-2)] border-[3px] border-[var(--ink)] rounded-[var(--radius-card)] p-6 md:p-8 shadow-[5px_5px_0px_#10100F] animate-scale-in">
           
-          <div style={{ display: 'flex', borderBottom: '2px solid var(--ink)', marginBottom: 20 }}>
+          <div className="flex border-b-[3px] border-[var(--ink)] mb-6 rounded-t-[8px] overflow-hidden">
             <button
               type="button"
               onClick={() => { setIsSignUp(false); setAuthError(''); setAuthNotice(''); }}
-              style={{
-                flex: 1, padding: '10px', fontFamily: 'Space Grotesk', fontSize: 15, fontWeight: 800,
-                border: 'none', background: !isSignUp ? 'var(--sun)' : 'transparent', cursor: 'pointer',
-                borderTopLeftRadius: 8, borderTopRightRadius: 8, borderBottom: !isSignUp ? '2px solid var(--ink)' : 'none'
-              }}
+              className={`flex-1 py-3 px-2 font-display font-[800] text-[14px] md:text-[15px] transition-colors cursor-pointer ${
+                !isSignUp ? 'bg-[var(--sun)] text-[var(--ink)] border-b-[3px] border-[var(--ink)]' : 'bg-transparent text-[var(--ink)] opacity-60 hover:opacity-100'
+              }`}
             >
               🔑 Teacher Login
             </button>
             <button
               type="button"
               onClick={() => { setIsSignUp(true); setAuthError(''); setAuthNotice(''); }}
-              style={{
-                flex: 1, padding: '10px', fontFamily: 'Space Grotesk', fontSize: 15, fontWeight: 800,
-                border: 'none', background: isSignUp ? 'var(--mint)' : 'transparent', cursor: 'pointer',
-                borderTopLeftRadius: 8, borderTopRightRadius: 8, borderBottom: isSignUp ? '2px solid var(--ink)' : 'none'
-              }}
+              className={`flex-1 py-3 px-2 font-display font-[800] text-[14px] md:text-[15px] transition-colors cursor-pointer ${
+                isSignUp ? 'bg-[var(--mint)] text-[var(--ink)] border-b-[3px] border-[var(--ink)]' : 'bg-transparent text-[var(--ink)] opacity-60 hover:opacity-100'
+              }`}
             >
               ✨ Create Account
             </button>
@@ -137,77 +131,77 @@ export default function TeacherAuthPage() {
 
           {/* AUTH ERROR ALERT */}
           {authError && (
-            <div className="badge badge-cherry" style={{ width: '100%', padding: 12, marginBottom: 16, textAlign: 'left', borderRadius: 8, display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, whiteSpace: 'normal', lineHeight: 1.4 }}>
-              <span style={{ fontSize: 18 }}>⚠️</span>
+            <div className="hard bg-[var(--cherry)] text-white p-3.5 mb-5 rounded-[12px] border-[2.5px] border-[var(--ink)] flex items-start gap-2.5 text-[13px] font-display font-bold leading-snug">
+              <span className="text-[16px] shrink-0">⚠️</span>
               <span>{authError}</span>
             </div>
           )}
 
           {/* AUTH NOTICE ALERT */}
           {authNotice && (
-            <div className="badge badge-mint" style={{ width: '100%', padding: 12, marginBottom: 16, textAlign: 'left', borderRadius: 8, display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, whiteSpace: 'normal', lineHeight: 1.4 }}>
-              <span style={{ fontSize: 18 }}>📩</span>
+            <div className="hard bg-[var(--mint)] text-[var(--ink)] p-3.5 mb-5 rounded-[12px] border-[2.5px] border-[var(--ink)] flex items-start gap-2.5 text-[13px] font-display font-bold leading-snug">
+              <span className="text-[16px] shrink-0">📩</span>
               <span>{authNotice}</span>
             </div>
           )}
 
-          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
             {isSignUp && (
               <div>
-                <label style={{ display: 'block', fontSize: 12, fontFamily: 'Space Grotesk', fontWeight: 800, textTransform: 'uppercase', color: '#555', marginBottom: 6 }}>
+                <label className="block text-[11px] font-display font-[800] tracking-widest text-[var(--ink)] uppercase opacity-75 mb-1.5">
                   Full Name
                 </label>
                 <input
                   type="text"
-                  className="input"
                   placeholder="e.g. Prof. Alex Mercer"
                   value={name}
                   onChange={e => setName(e.target.value)}
                   required
+                  className="w-full h-[48px] px-4 bg-white border-[3px] border-[var(--ink)] rounded-[12px] font-body text-[14px] font-semibold outline-none focus:ring-[3px] focus:ring-[#FFE57F] shadow-[3px_3px_0px_#10100F]"
                 />
               </div>
             )}
 
             <div>
-              <label style={{ display: 'block', fontSize: 12, fontFamily: 'Space Grotesk', fontWeight: 800, textTransform: 'uppercase', color: '#555', marginBottom: 6 }}>
+              <label className="block text-[11px] font-display font-[800] tracking-widest text-[var(--ink)] uppercase opacity-75 mb-1.5">
                 Teacher Email
               </label>
               <input
                 type="email"
-                className="input"
                 placeholder="teacher@school.edu"
                 value={email}
                 onChange={e => setEmail(e.target.value)}
                 required
+                className="w-full h-[48px] px-4 bg-white border-[3px] border-[var(--ink)] rounded-[12px] font-body text-[14px] font-semibold outline-none focus:ring-[3px] focus:ring-[#FFE57F] shadow-[3px_3px_0px_#10100F]"
               />
             </div>
 
             <div>
-              <label style={{ display: 'block', fontSize: 12, fontFamily: 'Space Grotesk', fontWeight: 800, textTransform: 'uppercase', color: '#555', marginBottom: 6 }}>
+              <label className="block text-[11px] font-display font-[800] tracking-widest text-[var(--ink)] uppercase opacity-75 mb-1.5">
                 Password (min 6 characters)
               </label>
               <input
                 type="password"
-                className="input"
                 placeholder="••••••••••••"
                 value={password}
                 onChange={e => setPassword(e.target.value)}
                 minLength={6}
                 required
+                className="w-full h-[48px] px-4 bg-white border-[3px] border-[var(--ink)] rounded-[12px] font-body text-[14px] font-semibold outline-none focus:ring-[3px] focus:ring-[#FFE57F] shadow-[3px_3px_0px_#10100F]"
               />
             </div>
 
             {isSignUp && (
               <div>
-                <label style={{ display: 'block', fontSize: 12, fontFamily: 'Space Grotesk', fontWeight: 800, textTransform: 'uppercase', color: '#555', marginBottom: 6 }}>
+                <label className="block text-[11px] font-display font-[800] tracking-widest text-[var(--ink)] uppercase opacity-75 mb-1.5">
                   School / Institution
                 </label>
                 <input
                   type="text"
-                  className="input"
                   placeholder="e.g. Oakridge High School"
                   value={school}
                   onChange={e => setSchool(e.target.value)}
+                  className="w-full h-[48px] px-4 bg-white border-[3px] border-[var(--ink)] rounded-[12px] font-body text-[14px] font-semibold outline-none focus:ring-[3px] focus:ring-[#FFE57F] shadow-[3px_3px_0px_#10100F]"
                 />
               </div>
             )}
@@ -215,8 +209,7 @@ export default function TeacherAuthPage() {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="btn btn-primary btn-lg"
-              style={{ marginTop: 8, width: '100%', padding: '14px', opacity: isSubmitting ? 0.7 : 1 }}
+              className="mt-2 w-full h-[52px] hard btn-press bg-[var(--violet)] text-white font-display font-[900] text-[16px] uppercase tracking-wide rounded-[12px] border-[3px] border-[var(--ink)] shadow-[4px_4px_0px_#10100F] cursor-pointer disabled:opacity-60 flex items-center justify-center gap-2"
             >
               {isSubmitting
                 ? '⏳ Authenticating...'
@@ -226,18 +219,17 @@ export default function TeacherAuthPage() {
             </button>
           </form>
 
-          <hr className="ink" style={{ margin: '20px 0' }} />
+          <hr className="border-[1.5px] border-[var(--ink)] opacity-20 my-6" />
 
           {/* 1-CLICK DEMO LOGIN */}
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: 12, fontFamily: 'Inter', color: '#666', marginBottom: 10 }}>
+          <div className="text-center">
+            <div className="text-[12px] font-body font-semibold opacity-70 mb-2.5">
               Testing or demonstrating QuizFlow?
             </div>
             <button
               type="button"
               onClick={handleDemoLogin}
-              className="btn btn-sun"
-              style={{ width: '100%', padding: '12px', fontSize: 14, fontWeight: 800 }}
+              className="w-full py-3.5 px-4 hard btn-press bg-[var(--sun)] text-[var(--ink)] font-display font-[800] text-[14px] rounded-[12px] border-[2.5px] border-[var(--ink)] shadow-[3px_3px_0px_#10100F] cursor-pointer"
             >
               🎓 Instant Demo Teacher Login (Prof. Alex)
             </button>
@@ -247,8 +239,8 @@ export default function TeacherAuthPage() {
       )}
 
       {/* BACK TO HOME */}
-      <div style={{ marginTop: 20 }}>
-        <Link href="/quizflow" style={{ textDecoration: 'none', fontSize: 13, fontFamily: 'Space Grotesk', fontWeight: 700, color: 'var(--ink)' }}>
+      <div className="mt-6">
+        <Link href="/quizflow" className="font-display font-[800] text-[13px] text-[var(--ink)] hover:underline">
           ← Back to Main Page
         </Link>
       </div>
@@ -256,3 +248,4 @@ export default function TeacherAuthPage() {
     </div>
   )
 }
+

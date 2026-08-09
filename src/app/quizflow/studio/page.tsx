@@ -408,7 +408,7 @@ export default function AIQuizStudio() {
                   }`}
                 >
                   <span className="text-[14px]">{tab.icon}</span>
-                  <span className="hidden sm:inline">{tab.label}</span>
+                  <span className="text-[10px] sm:text-[12px] leading-tight">{tab.label}</span>
                 </button>
               ))}
             </div>

@@ -133,7 +133,7 @@ export default function MarketingHomepage() {
             <Link href="/quizflow/join" className="group">
               <div className="w-full h-24 hard bg-[var(--violet)] hover:bg-[#8f66ff] text-white rounded-[var(--radius-card)] p-4 flex items-center justify-between btn-press shadow-[5px_5px_0px_#10100F] transition-all hover:shadow-[7px_7px_0px_#10100F] cursor-pointer">
                 <div className="text-left">
-                  <span className="text-[10px] font-display font-black tracking-widest text-[var(--sun)] uppercase block mb-1">STUDENTS</span>
+                  <span className="text-[10px] font-display font-black tracking-widest text-white uppercase block mb-1">STUDENTS</span>
                   <span className="font-display font-[900] text-[20px] uppercase tracking-tight">Join Game</span>
                 </div>
                 <div className="w-10 h-10 rounded-full bg-white text-[var(--ink)] flex items-center justify-center font-display font-black text-[18px] hard border-[2px] border-[var(--ink)] shrink-0">→</div>
@@ -156,7 +156,7 @@ export default function MarketingHomepage() {
               <div className="w-full h-24 hard bg-[var(--mint)] hover:bg-[#2eff99] text-[var(--ink)] rounded-[var(--radius-card)] p-4 flex items-center justify-between btn-press shadow-[5px_5px_0px_#10100F] transition-all hover:shadow-[7px_7px_0px_#10100F] cursor-pointer">
                 <div className="text-left">
                   <span className="text-[10px] font-display font-black tracking-widest text-[var(--ink)] uppercase block mb-1">WORKSPACE</span>
-                  <span className="font-display font-[900] text-[20px] uppercase tracking-tight">Host & Dashboard</span>
+                  <span className="font-display font-[900] text-[20px] uppercase tracking-tight">Host &amp; Dashboard</span>
                 </div>
                 <div className="w-10 h-10 rounded-full bg-white text-[var(--ink)] flex items-center justify-center font-display font-black text-[18px] hard border-[2px] border-[var(--ink)] shrink-0">→</div>
               </div>
@@ -169,10 +169,10 @@ export default function MarketingHomepage() {
         <section className="w-full bg-[var(--ink)] text-[var(--paper)] h-[58px] overflow-hidden flex items-center border-y-[3px] border-[var(--ink)] relative">
           <div className="whitespace-nowrap flex animate-[marquee_30s_linear_infinite] will-change-transform max-w-none">
             <span className="font-display font-[800] tracking-widest text-[16px] px-4 uppercase">
-              Live Multiplayer Battles · Bloom&apos;s Taxonomy AI · Co-Op Boss Raids · Spaced-Repetition Decks · Focus Shield Protection ·
+              Live Multiplayer Battles · Thinking-Level AI · Co-Op Boss Raids · Spaced-Repetition Decks · Focus Shield Protection ·
             </span>
             <span className="font-display font-[800] tracking-widest text-[16px] px-4 uppercase">
-              Live Multiplayer Battles · Bloom&apos;s Taxonomy AI · Co-Op Boss Raids · Spaced-Repetition Decks · Focus Shield Protection ·
+              Live Multiplayer Battles · Thinking-Level AI · Co-Op Boss Raids · Spaced-Repetition Decks · Focus Shield Protection ·
             </span>
           </div>
           <div className="absolute inset-y-0 left-0 w-16 bg-gradient-to-r from-[var(--ink)] to-transparent pointer-events-none" />
