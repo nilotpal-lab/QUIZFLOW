@@ -2,7 +2,7 @@
 export const dynamic = 'force-dynamic'
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { getHostUser, logoutHost, updateHostProfile, type HostUser } from '@/quizflow/authStore'
+import { getHostUser, logoutHostAsync, updateHostProfile, type HostUser } from '@/quizflow/authStore'
 import { getSavedQuizzes, deleteSavedQuiz, type SavedQuizItem } from '@/quizflow/quizStore'
 import { getSessionHistory, type SessionHistoryRecord } from '@/quizflow/historyStore'
 import { createSession } from '@/quizflow/sessionStore'
@@ -37,8 +37,8 @@ export default function TeacherDashboard() {
     setHistory(getSessionHistory())
   }, [router])
 
-  const handleLogout = () => {
-    logoutHost()
+  const handleLogout = async () => {
+    await logoutHostAsync()
     router.push('/auth')
   }
 

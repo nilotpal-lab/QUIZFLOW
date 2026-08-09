@@ -2,7 +2,14 @@
 export const dynamic = 'force-dynamic'
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { getHostUser, loginHost, loginAsDemoHost, type HostUser } from '@/quizflow/authStore'
+import {
+  getHostUser,
+  loginAsDemoHost,
+  signUpHostAsync,
+  loginHostAsync,
+  initAuthSync,
+  type HostUser
+} from '@/quizflow/authStore'
 
 export default function TeacherAuthPage() {
   const router = useRouter()
@@ -12,23 +19,54 @@ export default function TeacherAuthPage() {
   const [name, setName]         = useState('')
   const [school, setSchool]     = useState('')
   const [user, setUser]         = useState<HostUser | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [authError, setAuthError]     = useState('')
+  const [authNotice, setAuthNotice]   = useState('')
 
   useEffect(() => {
     const existing = getHostUser()
     if (existing) {
       setUser(existing)
     }
+
+    const unsubscribe = initAuthSync(updatedUser => {
+      setUser(updatedUser)
+    })
+    return () => unsubscribe()
   }, [])
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!email.trim()) return
-    const loggedIn = loginHost(email.trim(), name.trim() || undefined, school.trim() || undefined)
-    setUser(loggedIn)
-    router.push('/dashboard')
+    if (!email.trim() || !password.trim()) return
+
+    setAuthError('')
+    setAuthNotice('')
+    setIsSubmitting(true)
+
+    try {
+      if (isSignUp) {
+        const res = await signUpHostAsync(email.trim(), password, name.trim(), school.trim())
+        setUser(res.user)
+        if (res.message) {
+          setAuthNotice(res.message)
+        } else {
+          router.push('/dashboard')
+        }
+      } else {
+        const loggedIn = await loginHostAsync(email.trim(), password)
+        setUser(loggedIn)
+        router.push('/dashboard')
+      }
+    } catch (err: any) {
+      setAuthError(err.message || 'Authentication failed. Please check your credentials.')
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   const handleDemoLogin = () => {
+    setAuthError('')
+    setAuthNotice('')
     const demo = loginAsDemoHost()
     setUser(demo)
     router.push('/dashboard')
@@ -53,7 +91,7 @@ export default function TeacherAuthPage() {
       {user ? (
         <div className="card anim-scale-in" style={{ maxWidth: 440, width: '100%', padding: 28, textAlign: 'center' }}>
           <div className="badge badge-mint" style={{ display: 'inline-block', marginBottom: 12 }}>
-            ✅ ALREADY LOGGED IN
+            ✅ LOGGED IN SESSION
           </div>
           <h2 style={{ fontFamily: 'Space Grotesk', fontSize: 22, fontWeight: 800, color: 'var(--ink)', marginBottom: 4 }}>
             {user.name}
@@ -73,7 +111,8 @@ export default function TeacherAuthPage() {
           
           <div style={{ display: 'flex', borderBottom: '2px solid var(--ink)', marginBottom: 20 }}>
             <button
-              onClick={() => setIsSignUp(false)}
+              type="button"
+              onClick={() => { setIsSignUp(false); setAuthError(''); setAuthNotice(''); }}
               style={{
                 flex: 1, padding: '10px', fontFamily: 'Space Grotesk', fontSize: 15, fontWeight: 800,
                 border: 'none', background: !isSignUp ? 'var(--sun)' : 'transparent', cursor: 'pointer',
@@ -83,7 +122,8 @@ export default function TeacherAuthPage() {
               🔑 Teacher Login
             </button>
             <button
-              onClick={() => setIsSignUp(true)}
+              type="button"
+              onClick={() => { setIsSignUp(true); setAuthError(''); setAuthNotice(''); }}
               style={{
                 flex: 1, padding: '10px', fontFamily: 'Space Grotesk', fontSize: 15, fontWeight: 800,
                 border: 'none', background: isSignUp ? 'var(--mint)' : 'transparent', cursor: 'pointer',
@@ -93,6 +133,22 @@ export default function TeacherAuthPage() {
               ✨ Create Account
             </button>
           </div>
+
+          {/* AUTH ERROR ALERT */}
+          {authError && (
+            <div className="badge badge-cherry" style={{ width: '100%', padding: 12, marginBottom: 16, textAlign: 'left', borderRadius: 8, display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, whiteSpace: 'normal', lineHeight: 1.4 }}>
+              <span style={{ fontSize: 18 }}>⚠️</span>
+              <span>{authError}</span>
+            </div>
+          )}
+
+          {/* AUTH NOTICE ALERT */}
+          {authNotice && (
+            <div className="badge badge-mint" style={{ width: '100%', padding: 12, marginBottom: 16, textAlign: 'left', borderRadius: 8, display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, whiteSpace: 'normal', lineHeight: 1.4 }}>
+              <span style={{ fontSize: 18 }}>📩</span>
+              <span>{authNotice}</span>
+            </div>
+          )}
 
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             {isSignUp && (
@@ -127,7 +183,7 @@ export default function TeacherAuthPage() {
 
             <div>
               <label style={{ display: 'block', fontSize: 12, fontFamily: 'Space Grotesk', fontWeight: 800, textTransform: 'uppercase', color: '#555', marginBottom: 6 }}>
-                Password
+                Password (min 6 characters)
               </label>
               <input
                 type="password"
@@ -135,6 +191,7 @@ export default function TeacherAuthPage() {
                 placeholder="••••••••••••"
                 value={password}
                 onChange={e => setPassword(e.target.value)}
+                minLength={6}
                 required
               />
             </div>
@@ -154,8 +211,17 @@ export default function TeacherAuthPage() {
               </div>
             )}
 
-            <button type="submit" className="btn btn-primary btn-lg" style={{ marginTop: 8, width: '100%', padding: '14px' }}>
-              {isSignUp ? '✨ Register & Enter Dashboard →' : '🔑 Sign In →'}
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="btn btn-primary btn-lg"
+              style={{ marginTop: 8, width: '100%', padding: '14px', opacity: isSubmitting ? 0.7 : 1 }}
+            >
+              {isSubmitting
+                ? '⏳ Authenticating...'
+                : isSignUp
+                ? '✨ Register Account →'
+                : '🔑 Sign In →'}
             </button>
           </form>
 
@@ -167,6 +233,7 @@ export default function TeacherAuthPage() {
               Testing or demonstrating QuizFlow?
             </div>
             <button
+              type="button"
               onClick={handleDemoLogin}
               className="btn btn-sun"
               style={{ width: '100%', padding: '12px', fontSize: 14, fontWeight: 800 }}

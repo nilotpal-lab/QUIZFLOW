@@ -1,7 +1,10 @@
 /* ================================================================
-   QuizFlow — Host Auth Store
-   Client-side authentication & host user profile store.
+   QuizFlow — Real-World Host Auth Store
+   Integrates Supabase Cloud Authentication (email/password,
+   sessions, user metadata) with local fallback.
    ================================================================ */
+
+import { supabase, syncHostUserToSupabase } from './supabaseClient'
 
 export interface HostUser {
   id: string
@@ -70,8 +73,6 @@ export function loginAsDemoHost(): HostUser {
   return DEMO_HOST
 }
 
-import { syncHostUserToSupabase } from './supabaseClient'
-
 export function loginHost(email: string, name?: string, school?: string): HostUser {
   const existingRegistryAccount = getAccountFromRegistry(email)
   const activeSession = getHostUser()
@@ -93,6 +94,121 @@ export function loginHost(email: string, name?: string, school?: string): HostUs
   return user
 }
 
+/* ================================================================
+   REAL SUPABASE AUTHENTICATION METHODS
+   ================================================================ */
+
+export async function signUpHostAsync(
+  email: string,
+  password: string,
+  name?: string,
+  school?: string
+): Promise<{ user: HostUser; message?: string }> {
+  const cleanEmail = email.trim().toLowerCase()
+  const displayName = name?.trim() || cleanEmail.split('@')[0] || 'Teacher'
+  const displaySchool = school?.trim() || 'General Classroom'
+
+  if (password.length < 6) {
+    throw new Error('Password must be at least 6 characters long.')
+  }
+
+  if (supabase) {
+    const { data, error } = await supabase.auth.signUp({
+      email: cleanEmail,
+      password,
+      options: {
+        data: {
+          name: displayName,
+          school: displaySchool
+        }
+      }
+    })
+
+    if (error) {
+      throw new Error(error.message)
+    }
+
+    const sbUser = data.user
+    const user: HostUser = {
+      id: sbUser?.id || 'host_' + Date.now(),
+      name: displayName,
+      email: cleanEmail,
+      school: displaySchool,
+      avatarSeed: displayName,
+      createdAt: Date.now()
+    }
+
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(AUTH_KEY, JSON.stringify(user))
+      saveAccountToRegistry(user)
+      syncHostUserToSupabase(user)
+    }
+
+    const message = data.session
+      ? undefined
+      : 'Account created! Check your email inbox if verification is enabled.'
+
+    return { user, message }
+  }
+
+  // Fallback if Supabase client not initialized
+  const user = loginHost(cleanEmail, displayName, displaySchool)
+  return { user }
+}
+
+export async function loginHostAsync(email: string, password: string): Promise<HostUser> {
+  const cleanEmail = email.trim().toLowerCase()
+
+  if (password.length < 6) {
+    throw new Error('Password must be at least 6 characters long.')
+  }
+
+  if (supabase) {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: cleanEmail,
+      password
+    })
+
+    if (error) {
+      throw new Error(error.message)
+    }
+
+    const sbUser = data.user
+    const existing = getAccountFromRegistry(cleanEmail)
+
+    const user: HostUser = {
+      id: sbUser?.id || existing?.id || 'host_' + Date.now(),
+      name: (sbUser?.user_metadata?.name as string) || existing?.name || cleanEmail.split('@')[0] || 'Teacher',
+      email: cleanEmail,
+      school: (sbUser?.user_metadata?.school as string) || existing?.school || 'General Classroom',
+      avatarSeed: (sbUser?.user_metadata?.name as string) || existing?.avatarSeed || cleanEmail,
+      createdAt: existing ? existing.createdAt : Date.now()
+    }
+
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(AUTH_KEY, JSON.stringify(user))
+      saveAccountToRegistry(user)
+      syncHostUserToSupabase(user)
+    }
+
+    return user
+  }
+
+  // Local fallback
+  return loginHost(cleanEmail)
+}
+
+export async function logoutHostAsync(): Promise<void> {
+  if (supabase) {
+    try {
+      await supabase.auth.signOut()
+    } catch (err) {
+      console.warn('Supabase sign out error:', err)
+    }
+  }
+  logoutHost()
+}
+
 export function updateHostProfile(updated: Partial<HostUser>): HostUser | null {
   const current = getHostUser()
   if (!current) return null
@@ -108,5 +224,33 @@ export function updateHostProfile(updated: Partial<HostUser>): HostUser | null {
 export function logoutHost(): void {
   if (typeof window !== 'undefined') {
     localStorage.removeItem(AUTH_KEY)
+  }
+}
+
+export function initAuthSync(onUserChange?: (user: HostUser | null) => void): () => void {
+  if (typeof window === 'undefined' || !supabase) return () => {}
+
+  const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+    if (session?.user) {
+      const email = session.user.email || ''
+      const existing = getAccountFromRegistry(email)
+      const user: HostUser = {
+        id: session.user.id,
+        name: (session.user.user_metadata?.name as string) || existing?.name || email.split('@')[0] || 'Teacher',
+        email,
+        school: (session.user.user_metadata?.school as string) || existing?.school || 'General Classroom',
+        avatarSeed: (session.user.user_metadata?.name as string) || existing?.avatarSeed || email,
+        createdAt: existing ? existing.createdAt : Date.now()
+      }
+      localStorage.setItem(AUTH_KEY, JSON.stringify(user))
+      if (onUserChange) onUserChange(user)
+    } else if (_event === 'SIGNED_OUT') {
+      localStorage.removeItem(AUTH_KEY)
+      if (onUserChange) onUserChange(null)
+    }
+  })
+
+  return () => {
+    listener.subscription.unsubscribe()
   }
 }
