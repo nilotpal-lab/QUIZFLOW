@@ -40,13 +40,13 @@ function ResultsInner() {
   useEffect(() => {
     if (!gameState) return
     playLevelUpFanfare()
-    const colors = ['#FF5252', '#FFE57F', '#00E676', '#40C4FF', '#7C4DFF', '#FF4081']
-    setConfetti(Array.from({ length: 45 }, (_, i) => ({
+    const colors = ['#D9364A', '#FFE57F', '#00E676', '#40C4FF', '#7C4DFF', '#FF4081']
+    setConfetti(Array.from({ length: 25 }, (_, i) => ({
       id: i,
-      x: Math.random() * 100,
+      x: ((i * 37) % 94) + 3,
       color: colors[i % colors.length],
-      delay: Math.random() * 2,
-      size: 7 + Math.random() * 9,
+      delay: (i * 0.12) % 2,
+      size: 8 + (i % 6),
     })))
   }, [gameState?.pin])
 
@@ -405,6 +405,66 @@ function ResultsInner() {
             })}
           </div>
         </section>
+
+        {/* 📖 QUESTION-BY-QUESTION EDUCATIONAL REVIEW ACCORDION */}
+        {gameState.quiz?.questions && gameState.quiz.questions.length > 0 && (
+          <section className="w-full max-w-[680px] hard bg-[var(--paper)] rounded-[var(--radius-card)] p-5 md:p-6 mb-8">
+            <div className="flex items-center justify-between gap-3 mb-5 border-b-[2px] border-[var(--ink)] pb-4">
+              <div>
+                <h3 className="font-display font-[800] text-[14px] uppercase tracking-wider">
+                  📖 Question-by-Question Review
+                </h3>
+                <p className="text-[12px] opacity-70 mt-0.5">Mastery explanations and diagnostic misconceptions</p>
+              </div>
+              <span className="badge badge-sun text-[11px] font-bold">
+                {gameState.quiz.questions.length} Concepts
+              </span>
+            </div>
+
+            <div className="space-y-4">
+              {gameState.quiz.questions.map((qItem, qIdx) => (
+                <div key={qIdx} className="hard bg-[var(--paper-2)] rounded-[12px] p-4 border-[2px] border-[var(--ink)]">
+                  <div className="flex items-start justify-between gap-3 mb-2">
+                    <span className="font-display font-[900] text-[12px] bg-[var(--ink)] text-[var(--paper)] px-2 py-0.5 rounded-[4px] shrink-0">
+                      Q{qIdx + 1}
+                    </span>
+                    <h4 className="font-display font-[700] text-[14px] leading-snug flex-1 text-[var(--ink)]">
+                      {qItem.prompt}
+                    </h4>
+                  </div>
+
+                  {/* Choice Pills */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3 mb-3">
+                    {qItem.choices.map((choice, cIdx) => {
+                      const isCorrect = cIdx === qItem.correct_index
+                      return (
+                        <div
+                          key={cIdx}
+                          className={`px-3 py-2 rounded-[8px] border-[1.5px] text-[12px] font-medium flex items-center justify-between gap-2 ${
+                            isCorrect
+                              ? 'bg-[var(--mint)] border-[#00A872] font-bold text-[var(--ink)] shadow-[1px_1px_0px_#10100F]'
+                              : 'bg-white border-black/10 text-black/70'
+                          }`}
+                        >
+                          <span>{String.fromCharCode(65 + cIdx)}. {choice}</span>
+                          {isCorrect && <span className="font-bold text-[#00701A]">✓ Correct</span>}
+                        </div>
+                      )
+                    })}
+                  </div>
+
+                  {/* Explanation & Misconceptions */}
+                  {qItem.explanation && (
+                    <div className="mt-2 text-[12px] bg-[#FFF8EB] border-[1.5px] border-[#FFE57F] p-2.5 rounded-[8px] text-[var(--ink)]">
+                      <span className="font-bold">💡 Core Explanation: </span>
+                      <span className="opacity-90">{qItem.explanation}</span>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* 🎮 ACTION CTA DECK */}
         <div className="w-full max-w-[680px] grid grid-cols-1 sm:grid-cols-3 gap-3 mb-8">

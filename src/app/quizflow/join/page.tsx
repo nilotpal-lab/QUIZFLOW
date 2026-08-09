@@ -37,6 +37,8 @@ export default function JoinPage() {
   const [randomBtnText, setRandomBtnText] = useState('🎲 Randomize')
   const [randomAvatarText, setRandomAvatarText] = useState('🔀 Random Avatar')
   const [error, setError] = useState('')
+  const [isJoining, setIsJoining] = useState(false)
+  const [joinBtnText, setJoinBtnText] = useState('🚀 Enter Arena →')
   
   const inputs = [
     useRef<HTMLInputElement>(null),
@@ -55,9 +57,32 @@ export default function JoinPage() {
     if (char && i < 5) inputs[i + 1].current?.focus()
   }
 
+  const handlePinPaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    e.preventDefault()
+    const pasted = e.clipboardData.getData('text').replace(/[^0-9A-Za-z]/g, '').toUpperCase()
+    if (!pasted) return
+
+    const digits = pasted.slice(0, 6).split('')
+    const next = ['', '', '', '', '', '']
+    digits.forEach((d, idx) => {
+      if (idx < 6) next[idx] = d
+    })
+    setPin(next)
+    
+    // Focus appropriate input
+    const nextFocusIdx = Math.min(digits.length, 5)
+    inputs[nextFocusIdx].current?.focus()
+  }
+
   const handlePinKey = (i: number, e: React.KeyboardEvent) => {
-    if (e.key === 'Backspace' && !pin[i] && i > 0) {
+    if (e.key === 'Backspace') {
+      if (!pin[i] && i > 0) {
+        inputs[i - 1].current?.focus()
+      }
+    } else if (e.key === 'ArrowLeft' && i > 0) {
       inputs[i - 1].current?.focus()
+    } else if (e.key === 'ArrowRight' && i < 5) {
+      inputs[i + 1].current?.focus()
     }
   }
 
@@ -75,17 +100,50 @@ export default function JoinPage() {
     setTimeout(() => setRandomAvatarText('🔀 Random Avatar'), 1500)
   }
 
-  const handleJoin = () => {
+  const handleJoin = async () => {
     const fullPin = pin.join('')
-    if (fullPin.length < 6) { setError('Please enter the complete 6-digit PIN'); return }
+    if (fullPin.length < 6) { 
+      setError('Please enter the complete 6-digit PIN')
+      inputs[Math.max(0, pin.findIndex(d => !d))].current?.focus()
+      return 
+    }
     const trimmed = nickname.trim()
-    if (!trimmed) { setError('Please enter your nickname'); return }
-    if (trimmed.length > 20) { setError('Nickname cannot exceed 20 characters'); return }
+    if (!trimmed) { 
+      setError('Please enter your player nickname')
+      return 
+    }
+    if (trimmed.length > 20) { 
+      setError('Nickname cannot exceed 20 characters')
+      return 
+    }
 
     setError('')
+    setIsJoining(true)
+    setJoinBtnText('⏳ Connecting to Room...')
+
+    try {
+      // Optional check if room is active on cloud relay
+      const res = await fetch(`/api/room/${fullPin}`).catch(() => null)
+      if (res && res.status === 404) {
+        // Double check local storage
+        if (typeof window !== 'undefined' && !localStorage.getItem(`qf_session_${fullPin}`)) {
+          setError(`Session not found. Verify PIN ${fullPin} is active on the host board.`)
+          setIsJoining(false)
+          setJoinBtnText('🚀 Enter Arena →')
+          return
+        }
+      }
+    } catch {
+      // Offline/Local mode fallback
+    }
+
     const chosenAvatar = ALL_AVATARS[selectedAvatarIdx] || ALL_AVATARS[0]
     const playerId = 'player_' + Date.now() + '_' + Math.random().toString(36).slice(2)
-    router.push(`/lobby/${fullPin}?nickname=${encodeURIComponent(trimmed)}&seed=${encodeURIComponent(chosenAvatar.id)}&style=custom&avatar=${encodeURIComponent(chosenAvatar.src)}&pid=${playerId}`)
+    
+    setJoinBtnText('✓ Joined! Loading Arena...')
+    setTimeout(() => {
+      router.push(`/lobby/${fullPin}?nickname=${encodeURIComponent(trimmed)}&seed=${encodeURIComponent(chosenAvatar.id)}&style=custom&avatar=${encodeURIComponent(chosenAvatar.src)}&pid=${playerId}`)
+    }, 150)
   }
 
   const selectedAvatar = ALL_AVATARS[selectedAvatarIdx] || ALL_AVATARS[0]
@@ -133,15 +191,21 @@ export default function JoinPage() {
 
                 {/* PIN Input */}
                 <div className="mt-4">
-                  <label className="font-display text-[13px] font-[800] tracking-widest block mb-2.5 uppercase opacity-85">6-Digit Room PIN</label>
+                  <label htmlFor="pin-input-0" className="font-display text-[13px] font-[800] tracking-widest block mb-2.5 uppercase opacity-85">
+                    6-Digit Room PIN (Paste or Type)
+                  </label>
                   <div className="flex gap-2 justify-between">
                     {pin.map((digit, idx) => (
                       <input
                         key={idx}
+                        id={`pin-input-${idx}`}
                         ref={inputs[idx]}
                         value={digit}
                         onChange={e => handlePinInput(idx, e.target.value)}
+                        onPaste={handlePinPaste}
                         onKeyDown={e => handlePinKey(idx, e)}
+                        inputMode="numeric"
+                        autoComplete={idx === 0 ? "one-time-code" : "off"}
                         maxLength={1}
                         className="w-[calc(16.66%-6px)] aspect-[3/4] text-center bg-[var(--paper)] rounded-[12px] border-[3px] border-[var(--ink)] font-display text-[26px] md:text-[30px] font-[800] outline-none focus:ring-[4px] focus:ring-[#FFE57F] focus:border-[var(--violet)] transition-colors shadow-[3px_3px_0px_#10100F]"
                         placeholder="·"
@@ -153,19 +217,24 @@ export default function JoinPage() {
 
                 {/* Nickname Input */}
                 <div className="mt-6">
-                  <label className="font-display text-[13px] font-[800] tracking-widest block mb-2.5 uppercase opacity-85">Player Nickname</label>
+                  <label htmlFor="player-nickname-input" className="font-display text-[13px] font-[800] tracking-widest block mb-2.5 uppercase opacity-85">
+                    Player Nickname
+                  </label>
                   <div className="flex gap-2">
                     <input
+                      id="player-nickname-input"
                       value={nickname}
                       onChange={e => setNickname(e.target.value)}
                       onKeyDown={e => e.key === 'Enter' && handleJoin()}
                       placeholder="Enter your name..."
                       className="flex-1 h-[52px] px-4 bg-white rounded-[12px] border-[3px] border-[var(--ink)] text-[16px] font-[700] outline-none focus:ring-[4px] focus:ring-[#FFE57F] shadow-[3px_3px_0px_#10100F]"
+                      aria-label="Player Nickname"
                     />
                     <button
                       type="button"
                       onClick={handleRandomizeNick}
                       className="hard btn-press bg-[var(--sun)] rounded-[12px] px-3.5 h-[52px] font-display font-[800] text-[13px] min-w-[130px]"
+                      aria-label="Randomize nickname"
                     >
                       {randomBtnText}
                     </button>
@@ -176,9 +245,11 @@ export default function JoinPage() {
               {/* Big Join Button at Bottom of Left Column */}
               <button
                 onClick={handleJoin}
-                className="mt-8 lg:mt-auto w-full h-[62px] rounded-[var(--radius-btn)] bg-[var(--violet)] text-white font-display font-[900] text-[22px] uppercase tracking-wide hard btn-press shadow-[4px_4px_0px_#10100F]"
+                disabled={isJoining}
+                className="mt-8 lg:mt-auto w-full h-[62px] rounded-[var(--radius-btn)] bg-[var(--violet)] text-white font-display font-[900] text-[20px] md:text-[22px] uppercase tracking-wide hard btn-press shadow-[4px_4px_0px_#10100F] disabled:opacity-70 flex items-center justify-center gap-2"
+                aria-label="Join game arena"
               >
-                🚀 Join Game Arena →
+                {joinBtnText}
               </button>
             </div>
 
@@ -193,6 +264,7 @@ export default function JoinPage() {
                   type="button"
                   onClick={handleRandomizeAvatar}
                   className="hard bg-white rounded-full px-3 py-1 text-[11px] font-display font-[700] hover:bg-[var(--sun)] transition-colors"
+                  aria-label="Pick a random avatar"
                 >
                   {randomAvatarText}
                 </button>
@@ -227,6 +299,7 @@ export default function JoinPage() {
                           key={avatar.id}
                           type="button"
                           onClick={() => setSelectedAvatarIdx(idx)}
+                          aria-label={`Select ${avatar.name}`}
                           className={`relative aspect-square rounded-[12px] border-[3px] flex flex-col items-center justify-center transition-all p-1 btn-press overflow-hidden ${
                             isSelected
                               ? 'border-[var(--violet)] bg-[#F5F0FF] ring-[3px] ring-[#7C4DFF]/40 shadow-[2px_2px_0px_#7C4DFF]'

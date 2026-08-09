@@ -560,23 +560,23 @@ function StudentPlayScreen() {
         </div>
       </div>
 
-      <div style={{ padding: '16px 20px', flex: 1, display: 'flex', flexDirection: 'column', gap: 12 }}>
-        {/* Question Card with Web Speech TTS Button */}
+      <div style={{ padding: '16px 20px', flex: 1, display: 'flex', flexDirection: 'column', gap: 14 }}>
+        {/* Question Card with Dominant Hero Typography & TTS */}
         {q && (
-          <div className={`card anim-scale-in ${doubleActive ? 'star-aura' : ''}`} style={{ padding: '22px 20px' }}>
-            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
-              <h2 style={{ fontFamily: 'Space Grotesk', fontSize: 20, fontWeight: 700, lineHeight: 1.45, flex: 1, color: 'var(--ink)', margin: 0 }}>
+          <div className={`card anim-scale-in ${doubleActive ? 'star-aura' : ''}`} style={{ padding: '24px 22px', background: 'var(--surface-1)' }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 14 }}>
+              <h2 style={{ fontFamily: 'Space Grotesk', fontSize: 'clamp(20px, 3.6vw, 30px)', fontWeight: 800, lineHeight: 1.3, flex: 1, color: 'var(--ink)', margin: 0 }}>
                 {q.prompt}
               </h2>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                {doubleActive && <span className="badge badge-sun">⭐ 2×</span>}
+                {doubleActive && <span className="badge badge-sun">⭐ 2× DOUBLE</span>}
                 <button
                   type="button"
                   onClick={() => handleToggleTTS(q.prompt)}
                   style={{
-                    padding: '6px 12px',
+                    padding: '8px 14px',
                     background: isTTSActive ? 'var(--sun)' : 'var(--paper)',
-                    border: '1.5px solid var(--ink)',
+                    border: '2px solid var(--ink)',
                     borderRadius: 'var(--radius-btn)',
                     boxShadow: '2px 2px 0px var(--ink)',
                     fontFamily: 'Space Grotesk',
@@ -586,17 +586,18 @@ function StudentPlayScreen() {
                     cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: 5
+                    gap: 6
                   }}
                   title="Read question prompt aloud"
+                  aria-label="Read question aloud"
                 >
                   <span>{isTTSActive ? '🔊' : '🔈'}</span>
                   <span>{isTTSActive ? 'Stop' : 'Listen'}</span>
                 </button>
               </div>
             </div>
-            <div style={{ marginTop: 8, fontSize: 12, color: 'var(--ink)', fontFamily: 'Space Grotesk', opacity: 0.5 }}>
-              Q{gameState.currentQuestionIndex + 1} / {gameState.quiz.questions.length}
+            <div style={{ marginTop: 10, fontSize: 12, color: 'var(--ink)', fontFamily: 'Space Grotesk', opacity: 0.6, fontWeight: 700 }}>
+              QUESTION {gameState.currentQuestionIndex + 1} OF {gameState.quiz.questions.length}
             </div>
           </div>
         )}

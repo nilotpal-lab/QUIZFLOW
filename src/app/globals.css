@@ -9,20 +9,43 @@
    ============================================================ */
 
 :root {
-  --paper:    #FFFCF5;
-  --paper-2:  #F2EEE6;
-  --ink:      #10100F;
-  --cherry:   #FF4B5C;
-  --sun:      #FFD60A;
-  --mint:     #00E5A0;
-  --sky:      #5CC9FF;
-  --violet:   #7A5CFF;
-  --line:     2px solid #10100F;
-  --shadow-hard: 4px 4px 0px #10100F;
-  --shadow-hard-lg: 6px 6px 0px #10100F;
-  --radius-card: 16px;
-  --radius-btn: 12px;
-  --radius-pill: 999px;
+  /* Surface Hierarchy */
+  --paper:            #FFFCF5;
+  --paper-2:          #F2EEE6;
+  --surface-0:        #FFFCF5;
+  --surface-1:        #FFFFFF;
+  --surface-muted:    #F2EEE6;
+  --surface-elevated: #FFE57F;
+
+  /* Ink & Brand Tokens */
+  --ink:              #10100F;
+  --ink-muted:        #3A3A37;
+  --cherry:           #D9364A; /* WCAG AA accessible contrast */
+  --cherry-strong:    #C92F42;
+  --cherry-bright:    #FF4B5C; /* Decorative only */
+  --sun:              #FFD60A;
+  --mint:             #00E5A0;
+  --sky:              #5CC9FF;
+  --violet:           #7A5CFF;
+  --violet-accent:    #6C4DFF;
+
+  /* Borders & Shadows Hierarchy */
+  --line-subtle:      1px solid rgba(16, 16, 15, 0.18);
+  --line:             2px solid #10100F;
+  --line-heavy:       3px solid #10100F;
+  
+  --shadow-subtle:    2px 2px 0px #10100F;
+  --shadow-hard:      4px 4px 0px #10100F;
+  --shadow-hard-lg:   8px 8px 0px #10100F;
+  --shadow-hero:      12px 12px 0px #10100F;
+
+  /* Radii */
+  --radius-card:      16px;
+  --radius-btn:       12px;
+  --radius-pill:      999px;
+  
+  /* Touch target */
+  --touch-target:     44px;
 }
 
 /* ---- Base Reset ---- */
@@ -39,6 +62,30 @@ body {
   -webkit-font-smoothing: antialiased;
   min-height: 100vh;
   overflow-x: hidden;
+}
+
+/* Accessible Focus Outlines */
+:focus-visible {
+  outline: 3px solid var(--violet) !important;
+  outline-offset: 2px !important;
+}
+
+.on-dark :focus-visible,
+[data-theme="dark"] :focus-visible {
+  outline: 3px solid var(--sun) !important;
+  outline-offset: 2px !important;
+}
+
+/* Reduced Motion Compliance */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 h1, h2, h3, h4, h5, h6 {

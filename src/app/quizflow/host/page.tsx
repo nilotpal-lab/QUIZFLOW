@@ -63,6 +63,7 @@ function TeacherHostDashboard() {
 
   const [revealedIndex, setRevealedIndex] = useState<number | null>(null)
   const [autoPacing, setAutoPacing] = useState(true)
+  const [isProjectorMode, setIsProjectorMode] = useState(false)
   const [autoAdvanceCountdown, setAutoAdvanceCountdown] = useState<number | null>(null)
   const autoAdvanceTimerRef = useRef<NodeJS.Timeout | null>(null)
 
@@ -463,7 +464,25 @@ function TeacherHostDashboard() {
           )}
         </div>
 
-        <div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {/* 📺 Projector Mode Toggle */}
+          <button
+            onClick={() => setIsProjectorMode(!isProjectorMode)}
+            className={`btn btn-sm ${isProjectorMode ? 'btn-sun' : ''}`}
+            style={{
+              padding: '6px 14px',
+              fontSize: 12,
+              fontWeight: 700,
+              border: '2px solid var(--ink)',
+              boxShadow: '2px 2px 0 var(--ink)',
+              background: isProjectorMode ? '#FFE57F' : 'var(--paper)'
+            }}
+            title="Toggle full-width Projector Mode for classroom boards"
+            aria-label="Toggle Projector Mode"
+          >
+            {isProjectorMode ? '📺 Projector: ON' : '📺 Projector: OFF'}
+          </button>
+
           {/* 🕵️ Alias Mode Toggle */}
           <button
             onClick={() => toggleAliasMode(pin)}
@@ -477,8 +496,9 @@ function TeacherHostDashboard() {
               background: gameState.aliasMode ? '#E1BEE7' : 'var(--paper)'
             }}
             title="Hide real student nicknames on projector display to prevent shaming"
+            aria-label="Toggle Alias Mode"
           >
-            {gameState.aliasMode ? '🕵️ Alias Mode: ON (Names Hidden)' : '🕵️ Alias Mode: OFF'}
+            {gameState.aliasMode ? '🕵️ Alias: ON' : '🕵️ Alias: OFF'}
           </button>
         </div>
       </div>
@@ -525,8 +545,17 @@ function TeacherHostDashboard() {
         <div className="timer-bar-fill" style={{ width: `${timePct * 100}%`, background: timePct > 0.5 ? 'var(--mint)' : timePct > 0.25 ? 'var(--sun)' : 'var(--cherry)', transition: 'width 0.2s linear, background 0.5s' }} />
       </div>
 
-      {/* MAIN THREE-COLUMN */}
-      <div style={{ flex: 1, padding: '16px 20px', display: 'grid', gridTemplateColumns: '260px 1fr 280px', gap: 16 }}>
+      {/* MAIN THREE-COLUMN OR PROJECTOR FULL-SCREEN */}
+      <div style={{
+        flex: 1,
+        padding: isProjectorMode ? '24px 32px' : '16px 20px',
+        display: 'grid',
+        gridTemplateColumns: isProjectorMode ? '1fr' : '260px 1fr 280px',
+        gap: 16,
+        maxWidth: isProjectorMode ? 1200 : undefined,
+        margin: isProjectorMode ? '0 auto' : undefined,
+        width: '100%'
+      }}>
 
         {/* LEFT: Stats */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
