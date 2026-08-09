@@ -271,8 +271,8 @@ export default function AIQuizStudio() {
       `}</style>
 
       {/* HEADER BAR (68px ink) */}
-      <header className="h-[68px] bg-[#10100F] border-b-[3px] border-[#10100F] flex items-center justify-between px-5 sticky top-0 z-50 gap-4 overflow-x-auto hide-scrollbar shrink-0">
-        <div className="flex items-center gap-3 shrink-0">
+      <header className="min-h-[68px] h-auto py-2 bg-[#10100F] border-b-[3px] border-[#10100F] flex flex-wrap items-center justify-between px-3 md:px-5 sticky top-0 z-50 gap-2 md:gap-3 shrink-0">
+        <div className="flex items-center gap-2.5 shrink-0">
           <button
             onClick={() => {
               if (viewMode === 'editor') {
@@ -281,25 +281,28 @@ export default function AIQuizStudio() {
                 router.push('/quizflow')
               }
             }}
-            className="h-10 px-4 bg-[#FFFCF5] border-[3px] border-[#10100F] rounded-[12px] text-[13px] font-bold tracking-[-0.02em] flex items-center gap-2 btn-press hard-white text-[#10100F]"
+            className="h-10 px-3.5 bg-[#FFFCF5] border-[3px] border-[#10100F] rounded-[12px] text-[13px] font-bold tracking-[-0.02em] flex items-center gap-1.5 btn-press hard-white text-[#10100F]"
           >
-            <span>←</span> {viewMode === 'editor' ? 'Back to Generator' : 'Exit Studio'}
+            <span>←</span> {viewMode === 'editor' ? 'Generator' : 'Exit Studio'}
           </button>
-          <div className="hidden lg:flex items-center gap-2 text-[#FFFCF5] sg font-extrabold text-[20px] tracking-[-0.03em]">
-            <span className="w-8 h-8 bg-[#FFE57F] rounded-[8px] border-[2px] border-white/20 grid place-items-center text-[#10100F] text-[14px]">✦</span>
+          <div className="hidden lg:flex items-center gap-2 text-[#FFFCF5] sg font-extrabold text-[18px] tracking-[-0.03em]">
+            <span className="w-7 h-7 bg-[#FFE57F] rounded-[8px] border-[2px] border-white/20 grid place-items-center text-[#10100F] text-[13px]">✦</span>
             AI Quiz Studio
           </div>
-          {provider && <span className="h-7 px-3 bg-[#00E676] text-[#10100F] border-[2px] border-white/20 rounded-[8px] text-[11px] font-display font-bold flex items-center">⚡ {provider}</span>}
+          {provider && <span className="h-7 px-2.5 bg-[#00E676] text-[#10100F] border-[2px] border-white/20 rounded-[8px] text-[11px] font-display font-bold flex items-center">⚡ {provider}</span>}
         </div>
 
         {/* Title Editing Pill */}
         {viewMode === 'editor' && (
-          <div className="hidden md:flex flex-1 justify-center max-w-[420px] mx-4">
+          <div className="hidden xl:flex flex-1 justify-center max-w-[320px] mx-2 shrink min-w-0">
             {editingTitle ? (
               <input
                 ref={titleInputRef}
                 value={tempTitle}
-                onChange={e => setTempTitle(e.target.value)}
+                onChange={e => {
+                  setTempTitle(e.target.value)
+                  setQuiz({ ...quiz, title: e.target.value })
+                }}
                 onBlur={() => {
                   setEditingTitle(false)
                   setQuiz({ ...quiz, title: tempTitle })
@@ -328,50 +331,55 @@ export default function AIQuizStudio() {
         )}
 
         {/* Action Buttons */}
-        <div className="flex items-center gap-[10px] shrink-0">
+        <div className="flex items-center gap-2 shrink-0">
           {viewMode === 'editor' && (
             <>
-              {/* QUIZ SUMMARY PILL (Moved from Sidebar) */}
-              <div className="flex h-10 px-3 bg-white/10 border-[2px] border-white/20 rounded-[12px] items-center gap-3 text-[12px] font-bold text-white mr-1 shrink-0">
-                 <span className="sg text-[14px] text-[#FFE57F]">{quiz.questions.length} Qs</span>
-                 <span className="w-[2px] h-4 bg-white/20"></span>
+              {/* QUIZ SUMMARY PILL */}
+              <div className="hidden xl:flex h-10 px-3 bg-white/10 border-[2px] border-white/20 rounded-[12px] items-center gap-2 text-[12px] font-bold text-white shrink-0">
+                 <span className="sg text-[13px] text-[#FFE57F]">{quiz.questions.length} Qs</span>
+                 <span className="w-[1px] h-3.5 bg-white/20"></span>
                  <span className="uppercase">{quiz.language?.substring(0,3) || 'ENG'}</span>
-                 <span className="w-[2px] h-4 bg-white/20"></span>
+                 <span className="w-[1px] h-3.5 bg-white/20"></span>
                  <span className="uppercase">{quiz.bloomLevel}</span>
               </div>
 
               <button
                 onClick={() => setShowPrintModal(true)}
-                className="hidden sm:flex h-10 px-4 bg-[#00E676] border-[3px] border-[#10100F] rounded-[12px] text-[13px] font-bold items-center gap-2 hard-white btn-press-white text-[#10100F] animate-scale-in"
+                className="hidden sm:flex h-10 px-3.5 bg-[#00E676] border-[3px] border-[#10100F] rounded-[12px] text-[12px] font-bold items-center gap-1.5 hard-white btn-press-white text-[#10100F] animate-scale-in"
               >
-                <span>⎙</span> Print Test PDF
+                <span>⎙</span> Print PDF
               </button>
               <button
                 onClick={() => {
                   saveQuizDraft(quiz, true)
                   alert('✅ Quiz saved to Teacher Dashboard!')
                 }}
-                className="hidden lg:flex h-10 px-4 bg-[#FF5252] border-[3px] border-white/20 rounded-[12px] text-[13px] font-bold hard-white btn-press-white text-[#10100F] animate-scale-in"
+                className="hidden lg:flex h-10 px-3.5 bg-[#FF5252] border-[3px] border-white/20 rounded-[12px] text-[12px] font-bold hard-white btn-press-white text-[#10100F] animate-scale-in"
               >
                 Save Draft
               </button>
             </>
           )}
-          <a href="/dashboard">
-            <button className="h-10 px-4 bg-[#7C4DFF] border-[3px] border-white/20 rounded-[12px] text-[13px] font-bold hard-white btn-press-white text-white">
+          <a href="/dashboard" className="hidden md:block">
+            <button className="h-10 px-3.5 bg-[#7C4DFF] border-[3px] border-white/20 rounded-[12px] text-[12px] font-bold hard-white btn-press-white text-white">
               Dashboard
             </button>
           </a>
           <button
             disabled={publishing || quiz.questions.length === 0}
-            onClick={() => {
-              setPublishing(true)
-              const state = createSession(quiz, 'host-' + Date.now())
-              router.push(`/host?pin=${state.pin}`)
+            onClick={async () => {
+              try {
+                setPublishing(true)
+                const state = createSession(quiz, 'host-' + Date.now())
+                router.push(`/host?pin=${state.pin}`)
+              } catch (err) {
+                console.error('Failed to publish session:', err)
+                setPublishing(false)
+              }
             }}
-            className="h-10 px-4 bg-[#FFE57F] border-[3px] border-white/20 rounded-[12px] text-[13px] font-bold hard-white btn-press-white text-[#10100F]"
+            className="h-10 px-4 bg-[#FFE57F] border-[3px] border-[#10100F] rounded-[12px] text-[13px] font-extrabold hard-white btn-press-white text-[#10100F] shrink-0 flex items-center gap-1.5 cursor-pointer hover:bg-[#FFD54F] transition-all"
           >
-            {publishing ? 'Creating...' : 'Publish & Host'}
+            <span>🚀</span> {publishing ? 'Creating...' : 'Publish & Host →'}
           </button>
         </div>
       </header>
@@ -678,7 +686,8 @@ export default function AIQuizStudio() {
                   <textarea
                     value={q.prompt}
                     onChange={e => updateQuestion(qIdx, { prompt: e.target.value })}
-                    className="w-full mt-4 bg-transparent text-[18px] font-semibold leading-[1.5] outline-none resize-none border-b-[2px] border-dashed border-transparent focus:border-black/20"
+                    placeholder="Type or edit question prompt..."
+                    className="w-full mt-4 p-3 bg-[#FFF8EB] border-[2px] border-[#10100F]/20 focus:border-[#10100F] rounded-[10px] text-[16px] font-bold leading-[1.5] outline-none resize-y text-[#10100F] transition-all"
                     rows={2}
                   />
 
@@ -711,7 +720,9 @@ export default function AIQuizStudio() {
                                 nc[cIdx] = e.target.value
                                 updateQuestion(qIdx, { choices: nc })
                               }}
-                              className="w-full bg-transparent font-extrabold text-[13px] outline-none border-none text-[#10100F]"
+                              onClick={e => e.stopPropagation()}
+                              placeholder={`Option ${cIdx + 1}`}
+                              className="w-full bg-transparent font-extrabold text-[13px] outline-none border-b border-transparent focus:border-[#10100F]/40 text-[#10100F]"
                             />
                             {!isCorrect ? (
                               <input
@@ -723,7 +734,7 @@ export default function AIQuizStudio() {
                                 className="w-full mt-1 bg-transparent text-[11px] text-black/50 outline-none border-none"
                               />
                             ) : (
-                              <div className="text-[11px] text-black/55 mt-1 font-semibold">Correct Answer</div>
+                              <div className="text-[11px] text-[#00897B] mt-1 font-bold">✓ Correct Answer (Click option to change)</div>
                             )}
                           </div>
 
@@ -737,12 +748,17 @@ export default function AIQuizStudio() {
                     })}
                   </div>
 
-                  {/* Explanation Field */}
-                  {showExplanations && q.explanation && (
+                  {/* Explanation Field (Editable) */}
+                  {showExplanations && (
                     <div className="mt-4 border-[2px] border-dashed border-black/15 bg-[#F9F6F0] rounded-[12px] px-3.5 py-3">
-                      <span className="text-[13px] leading-[1.5] text-black/70 font-medium">
-                        <span className="font-bold">💡 Explanation:</span> {q.explanation}
-                      </span>
+                      <div className="text-[11px] font-bold sg tracking-[0.05em] text-black/50 mb-1">💡 EXPLANATION (EDITABLE)</div>
+                      <textarea
+                        value={q.explanation || ''}
+                        onChange={e => updateQuestion(qIdx, { explanation: e.target.value })}
+                        placeholder="Add explanation for students..."
+                        className="w-full bg-transparent text-[13px] leading-[1.5] text-black/80 font-medium outline-none resize-none"
+                        rows={2}
+                      />
                     </div>
                   )}
 
