@@ -9,15 +9,45 @@ import { getSessionHistory, type SessionHistoryRecord } from '@/quizflow/history
 import { createSession } from '@/quizflow/sessionStore'
 import { generatePrintableWorksheet } from '@/quizflow/pdfGenerator'
 
+function formatExactTime(ts?: number) {
+  if (!ts) return 'N/A'
+  return new Date(ts).toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true
+  })
+}
+
+function formatDuration(startedAt?: number, completedAt?: number, durationMs?: number) {
+  let ms = durationMs
+  if (!ms && startedAt && completedAt) {
+    ms = completedAt - startedAt
+  }
+  if (!ms || ms <= 0) return 'Under 1 min'
+  const totalSecs = Math.floor(ms / 1000)
+  const mins = Math.floor(totalSecs / 60)
+  const secs = totalSecs % 60
+  if (mins === 0) return `${secs}s`
+  return `${mins}m ${secs}s`
+}
+
 export default function TeacherDashboard() {
   const router = useRouter()
   const [user, setUser] = useState<HostUser | null>(null)
-  const [activeTab, setActiveTab] = useState<'quizzes' | 'history' | 'profile'>('quizzes')
+  const [activeTab, setActiveTab] = useState<'drafts' | 'history' | 'profile'>('drafts')
 
   // Quizzes & History state
-  const [quizzes, setQuizzes] = useState<SavedQuizItem[]>([])
+  const [allQuizzes, setAllQuizzes] = useState<SavedQuizItem[]>([])
   const [history, setHistory] = useState<SessionHistoryRecord[]>([])
   const [selectedHistory, setSelectedHistory] = useState<SessionHistoryRecord | null>(null)
+
+  // History View Sub-mode ('timeline' | 'grouped')
+  const [historyViewMode, setHistoryViewMode] = useState<'timeline' | 'grouped'>('timeline')
+  const [expandedQuizTitle, setExpandedQuizTitle] = useState<string | null>(null)
 
   // Profile Form state
   const [profileName, setProfileName]     = useState('')
@@ -34,9 +64,11 @@ export default function TeacherDashboard() {
     setProfileName(hostUser.name)
     setProfileSchool(hostUser.school)
 
-    setQuizzes(getSavedQuizzes())
+    setAllQuizzes(getSavedQuizzes())
     setHistory(getSessionHistory())
   }, [router])
+
+  const draftQuizzes = allQuizzes.filter(q => q.isDraft)
 
   const handleLogout = async () => {
     await logoutHostAsync()
@@ -44,9 +76,9 @@ export default function TeacherDashboard() {
   }
 
   const handleDeleteQuiz = (id: string) => {
-    if (confirm('Are you sure you want to delete this saved quiz?')) {
+    if (confirm('Are you sure you want to delete this draft quiz?')) {
       deleteSavedQuiz(id)
-      setQuizzes(getSavedQuizzes())
+      setAllQuizzes(getSavedQuizzes())
     }
   }
 
@@ -70,6 +102,14 @@ export default function TeacherDashboard() {
     }
   }
 
+  // Group history runs by quiz title
+  const groupedHistoryMap = history.reduce<Record<string, SessionHistoryRecord[]>>((acc, item) => {
+    const title = item.quizTitle || 'Untitled Quiz'
+    if (!acc[title]) acc[title] = []
+    acc[title].push(item)
+    return acc
+  }, {})
+
   if (!user) return null
 
   return (
@@ -86,8 +126,8 @@ export default function TeacherDashboard() {
         {/* Tab Buttons */}
         <div style={{ display: 'flex', gap: 8 }}>
           {[
-            { id: 'quizzes', label: `📂 My Quizzes (${quizzes.length})` },
-            { id: 'history', label: `📊 Session History (${history.length})` },
+            { id: 'drafts', label: `📝 Draft Quizzes (${draftQuizzes.length})` },
+            { id: 'history', label: `📊 Hosted Sessions (${history.length})` },
             { id: 'profile', label: `👤 Profile` }
           ].map(tab => (
             <button
@@ -115,41 +155,41 @@ export default function TeacherDashboard() {
       </div>
 
       {/* MAIN CONTAINER */}
-      <div style={{ flex: 1, padding: 24, maxWidth: 1200, width: '100%', margin: '0 auto' }}>
+      <div style={{ flex: 1, padding: 24, maxWidth: 1280, width: '100%', margin: '0 auto' }}>
 
-        {/* TAB 1: MY QUIZZES & DRAFTS */}
-        {activeTab === 'quizzes' && (
+        {/* TAB 1: DRAFT QUIZZES (isDraft ONLY) */}
+        {activeTab === 'drafts' && (
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
               <div>
                 <h2 style={{ fontFamily: 'Space Grotesk', fontSize: 24, fontWeight: 900, color: 'var(--ink)' }}>
-                  📂 Saved Quizzes & Drafts
+                  📝 Draft Quizzes
                 </h2>
                 <div style={{ fontSize: 13, color: '#555', fontFamily: 'Inter' }}>
-                  Manage your created quizzes, launch live sessions, or edit questions in AI Studio.
+                  All unhosted quizzes saved in Studio. Edit, print, or launch them into live game rooms anytime.
                 </div>
               </div>
-              <Link href="/quizflow/studio"><button className="btn btn-sun btn-lg">✨ Create Quiz in Studio →</button></Link>
+              <Link href="/quizflow/studio"><button className="btn btn-sun btn-lg">✨ Create Draft in Studio →</button></Link>
             </div>
 
-            {quizzes.length === 0 ? (
+            {draftQuizzes.length === 0 ? (
               <div className="card" style={{ padding: 40, textAlign: 'center' }}>
                 <div style={{ fontSize: 36, marginBottom: 10 }}>📝</div>
-                <h3 style={{ fontFamily: 'Space Grotesk', fontSize: 18, fontWeight: 800 }}>No Saved Quizzes Yet</h3>
-                <p style={{ fontSize: 14, color: '#666', marginBottom: 16 }}>Use AI Studio to create or draft your first interactive classroom quiz.</p>
+                <h3 style={{ fontFamily: 'Space Grotesk', fontSize: 18, fontWeight: 800 }}>No Draft Quizzes Found</h3>
+                <p style={{ fontSize: 14, color: '#666', marginBottom: 16 }}>Drafts you save in AI Studio will appear here automatically.</p>
                 <Link href="/quizflow/studio"><button className="btn btn-violet">✨ Open AI Studio</button></Link>
               </div>
             ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: 20 }}>
-                {quizzes.map(item => (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: 20 }}>
+                {draftQuizzes.map(item => (
                   <div key={item.id} className="card" style={{ padding: 20, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
                     <div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                        <span className={`badge ${item.isDraft ? 'badge-cherry' : 'badge-mint'}`}>
-                          {item.isDraft ? '📝 Draft' : '✅ Ready to Host'}
+                        <span className="badge badge-cherry">
+                          📝 Draft
                         </span>
                         <span style={{ fontSize: 11, color: '#666', fontFamily: 'Inter' }}>
-                          Updated {new Date(item.updatedAt).toLocaleDateString()}
+                          Updated {formatExactTime(item.updatedAt)}
                         </span>
                       </div>
 
@@ -188,15 +228,44 @@ export default function TeacherDashboard() {
           </div>
         )}
 
-        {/* TAB 2: SESSION HISTORY & CLASS ANALYTICS */}
+        {/* TAB 2: HOSTED QUIZZES & SESSION HISTORY */}
         {activeTab === 'history' && (
           <div>
-            <div style={{ marginBottom: 20 }}>
-              <h2 style={{ fontFamily: 'Space Grotesk', fontSize: 24, fontWeight: 900, color: 'var(--ink)' }}>
-                📊 Past Session History & Analytics
-              </h2>
-              <div style={{ fontSize: 13, color: '#555', fontFamily: 'Inter' }}>
-                Review past live room codes, class accuracy reports, and top student performers.
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
+              <div>
+                <h2 style={{ fontFamily: 'Space Grotesk', fontSize: 24, fontWeight: 900, color: 'var(--ink)' }}>
+                  📊 Hosted Quizzes &amp; Session History
+                </h2>
+                <div style={{ fontSize: 13, color: '#555', fontFamily: 'Inter' }}>
+                  Track every live room session hosted so far, including exact launch/end timestamps, participant scores, and multi-run history.
+                </div>
+              </div>
+
+              {/* History View Mode Selector */}
+              <div style={{ display: 'flex', gap: 6, background: 'var(--paper)', padding: 4, borderRadius: 10, border: '2px solid var(--ink)' }}>
+                <button
+                  onClick={() => setHistoryViewMode('timeline')}
+                  className="btn btn-sm"
+                  style={{
+                    fontFamily: 'Space Grotesk', fontWeight: 800, fontSize: 12,
+                    background: historyViewMode === 'timeline' ? 'var(--sun)' : 'transparent',
+                    border: historyViewMode === 'timeline' ? '1.5px solid var(--ink)' : 'none'
+                  }}
+                >
+                  🕒 All Runs Timeline
+                </button>
+                <button
+                  onClick={() => setHistoryViewMode('grouped')}
+                  className="btn btn-sm"
+                  style={{
+                    fontFamily: 'Space Grotesk', fontWeight: 800, fontSize: 12,
+                    background: historyViewMode === 'grouped' ? 'var(--violet)' : 'transparent',
+                    color: historyViewMode === 'grouped' ? '#fff' : 'var(--ink)',
+                    border: historyViewMode === 'grouped' ? '1.5px solid var(--ink)' : 'none'
+                  }}
+                >
+                  📚 Grouped by Quiz ({Object.keys(groupedHistoryMap).length})
+                </button>
               </div>
             </div>
 
@@ -204,110 +273,205 @@ export default function TeacherDashboard() {
               <div className="card" style={{ padding: 40, textAlign: 'center' }}>
                 <div style={{ fontSize: 36, marginBottom: 10 }}>🎮</div>
                 <h3 style={{ fontFamily: 'Space Grotesk', fontSize: 18, fontWeight: 800 }}>No Game Sessions Hosted Yet</h3>
-                <p style={{ fontSize: 14, color: '#666', marginBottom: 16 }}>Host your first quiz to record live classroom session analytics.</p>
+                <p style={{ fontSize: 14, color: '#666', marginBottom: 16 }}>Host a quiz from Studio or Preset cards to record live classroom sessions and student analytics.</p>
               </div>
             ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: selectedHistory ? '1fr 420px' : '1fr', gap: 20 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: selectedHistory ? '1fr 440px' : '1fr', gap: 20 }}>
                 
-                {/* Session List Table */}
-                <div className="card" style={{ padding: 20 }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-                    <thead>
-                      <tr style={{ borderBottom: '2px solid var(--ink)', fontFamily: 'Space Grotesk', fontSize: 12, textTransform: 'uppercase' }}>
-                        <th style={{ padding: 10 }}>PIN</th>
-                        <th style={{ padding: 10 }}>Quiz Title</th>
-                        <th style={{ padding: 10 }}>Date</th>
-                        <th style={{ padding: 10 }}>Players</th>
-                        <th style={{ padding: 10 }}>Accuracy</th>
-                        <th style={{ padding: 10 }}>Winner</th>
-                        <th style={{ padding: 10, textAlign: 'right' }}>Action</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {history.map(rec => (
-                        <tr key={rec.id} style={{ borderBottom: '1px solid #eee', fontSize: 13, fontFamily: 'Inter' }}>
-                          <td style={{ padding: 10, fontWeight: 800, fontFamily: 'Space Grotesk' }}>
-                            <span className="badge badge-sun">{rec.pin}</span>
-                          </td>
-                          <td style={{ padding: 10, fontWeight: 700 }}>{rec.quizTitle}</td>
-                          <td style={{ padding: 10, color: '#666', fontSize: 12 }}>
-                            {new Date(rec.completedAt).toLocaleDateString()}
-                          </td>
-                          <td style={{ padding: 10 }}>👥 {rec.totalPlayers}</td>
-                          <td style={{ padding: 10 }}>
-                            <span className={`badge ${rec.classAccuracyPercent >= 70 ? 'badge-mint' : 'badge-cherry'}`}>
-                              🎯 {rec.classAccuracyPercent}%
-                            </span>
-                          </td>
-                          <td style={{ padding: 10, fontWeight: 700, color: 'var(--violet)' }}>
-                            👑 {rec.winnerName} ({rec.winnerScore.toLocaleString()} pts)
-                          </td>
-                          <td style={{ padding: 10, textAlign: 'right' }}>
-                            <button
-                              className="btn btn-sm btn-violet"
-                              onClick={() => setSelectedHistory(rec)}
-                            >
-                              🔍 Report
-                            </button>
-                          </td>
+                {/* MODE 1: TIMELINE VIEW */}
+                {historyViewMode === 'timeline' && (
+                  <div className="card" style={{ padding: 20 }}>
+                    <div style={{ fontFamily: 'Space Grotesk', fontSize: 14, fontWeight: 800, marginBottom: 12, color: '#666' }}>
+                      Showing all {history.length} hosted session runs (newest first)
+                    </div>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                      <thead>
+                        <tr style={{ borderBottom: '2px solid var(--ink)', fontFamily: 'Space Grotesk', fontSize: 12, textTransform: 'uppercase' }}>
+                          <th style={{ padding: 10 }}>PIN</th>
+                          <th style={{ padding: 10 }}>Quiz Title</th>
+                          <th style={{ padding: 10 }}>Launched Time</th>
+                          <th style={{ padding: 10 }}>Ended Time</th>
+                          <th style={{ padding: 10 }}>Duration</th>
+                          <th style={{ padding: 10 }}>Players</th>
+                          <th style={{ padding: 10 }}>Accuracy</th>
+                          <th style={{ padding: 10 }}>Winner</th>
+                          <th style={{ padding: 10, textAlign: 'right' }}>Action</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                      </thead>
+                      <tbody>
+                        {history.map(rec => (
+                          <tr key={rec.id} style={{ borderBottom: '1px solid #eee', fontSize: 13, fontFamily: 'Inter' }}>
+                            <td style={{ padding: 10, fontWeight: 800, fontFamily: 'Space Grotesk' }}>
+                              <span className="badge badge-sun">{rec.pin}</span>
+                            </td>
+                            <td style={{ padding: 10, fontWeight: 700 }}>{rec.quizTitle}</td>
+                            <td style={{ padding: 10, color: '#333', fontSize: 12, fontWeight: 600 }}>
+                              {formatExactTime(rec.startedAt || (rec.completedAt - 600000))}
+                            </td>
+                            <td style={{ padding: 10, color: '#666', fontSize: 12 }}>
+                              {formatExactTime(rec.completedAt)}
+                            </td>
+                            <td style={{ padding: 10, fontSize: 12, fontWeight: 700, color: 'var(--violet)' }}>
+                              ⏱️ {formatDuration(rec.startedAt, rec.completedAt, rec.durationMs)}
+                            </td>
+                            <td style={{ padding: 10, fontWeight: 700 }}>👥 {rec.totalPlayers}</td>
+                            <td style={{ padding: 10 }}>
+                              <span className={`badge ${rec.classAccuracyPercent >= 70 ? 'badge-mint' : 'badge-cherry'}`}>
+                                🎯 {rec.classAccuracyPercent}%
+                              </span>
+                            </td>
+                            <td style={{ padding: 10, fontWeight: 700, color: 'var(--violet)' }}>
+                              👑 {rec.winnerName} ({rec.winnerScore.toLocaleString()} pts)
+                            </td>
+                            <td style={{ padding: 10, textAlign: 'right' }}>
+                              <button
+                                className="btn btn-sm btn-violet"
+                                onClick={() => setSelectedHistory(rec)}
+                              >
+                                🔍 Full Report
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
 
-                {/* Session Detail Report Modal / Column */}
+                {/* MODE 2: GROUPED BY QUIZ TITLE VIEW */}
+                {historyViewMode === 'grouped' && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                    {Object.entries(groupedHistoryMap).map(([title, runs]) => {
+                      const isExpanded = expandedQuizTitle === title || Object.keys(groupedHistoryMap).length === 1
+                      const latestRun = runs[0]
+                      return (
+                        <div key={title} className="card" style={{ padding: 20 }}>
+                          <div
+                            onClick={() => setExpandedQuizTitle(isExpanded ? null : title)}
+                            style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
+                          >
+                            <div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+                                <span className="badge badge-sun font-extrabold">
+                                  🎮 Hosted {runs.length} {runs.length === 1 ? 'Time' : 'Times'}
+                                </span>
+                                <span style={{ fontSize: 12, color: '#666', fontFamily: 'Inter' }}>
+                                  Latest Run: {formatExactTime(latestRun.completedAt)}
+                                </span>
+                              </div>
+                              <h3 style={{ fontFamily: 'Space Grotesk', fontSize: 20, fontWeight: 900, color: 'var(--ink)' }}>
+                                {title}
+                              </h3>
+                            </div>
+                            <button className="btn btn-sm btn-sun">
+                              {isExpanded ? '▲ Hide Runs' : `▼ View ${runs.length} Runs`}
+                            </button>
+                          </div>
+
+                          {/* Expanded Runs List */}
+                          {isExpanded && (
+                            <div style={{ marginTop: 16, borderTop: '2px dashed var(--ink)', paddingTop: 14 }}>
+                              <div style={{ fontFamily: 'Space Grotesk', fontSize: 13, fontWeight: 800, marginBottom: 10, color: 'var(--violet)' }}>
+                                📋 All {runs.length} Hosted Runs for &quot;{title}&quot;:
+                              </div>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                                {runs.map((run, idx) => (
+                                  <div key={run.id} style={{ background: 'var(--paper)', border: '2px solid var(--ink)', borderRadius: 12, padding: 14 }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                        <span className="badge badge-ink font-bold">Run #{runs.length - idx}</span>
+                                        <span className="badge badge-sun">PIN {run.pin}</span>
+                                        <span style={{ fontSize: 12, fontWeight: 800, fontFamily: 'Space Grotesk', color: 'var(--violet)' }}>
+                                          ⏱️ {formatDuration(run.startedAt, run.completedAt, run.durationMs)}
+                                        </span>
+                                      </div>
+                                      <button
+                                        className="btn btn-sm btn-violet"
+                                        onClick={(e) => { e.stopPropagation(); setSelectedHistory(run); }}
+                                      >
+                                        🔍 Inspect Roster &amp; Scores
+                                      </button>
+                                    </div>
+
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 8, fontSize: 12, fontFamily: 'Inter' }}>
+                                      <div>🚀 <strong>Launched:</strong> {formatExactTime(run.startedAt || (run.completedAt - 600000))}</div>
+                                      <div>🏁 <strong>Ended:</strong> {formatExactTime(run.completedAt)}</div>
+                                      <div>👥 <strong>Players:</strong> {run.totalPlayers} Students</div>
+                                      <div>🎯 <strong>Class Acc:</strong> {run.classAccuracyPercent}%</div>
+                                      <div>👑 <strong>Winner:</strong> {run.winnerName} ({run.winnerScore.toLocaleString()} pts)</div>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+
+                {/* Session Detail Report Modal / Side Column */}
                 {selectedHistory && (
-                  <div className="card anim-scale-in" style={{ padding: 20, background: 'var(--paper)', border: '2px solid var(--ink)', boxShadow: '6px 6px 0 var(--ink)' }}>
+                  <div className="card anim-scale-in" style={{ padding: 22, background: 'var(--paper)', border: '3px solid var(--ink)', boxShadow: '6px 6px 0 var(--ink)', height: 'fit-content' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                      <h3 style={{ fontFamily: 'Space Grotesk', fontSize: 18, fontWeight: 800 }}>
-                        📊 Session Report (PIN {selectedHistory.pin})
+                      <h3 style={{ fontFamily: 'Space Grotesk', fontSize: 19, fontWeight: 900 }}>
+                        📊 Session Analytics (PIN {selectedHistory.pin})
                       </h3>
-                      <button onClick={() => setSelectedHistory(null)} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer' }}>✕</button>
+                      <button onClick={() => setSelectedHistory(null)} style={{ background: 'none', border: 'none', fontSize: 22, fontWeight: 900, cursor: 'pointer' }}>✕</button>
                     </div>
 
-                    <div style={{ fontSize: 13, color: '#555', fontFamily: 'Inter', marginBottom: 14 }}>
-                      {selectedHistory.quizTitle} • Hosted on {new Date(selectedHistory.completedAt).toLocaleDateString()}
+                    <div style={{ fontSize: 13, color: '#444', fontFamily: 'Inter', marginBottom: 14, lineHeight: 1.4 }}>
+                      <strong>{selectedHistory.quizTitle}</strong>
+                      <div style={{ fontSize: 11.5, color: '#666', marginTop: 4 }}>
+                        🚀 Launched: {formatExactTime(selectedHistory.startedAt || (selectedHistory.completedAt - 600000))}<br/>
+                        🏁 Ended: {formatExactTime(selectedHistory.completedAt)} ({formatDuration(selectedHistory.startedAt, selectedHistory.completedAt, selectedHistory.durationMs)})
+                      </div>
                     </div>
 
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
-                      <div style={{ background: '#FFF8E1', padding: 12, borderRadius: 10, border: '1.5px solid var(--ink)', textAlign: 'center' }}>
+                      <div style={{ background: '#FFF8E1', padding: 12, borderRadius: 10, border: '2px solid var(--ink)', textAlign: 'center' }}>
                         <div style={{ fontSize: 11, fontFamily: 'Space Grotesk', fontWeight: 800, color: '#666' }}>CLASS ACCURACY</div>
                         <div style={{ fontSize: 22, fontWeight: 900, fontFamily: 'Space Grotesk', color: 'var(--ink)' }}>{selectedHistory.classAccuracyPercent}%</div>
                       </div>
-                      <div style={{ background: '#E8F8F5', padding: 12, borderRadius: 10, border: '1.5px solid var(--ink)', textAlign: 'center' }}>
+                      <div style={{ background: '#E8F8F5', padding: 12, borderRadius: 10, border: '2px solid var(--ink)', textAlign: 'center' }}>
                         <div style={{ fontSize: 11, fontFamily: 'Space Grotesk', fontWeight: 800, color: '#666' }}>TOP WINNER</div>
-                        <div style={{ fontSize: 16, fontWeight: 900, fontFamily: 'Space Grotesk', color: 'var(--violet)' }}>👑 {selectedHistory.winnerName}</div>
+                        <div style={{ fontSize: 15, fontWeight: 900, fontFamily: 'Space Grotesk', color: 'var(--violet)' }}>👑 {selectedHistory.winnerName}</div>
                       </div>
                     </div>
 
-                    {/* Question Accuracy Breakdown */}
-                    <h4 style={{ fontFamily: 'Space Grotesk', fontSize: 14, fontWeight: 800, marginBottom: 8 }}>
-                      🎯 Question Accuracy Breakdown
+                    {/* Student Roster Leaderboard with Detailed Scores */}
+                    <h4 style={{ fontFamily: 'Space Grotesk', fontSize: 14, fontWeight: 900, marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span>🏅 Student Roster &amp; Scores ({selectedHistory.playersSummary?.length || 0})</span>
                     </h4>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 220, overflowY: 'auto', marginBottom: 16 }}>
-                      {selectedHistory.questionStats?.map((qs, i) => (
-                        <div key={i} style={{ padding: 10, background: 'var(--paper-2)', borderRadius: 8, border: '1px solid #ddd', fontSize: 12 }}>
-                          <div style={{ fontWeight: 700, marginBottom: 4 }}>Q{i + 1}: {qs.prompt}</div>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span style={{ fontSize: 11, color: '#666' }}>{qs.correctCount}/{qs.totalResponses} Correct</span>
-                            <span className={`badge ${qs.accuracyPercent >= 70 ? 'badge-mint' : 'badge-cherry'}`} style={{ fontSize: 10 }}>
-                              {qs.accuracyPercent}% Acc
-                            </span>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 220, overflowY: 'auto', marginBottom: 16, paddingRight: 4 }}>
+                      {selectedHistory.playersSummary?.map(p => (
+                        <div key={p.nickname} className="lb-row" style={{ padding: '8px 10px', fontSize: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'white', border: '1.5px solid var(--ink)', borderRadius: 8 }}>
+                          <span style={{ fontWeight: 800, fontFamily: 'Space Grotesk' }}>
+                            #{p.rank} {p.nickname}
+                          </span>
+                          <div style={{ textAlign: 'right' }}>
+                            <span style={{ fontWeight: 800, color: 'var(--violet)' }}>{p.score.toLocaleString()} pts</span>
+                            <span style={{ fontSize: 10, color: '#666', marginLeft: 6 }}>({p.totalCorrect}/{p.totalAnswered} · {p.accuracyPercent}%)</span>
                           </div>
                         </div>
                       ))}
                     </div>
 
-                    {/* Student Roster Leaderboard */}
-                    <h4 style={{ fontFamily: 'Space Grotesk', fontSize: 14, fontWeight: 800, marginBottom: 8 }}>
-                      🏅 Student Scoreboard
+                    {/* Question Accuracy Breakdown */}
+                    <h4 style={{ fontFamily: 'Space Grotesk', fontSize: 14, fontWeight: 900, marginBottom: 8 }}>
+                      🎯 Question-by-Question Accuracy
                     </h4>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 180, overflowY: 'auto' }}>
-                      {selectedHistory.playersSummary?.map(p => (
-                        <div key={p.nickname} className="lb-row" style={{ padding: '6px 10px', fontSize: 12 }}>
-                          <span style={{ fontWeight: 800, fontFamily: 'Space Grotesk' }}>#{p.rank} {p.nickname}</span>
-                          <span style={{ fontWeight: 800 }}>{p.score.toLocaleString()} pts ({p.accuracyPercent}%)</span>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 200, overflowY: 'auto', paddingRight: 4 }}>
+                      {selectedHistory.questionStats?.map((qs, i) => (
+                        <div key={i} style={{ padding: 10, background: 'var(--paper-2)', borderRadius: 8, border: '1.5px solid var(--ink)', fontSize: 12 }}>
+                          <div style={{ fontWeight: 700, marginBottom: 4 }}>Q{i + 1}: {qs.prompt}</div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ fontSize: 11, color: '#666' }}>{qs.correctCount}/{qs.totalResponses} Correct Responses</span>
+                            <span className={`badge ${qs.accuracyPercent >= 70 ? 'badge-mint' : 'badge-cherry'}`} style={{ fontSize: 10 }}>
+                              {qs.accuracyPercent}% Acc
+                            </span>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -324,7 +488,7 @@ export default function TeacherDashboard() {
         {activeTab === 'profile' && (
           <div className="card anim-scale-in" style={{ maxWidth: 540, margin: '0 auto', padding: 28 }}>
             <h2 style={{ fontFamily: 'Space Grotesk', fontSize: 24, fontWeight: 900, color: 'var(--ink)', marginBottom: 6 }}>
-              👤 Teacher Profile & Preferences
+              👤 Teacher Profile &amp; Preferences
             </h2>
             <p style={{ fontSize: 13, color: '#555', fontFamily: 'Inter', marginBottom: 20 }}>
               Update your host display name, school institution, and classroom profile.

@@ -594,13 +594,22 @@ export function endGame(pin: string) {
     }
   })
 
-  saveState({
+  const finalState: GameState = {
     ...state,
     status: 'ended',
     players: updated,
     tacticsRankings: tactics.map((p, i) => ({ ...p, rank: i + 1, tacticsRank: i + 1 })),
     masteryRankings: mastery.map((p, i) => ({ ...p, masteryRank: i + 1 })),
-  })
+  }
+
+  saveState(finalState)
+
+  try {
+    const { recordCompletedSession } = require('./historyStore')
+    recordCompletedSession(finalState)
+  } catch (e) {
+    console.warn('Failed to record completed session history:', e)
+  }
 }
 
 export function kickPlayer(pin: string, playerId: string) {

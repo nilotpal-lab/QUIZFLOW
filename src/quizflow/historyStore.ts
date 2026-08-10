@@ -17,7 +17,9 @@ export interface SessionHistoryRecord {
   winnerName: string
   winnerScore: number
   classAccuracyPercent: number
+  startedAt?: number
   completedAt: number
+  durationMs?: number
   playersSummary: Array<{
     nickname: string
     avatarSeed: string
@@ -50,7 +52,9 @@ const DEMO_HISTORY: SessionHistoryRecord[] = [
     winnerName: 'AuditTester',
     winnerScore: 3120,
     classAccuracyPercent: 83,
+    startedAt: Date.now() - 2 * 86400 * 1000 - 850 * 1000,
     completedAt: Date.now() - 2 * 86400 * 1000,
+    durationMs: 850 * 1000,
     playersSummary: [
       { nickname: 'AuditTester', avatarSeed: 'Totoro', score: 3120, totalCorrect: 3, totalAnswered: 3, accuracyPercent: 100, rank: 1 },
       { nickname: 'CosmicNinja', avatarSeed: 'Kiki', score: 2840, totalCorrect: 3, totalAnswered: 3, accuracyPercent: 100, rank: 2 },
@@ -149,8 +153,11 @@ export function recordCompletedSession(gameState: GameState): SessionHistoryReco
     }
   })
 
+  const now = Date.now()
+  const startedAt = gameState.createdAt || (now - 300000)
+
   const record: SessionHistoryRecord = {
-    id: 'session_' + gameState.pin + '_' + Date.now(),
+    id: 'session_' + gameState.pin + '_' + now,
     pin: gameState.pin,
     quizTitle: gameState.quiz.title || 'Live Quiz Session',
     language: gameState.quiz.language || 'English',
@@ -160,7 +167,9 @@ export function recordCompletedSession(gameState: GameState): SessionHistoryReco
     winnerName: winner ? winner.nickname : 'No Players',
     winnerScore: winner ? winner.score : 0,
     classAccuracyPercent,
-    completedAt: Date.now(),
+    startedAt,
+    completedAt: now,
+    durationMs: Math.max(1000, now - startedAt),
     playersSummary,
     questionStats
   }
