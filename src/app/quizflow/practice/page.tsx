@@ -44,6 +44,9 @@ export default function CommunityPracticeHub() {
   const [searchQuery, setSearchQuery] = useState('')
   const [difficultyFilter, setDifficultyFilter] = useState<string>('all')
 
+  // Preview Questions Modal
+  const [previewQuiz, setPreviewQuiz] = useState<CommunityQuiz | null>(null)
+
   // Solo Practice Modal state
   const [practicingQuiz, setPracticingQuiz] = useState<CommunityQuiz | null>(null)
   const [currentQIdx, setCurrentQIdx] = useState(0)
@@ -102,6 +105,7 @@ export default function CommunityPracticeHub() {
   const handleStartPractice = (quizItem: CommunityQuiz) => {
     playClickSound()
     incrementQuizPlays(quizItem.id)
+    setPreviewQuiz(null)
     setPracticingQuiz(quizItem)
     setCurrentQIdx(0)
     setIsFlipped(false)
@@ -247,7 +251,7 @@ export default function CommunityPracticeHub() {
               Discover, Practice & Host Ready-to-Play Quizzes
             </h1>
             <p className="text-[14px] md:text-[15px] text-black/70 font-medium mt-1 max-w-[680px]">
-              Explore pre-made quizzes across Sports, Biology, Maths, Tech, and History. Host any deck live with your students or practice individually!
+              Click on any quiz to view its questions, practice individually with flashcards, or host a live multiplayer game with your students!
             </p>
           </div>
 
@@ -295,7 +299,7 @@ export default function CommunityPracticeHub() {
             <div className="relative flex-1 w-full">
               <input
                 type="text"
-                placeholder="🔍 Search topics, concepts, or keywords (e.g. Mitochondria, World Cup, React)..."
+                placeholder="🔍 Search topics or concepts (e.g. Mitochondria, World Cup, React)..."
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
                 className="w-full h-11 bg-[#FFFCF5] border-[3px] border-[#10100F] rounded-[12px] px-4 text-[13px] font-semibold outline-none placeholder:text-black/40 soft"
@@ -333,7 +337,7 @@ export default function CommunityPracticeHub() {
           <h2 className="sg font-black text-[22px] tracking-[-0.02em] flex items-center gap-2">
             <span>📚</span>
             <span>
-              {selectedCategory === 'All' ? 'All Community & Founder Quizzes' : `${selectedCategory} Quizzes`} ({filteredQuizzes.length})
+              {selectedCategory === 'All' ? 'All Verified Quizzes' : `${selectedCategory} Quizzes`} ({filteredQuizzes.length})
             </span>
           </h2>
         </div>
@@ -363,7 +367,11 @@ export default function CommunityPracticeHub() {
               return (
                 <div
                   key={item.id}
-                  className="bg-[#FFFCF5] border-[3px] border-[#10100F] rounded-[18px] hard hover:translate-y-[-2px] transition-all flex flex-col justify-between overflow-hidden group"
+                  onClick={() => {
+                    playClickSound()
+                    setPreviewQuiz(item)
+                  }}
+                  className="bg-[#FFFCF5] border-[3px] border-[#10100F] rounded-[18px] hard hover:translate-y-[-2px] transition-all flex flex-col justify-between overflow-hidden group cursor-pointer"
                 >
                   {/* Card Header & Badges */}
                   <div className="p-5">
@@ -379,7 +387,7 @@ export default function CommunityPracticeHub() {
                       {/* Founder vs Community Badge */}
                       {item.isFounder ? (
                         <span className="px-2.5 py-0.5 rounded-[20px] bg-[#FFE57F] border-[2px] border-[#10100F] text-[11px] font-extrabold text-[#10100F] flex items-center gap-1 shadow-sm">
-                          <span>✦</span> Founder Pick
+                          <span>✦</span> Founder Verified
                         </span>
                       ) : (
                         <span className="px-2.5 py-0.5 rounded-[20px] bg-black/5 border border-black/20 text-[11px] font-bold text-black/60">
@@ -407,23 +415,29 @@ export default function CommunityPracticeHub() {
                       ))}
                     </div>
 
-                    {/* Stats HUD (Rating, Plays, Question Count) */}
+                    {/* Stats HUD (Rating & Question Count) */}
                     <div className="flex items-center justify-between border-t border-black/10 pt-3 text-[12px] font-bold text-black/70">
                       <div className="flex items-center gap-1 text-[#F57F17]">
                         <span>⭐</span>
-                        <span className="font-extrabold text-[#10100F]">{item.rating}</span>
-                        <span className="text-black/40 font-normal">({item.reviewCount})</span>
+                        {item.reviewCount > 0 ? (
+                          <>
+                            <span className="font-extrabold text-[#10100F]">{item.rating}</span>
+                            <span className="text-black/40 font-normal">({item.reviewCount} reviews)</span>
+                          </>
+                        ) : (
+                          <span className="text-black/50 font-normal text-[11px]">No reviews yet</span>
+                        )}
                       </div>
-                      <div className="flex items-center gap-2">
-                        <span>📝 {item.questionCount} Qs</span>
-                        <span>·</span>
-                        <span>👥 {item.playsCount} plays</span>
+                      <div className="flex items-center gap-1">
+                        <span className="px-2 py-0.5 rounded-[6px] bg-[#EDE7FF] border border-[#7C4DFF]/30 text-[#7C4DFF] text-[11px] font-bold">
+                          {item.questionCount} Questions
+                        </span>
                       </div>
                     </div>
                   </div>
 
                   {/* Card Action Footer */}
-                  <div className="bg-[#FFF8EB] border-t-[3px] border-[#10100F] p-3 flex items-center gap-2">
+                  <div className="bg-[#FFF8EB] border-t-[3px] border-[#10100F] p-3 flex items-center gap-2" onClick={e => e.stopPropagation()}>
                     {/* Host Live Button */}
                     <button
                       onClick={() => handleHostQuiz(item)}
@@ -461,6 +475,116 @@ export default function CommunityPracticeHub() {
           </div>
         )}
       </main>
+
+      {/* ================================================================
+          VIEW QUESTIONS PREVIEW MODAL
+          ================================================================ */}
+      {previewQuiz && (
+        <div className="fixed inset-0 z-[200] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#FFF8EB] border-[4px] border-[#10100F] rounded-[22px] hard-lg max-w-[760px] w-full p-6 md:p-8 animate-scale-in max-h-[90vh] overflow-y-auto flex flex-col justify-between">
+            
+            {/* Header */}
+            <div className="flex items-center justify-between border-b-[2px] border-black/10 pb-4 mb-4">
+              <div>
+                <span className="text-[11px] font-black uppercase sg bg-[#FFE57F] border border-[#10100F] text-[#10100F] px-2.5 py-0.5 rounded-[12px]">
+                  {previewQuiz.category} · {previewQuiz.questionCount} Questions
+                </span>
+                <h3 className="sg font-black text-[22px] text-[#10100F] mt-1">
+                  {previewQuiz.title}
+                </h3>
+                <p className="text-[13px] text-black/70 font-medium">
+                  {previewQuiz.description}
+                </p>
+              </div>
+              <button
+                onClick={() => setPreviewQuiz(null)}
+                className="w-9 h-9 rounded-[10px] bg-[#FF5252] text-white border-[2px] border-[#10100F] font-bold text-[14px] btn-press grid place-items-center shrink-0 ml-2"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Questions List */}
+            <div className="flex flex-col gap-4 my-3">
+              {previewQuiz.quiz.questions.map((q, idx) => (
+                <div key={idx} className="bg-[#FFFCF5] border-[2.5px] border-[#10100F] rounded-[14px] p-4 soft">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[12px] font-black sg bg-[#10100F] text-white px-2.5 py-0.5 rounded-[10px]">
+                      Q{idx + 1}
+                    </span>
+                    <span className="text-[11px] font-bold text-black/50 uppercase">
+                      ⏱ {Math.round(q.time_limit_ms / 1000)}s · {q.difficulty}
+                    </span>
+                  </div>
+
+                  <h4 className="sg font-extrabold text-[15px] text-[#10100F] mb-3">
+                    {q.prompt}
+                  </h4>
+
+                  {/* Optional Image */}
+                  {q.imageUrl && (
+                    <div className="mb-3">
+                      <img
+                        src={q.imageUrl}
+                        alt="Question Media"
+                        className="max-h-[140px] rounded-[8px] border border-[#10100F]/30 object-contain bg-black/5"
+                        onError={e => (e.currentTarget.style.display = 'none')}
+                      />
+                    </div>
+                  )}
+
+                  {/* Options 2x2 */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-2">
+                    {q.choices.map((c, ci) => {
+                      const isCorrect = ci === q.correct_index
+                      return (
+                        <div
+                          key={ci}
+                          className={`p-2.5 rounded-[8px] border-[2px] text-[12px] font-bold flex items-center gap-2 ${
+                            isCorrect ? 'bg-[#D9FDE8] border-[#00E676] text-[#00897B]' : 'bg-[#FFF8EB] border-[#10100F]/20 text-black/80'
+                          }`}
+                        >
+                          <span className="w-5 h-5 rounded-full border border-[#10100F] grid place-items-center text-[10px] bg-white shrink-0">
+                            {String.fromCharCode(65 + ci)}
+                          </span>
+                          <span className="flex-1 truncate">{c}</span>
+                          {isCorrect && <span className="text-[13px] font-black">✓</span>}
+                        </div>
+                      )
+                    })}
+                  </div>
+
+                  {q.explanation && (
+                    <div className="text-[11px] text-black/60 font-medium bg-[#FFF8EB] border border-dashed border-black/20 p-2 rounded-[6px] mt-2">
+                      💡 <strong>Explanation:</strong> {q.explanation}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* Modal Actions Footer */}
+            <div className="border-t-[2px] border-black/10 pt-4 flex gap-3 justify-end mt-2">
+              <button
+                onClick={() => handleStartPractice(previewQuiz)}
+                className="h-11 px-5 bg-[#EDE7FF] hover:bg-[#D1C4E9] border-[2.5px] border-[#10100F] rounded-[12px] font-extrabold text-[13px] btn-press soft text-[#512DA8]"
+              >
+                🧠 Solo Practice
+              </button>
+              <button
+                onClick={() => {
+                  setPreviewQuiz(null)
+                  handleHostQuiz(previewQuiz)
+                }}
+                className="h-11 px-5 bg-[#00E676] hover:bg-[#00C853] border-[2.5px] border-[#10100F] rounded-[12px] font-extrabold text-[13px] btn-press soft text-[#10100F]"
+              >
+                🚀 Host Live Game
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
 
       {/* ================================================================
           SOLO PRACTICE MODAL ARENA
@@ -626,7 +750,7 @@ export default function CommunityPracticeHub() {
                   ⭐ Ratings & Reviews
                 </h3>
                 <p className="text-[12px] font-bold text-black/60 truncate max-w-[380px]">
-                  {commentingQuiz.title} · {commentingQuiz.rating} ★ ({commentingQuiz.reviewCount} reviews)
+                  {commentingQuiz.title} {commentingQuiz.reviewCount > 0 ? `· ${commentingQuiz.rating} ★ (${commentingQuiz.reviewCount} reviews)` : '· Be the first to review!'}
                 </p>
               </div>
               <button
@@ -658,14 +782,14 @@ export default function CommunityPracticeHub() {
 
               <input
                 type="text"
-                placeholder="Your Name (e.g. Prof. Nilotpal, Teacher Sarah)"
+                placeholder="Your Name (e.g. Teacher Alex, Student Maria)"
                 value={reviewerName}
                 onChange={e => setReviewerName(e.target.value)}
                 className="w-full h-9 bg-[#FFF8EB] border-[2px] border-[#10100F]/30 rounded-[8px] px-3 text-[12px] font-bold outline-none mb-2.5"
               />
 
               <textarea
-                placeholder="Write your feedback or why this quiz is helpful..."
+                placeholder="Write your feedback on this quiz..."
                 value={reviewComment}
                 onChange={e => setReviewComment(e.target.value)}
                 rows={3}
@@ -681,10 +805,10 @@ export default function CommunityPracticeHub() {
               </button>
             </form>
 
-            {/* List of existing comments */}
+            {/* List of real comments */}
             <div className="flex flex-col gap-3">
               <h4 className="sg font-black text-[15px] text-[#10100F]">
-                Community Feedback ({commentingQuiz.comments?.length || 0})
+                User Reviews ({commentingQuiz.comments?.length || 0})
               </h4>
 
               {(!commentingQuiz.comments || commentingQuiz.comments.length === 0) ? (

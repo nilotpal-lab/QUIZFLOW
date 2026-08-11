@@ -1,7 +1,7 @@
 /* ================================================================
    QuizFlow — Community Quiz Library & Practice Store
-   Features AI-categorized quizzes, Founder verified decks,
-   ratings, reviews, and direct 1-click live hosting.
+   Clean Verified Founder Decks with AI auto-categorization,
+   real user ratings, reviews, and 1-click live hosting.
    ================================================================ */
 
 import type { AIGeneratedQuiz, Difficulty, BloomLevel } from './types'
@@ -44,43 +44,28 @@ export interface CommunityQuiz {
   createdAt: number
 }
 
-const STORAGE_KEY = 'qf_community_quizzes_v2'
+const STORAGE_KEY = 'qf_community_quizzes_v3_clean'
 
 export const FOUNDER_QUIZZES: CommunityQuiz[] = [
   {
     id: 'founder_bio_cellular',
     title: 'Cellular Respiration & Bio-Energy',
-    description: 'Master glycolysis, the Krebs cycle, ATP synthesis, and mitochondrial transport chains.',
+    description: 'Glycolysis, the Krebs cycle, ATP synthesis, and mitochondrial transport chains.',
     category: 'Biology',
     tags: ['Mitochondria', 'ATP', 'Cell Biology', 'Biochemistry'],
     isFounder: true,
-    authorName: 'Prof. Alex Mercer (Founder)',
+    authorName: 'QuizFlow Founders',
     difficulty: 'medium',
     bloomLevel: 'Comprehension',
     questionCount: 5,
-    playsCount: 1420,
-    rating: 4.9,
-    reviewCount: 48,
-    createdAt: Date.now() - 14 * 86400 * 1000,
-    comments: [
-      {
-        id: 'c1',
-        authorName: 'Dr. Sarah Jenkins',
-        rating: 5,
-        text: 'The questions on ATP synthase gradients are exceptionally clear for high school and undergrad students!',
-        createdAt: Date.now() - 3 * 86400 * 1000
-      },
-      {
-        id: 'c2',
-        authorName: 'BiologyTeacher99',
-        rating: 5,
-        text: 'Used this for my 11th grade biology class live session. Students loved it!',
-        createdAt: Date.now() - 1 * 86400 * 1000
-      }
-    ],
+    playsCount: 0,
+    rating: 0,
+    reviewCount: 0,
+    createdAt: Date.now() - 7 * 86400 * 1000,
+    comments: [],
     quiz: {
       title: 'Cellular Respiration & Bio-Energy',
-      description: 'Master glycolysis, the Krebs cycle, ATP synthesis, and mitochondrial transport chains.',
+      description: 'Glycolysis, the Krebs cycle, ATP synthesis, and mitochondrial transport chains.',
       language: 'English',
       bloomLevel: 'Comprehension',
       questions: [
@@ -141,31 +126,23 @@ export const FOUNDER_QUIZZES: CommunityQuiz[] = [
   },
   {
     id: 'founder_sports_world_cup',
-    title: 'Football & World Cup Legends',
-    description: 'Test your knowledge on FIFA World Cup milestones, legendary goals, iconic stadiums, and tournament records.',
+    title: 'Football & World Cup History',
+    description: 'FIFA World Cup tournament records, iconic stadiums, and tournament milestones.',
     category: 'Sports',
     tags: ['Football', 'FIFA World Cup', 'Champions', 'Athletics'],
     isFounder: true,
-    authorName: 'Coach Marcus Vance (Founder)',
+    authorName: 'QuizFlow Founders',
     difficulty: 'medium',
     bloomLevel: 'Recall',
     questionCount: 5,
-    playsCount: 2380,
-    rating: 5.0,
-    reviewCount: 74,
-    createdAt: Date.now() - 20 * 86400 * 1000,
-    comments: [
-      {
-        id: 'c3',
-        authorName: 'LeoFan_10',
-        rating: 5,
-        text: 'Super fun quiz! The stadium questions were awesome.',
-        createdAt: Date.now() - 5 * 86400 * 1000
-      }
-    ],
+    playsCount: 0,
+    rating: 0,
+    reviewCount: 0,
+    createdAt: Date.now() - 7 * 86400 * 1000,
+    comments: [],
     quiz: {
-      title: 'Football & World Cup Legends',
-      description: 'Test your knowledge on FIFA World Cup milestones, legendary goals, and tournament records.',
+      title: 'Football & World Cup History',
+      description: 'FIFA World Cup tournament records, iconic stadiums, and tournament milestones.',
       language: 'English',
       bloomLevel: 'Recall',
       questions: [
@@ -212,7 +189,7 @@ export const FOUNDER_QUIZZES: CommunityQuiz[] = [
           misconceptions: ['', 'Maracanã is in Rio de Janeiro, Brazil', 'Wembley is in London, UK', 'Camp Nou is in Barcelona, Spain']
         },
         {
-          prompt: 'Who scored the famous "Hand of God" and "Goal of the Century" against England in the 1986 World Cup?',
+          prompt: 'Who scored both the "Hand of God" and "Goal of the Century" against England in the 1986 World Cup?',
           choices: ['Diego Maradona', 'Gabriel Batistuta', 'Zico', 'Michel Platini'],
           correct_index: 0,
           difficulty: 'easy',
@@ -231,23 +208,15 @@ export const FOUNDER_QUIZZES: CommunityQuiz[] = [
     category: 'Mathematics',
     tags: ['Algebra', 'Equations', 'Calculus', 'Logic'],
     isFounder: true,
-    authorName: 'Dr. Elena Rostova (Founder)',
+    authorName: 'QuizFlow Founders',
     difficulty: 'hard',
     bloomLevel: 'Application',
     questionCount: 5,
-    playsCount: 1890,
-    rating: 4.8,
-    reviewCount: 39,
-    createdAt: Date.now() - 10 * 86400 * 1000,
-    comments: [
-      {
-        id: 'c4',
-        authorName: 'MathTutorKiran',
-        rating: 5,
-        text: 'The step-by-step discriminant explanation in question 2 is super helpful!',
-        createdAt: Date.now() - 2 * 86400 * 1000
-      }
-    ],
+    playsCount: 0,
+    rating: 0,
+    reviewCount: 0,
+    createdAt: Date.now() - 7 * 86400 * 1000,
+    comments: [],
     quiz: {
       title: 'Algebra, Equations & Logic Puzzles',
       description: 'Quadratic formulas, linear equations, exponential growth, and algorithmic problem-solving.',
@@ -311,30 +280,22 @@ export const FOUNDER_QUIZZES: CommunityQuiz[] = [
   {
     id: 'founder_tech_fullstack',
     title: 'Modern Web Architecture & Fullstack',
-    description: 'React, Next.js rendering cycles, REST vs GraphQL, indexing algorithms, and state management.',
+    description: 'Next.js App Router, React memoization, database indexing, and API design.',
     category: 'Technology',
     tags: ['React', 'Next.js', 'Web Dev', 'Algorithms'],
     isFounder: true,
-    authorName: 'Nilotpal & Team (Founders)',
+    authorName: 'QuizFlow Founders',
     difficulty: 'medium',
     bloomLevel: 'Application',
     questionCount: 5,
-    playsCount: 3100,
-    rating: 5.0,
-    reviewCount: 92,
-    createdAt: Date.now() - 5 * 86400 * 1000,
-    comments: [
-      {
-        id: 'c5',
-        authorName: 'FrontendNinja',
-        rating: 5,
-        text: 'Spot on questions on React hydration and memoization! Must play for web developers.',
-        createdAt: Date.now() - 1 * 86400 * 1000
-      }
-    ],
+    playsCount: 0,
+    rating: 0,
+    reviewCount: 0,
+    createdAt: Date.now() - 7 * 86400 * 1000,
+    comments: [],
     quiz: {
       title: 'Modern Web Architecture & Fullstack',
-      description: 'React, Next.js rendering cycles, REST vs GraphQL, indexing algorithms, and state management.',
+      description: 'Next.js App Router, React memoization, database indexing, and API design.',
       language: 'English',
       bloomLevel: 'Application',
       questions: [
@@ -347,7 +308,7 @@ export const FOUNDER_QUIZZES: CommunityQuiz[] = [
           time_limit_ms: 15000,
           bloom_level: 'Recall',
           imageUrl: 'https://images.unsplash.com/photo-1555066931-4365d14bab8c?auto=format&fit=crop&w=600&q=80',
-          misconceptions: ['', 'export const dynamic is a route segment config, not a component directive', "'use browser' is not a valid React directive", "'use state' is not a valid directive"]
+          misconceptions: ['', 'export const dynamic is a route segment config, not a component directive', 'use browser is not a valid React directive', 'use state is not a valid directive']
         },
         {
           prompt: 'What problem does React.memo() or useMemo() primarily prevent in heavy UI trees?',
@@ -395,30 +356,22 @@ export const FOUNDER_QUIZZES: CommunityQuiz[] = [
   {
     id: 'founder_hist_ancient',
     title: 'Ancient World Civilizations & Empires',
-    description: 'Explore the architectural wonders, philosophical revolutions, and battles of Egypt, Greece, Rome, and the Indus Valley.',
+    description: 'Hieroglyphics, the Roman Empire, Indus Valley civilization, and classical architecture.',
     category: 'History',
     tags: ['Ancient Egypt', 'Rome', 'Greece', 'Civilization'],
     isFounder: true,
-    authorName: 'Historian Claire Bennett (Founder)',
+    authorName: 'QuizFlow Founders',
     difficulty: 'medium',
     bloomLevel: 'Comprehension',
     questionCount: 5,
-    playsCount: 1640,
-    rating: 4.9,
-    reviewCount: 31,
-    createdAt: Date.now() - 18 * 86400 * 1000,
-    comments: [
-      {
-        id: 'c6',
-        authorName: 'HistoryBuff90',
-        rating: 5,
-        text: 'The question on the Rosetta stone is so well written!',
-        createdAt: Date.now() - 4 * 86400 * 1000
-      }
-    ],
+    playsCount: 0,
+    rating: 0,
+    reviewCount: 0,
+    createdAt: Date.now() - 7 * 86400 * 1000,
+    comments: [],
     quiz: {
       title: 'Ancient World Civilizations & Empires',
-      description: 'Explore the architectural wonders, philosophy, and history of Egypt, Greece, Rome, and the Indus Valley.',
+      description: 'Hieroglyphics, the Roman Empire, Indus Valley civilization, and classical architecture.',
       language: 'English',
       bloomLevel: 'Comprehension',
       questions: [
@@ -483,23 +436,15 @@ export const FOUNDER_QUIZZES: CommunityQuiz[] = [
     category: 'Science',
     tags: ['Astronomy', 'Physics', 'Space', 'Earth'],
     isFounder: true,
-    authorName: 'Dr. Neil Sterling (Founder)',
+    authorName: 'QuizFlow Founders',
     difficulty: 'medium',
     bloomLevel: 'Comprehension',
     questionCount: 5,
-    playsCount: 2750,
-    rating: 4.9,
-    reviewCount: 65,
+    playsCount: 0,
+    rating: 0,
+    reviewCount: 0,
     createdAt: Date.now() - 7 * 86400 * 1000,
-    comments: [
-      {
-        id: 'c7',
-        authorName: 'AstroGirl',
-        rating: 5,
-        text: 'Loved the question on event horizons and Hawking radiation!',
-        createdAt: Date.now() - 2 * 86400 * 1000
-      }
-    ],
+    comments: [],
     quiz: {
       title: 'Cosmology, Quantum Space & Earth Science',
       description: 'Black holes, orbital mechanics, planetary atmospheres, and the cosmic microwave background.',
@@ -601,7 +546,6 @@ export function autoCategorizeQuiz(
     scores.Science += 5
   }
 
-  // Find max category
   let bestCategory: QuizCategory = 'General Knowledge'
   let maxScore = 0
 
@@ -612,7 +556,6 @@ export function autoCategorizeQuiz(
     }
   }
 
-  // Generate sub-tags
   const tags: string[] = []
   if (bestCategory === 'Sports') tags.push('Athletics', 'Tournaments', 'Champions')
   else if (bestCategory === 'Biology') tags.push('Life Sciences', 'Genetics', 'Cellular')
@@ -633,7 +576,6 @@ export function getCommunityQuizzes(): CommunityQuiz[] {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (raw) {
       const parsed: CommunityQuiz[] = JSON.parse(raw)
-      // Merge with founder quizzes ensuring IDs are unique
       const ids = new Set(parsed.map(q => q.id))
       const missingFounders = FOUNDER_QUIZZES.filter(f => !ids.has(f.id))
       return [...missingFounders, ...parsed]
@@ -660,7 +602,7 @@ export function addQuizComment(quizId: string, authorName: string, rating: numbe
 
   const newComment: QuizComment = {
     id: 'cmt_' + Date.now(),
-    authorName: authorName.trim() || 'Fellow Learner',
+    authorName: authorName.trim() || 'Learner',
     rating: Math.max(1, Math.min(5, rating)),
     text: text.trim(),
     createdAt: Date.now()
@@ -669,7 +611,6 @@ export function addQuizComment(quizId: string, authorName: string, rating: numbe
   const currentComments = list[idx].comments || []
   const updatedComments = [newComment, ...currentComments]
   
-  // Recalculate average rating
   const totalRating = updatedComments.reduce((acc, c) => acc + c.rating, 0)
   const newAvgRating = Number((totalRating / updatedComments.length).toFixed(1))
 
@@ -711,19 +652,11 @@ export function publishQuizToCommunity(quiz: AIGeneratedQuiz, authorName?: strin
     difficulty: quiz.questions[0]?.difficulty || 'medium',
     bloomLevel: (quiz.bloomLevel as BloomLevel) || 'Comprehension',
     questionCount: quiz.questions.length,
-    playsCount: 1,
-    rating: 5.0,
-    reviewCount: 1,
+    playsCount: 0,
+    rating: 0,
+    reviewCount: 0,
     quiz,
-    comments: [
-      {
-        id: 'c_init_' + Date.now(),
-        authorName: authorName || 'Teacher Creator',
-        rating: 5,
-        text: 'Published for classroom practice and live multiplayer hosting!',
-        createdAt: Date.now()
-      }
-    ],
+    comments: [],
     createdAt: Date.now()
   }
 
