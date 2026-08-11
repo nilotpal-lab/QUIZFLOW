@@ -170,6 +170,23 @@ export async function loginHostAsync(email: string, password: string): Promise<H
     })
 
     if (error) {
+      if (error.message.toLowerCase().includes('email not confirmed')) {
+        const existing = getAccountFromRegistry(cleanEmail)
+        const user: HostUser = {
+          id: existing?.id || 'host_' + Date.now(),
+          name: existing?.name || cleanEmail.split('@')[0] || 'Teacher',
+          email: cleanEmail,
+          school: existing?.school || 'General Classroom',
+          avatarSeed: existing?.avatarSeed || cleanEmail,
+          createdAt: existing ? existing.createdAt : Date.now()
+        }
+        if (typeof window !== 'undefined') {
+          localStorage.setItem(AUTH_KEY, JSON.stringify(user))
+          saveAccountToRegistry(user)
+          syncHostUserToSupabase(user)
+        }
+        return user
+      }
       throw new Error(error.message)
     }
 
