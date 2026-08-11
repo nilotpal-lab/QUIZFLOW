@@ -611,7 +611,29 @@ function TeacherHostDashboard() {
                 {gameState.status === 'question_active' ? `⏱ ${timeLeft}s left` : gameState.status === 'question_reveal' ? '✅ Revealed' : '🏆 Leaderboard'}
               </span>
             </div>
-            <h2 style={{ fontFamily: 'Space Grotesk', fontSize: 20, fontWeight: 700, lineHeight: 1.4, marginBottom: 20, color: 'var(--ink)' }}>{q?.prompt}</h2>
+            <h2 style={{ fontFamily: 'Space Grotesk', fontSize: 20, fontWeight: 700, lineHeight: 1.4, marginBottom: (q?.imageUrl || q?.media_url) ? 12 : 20, color: 'var(--ink)' }}>{q?.prompt}</h2>
+
+            {(q?.imageUrl || q?.media_url) && (
+              <div style={{ marginBottom: 16, textAlign: 'center' }}>
+                <img
+                  src={q.imageUrl || q.media_url}
+                  alt="Question Diagram"
+                  style={{
+                    maxHeight: 220,
+                    maxWidth: '100%',
+                    objectFit: 'contain',
+                    borderRadius: 12,
+                    border: '3px solid var(--ink)',
+                    boxShadow: '4px 4px 0 var(--ink)',
+                    margin: '0 auto',
+                    background: 'var(--paper-2)'
+                  }}
+                  onError={(e) => {
+                    (e.currentTarget as HTMLElement).style.display = 'none'
+                  }}
+                />
+              </div>
+            )}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
               {dist.map((choice, ci) => (
                 <div key={choice.label} style={{

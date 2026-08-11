@@ -295,19 +295,41 @@ export function logoutHost(): void {
 export function initAuthSync(onUserChange?: (user: HostUser | null) => void): () => void {
   if (typeof window === 'undefined' || !supabase) return () => {}
 
+  // Parse immediate OAuth session if returning from Google login
+  supabase.auth.getSession().then(({ data: { session } }) => {
+    if (session?.user) {
+      const email = session.user.email || ''
+      const existing = getAccountFromRegistry(email)
+      const fullName = (session.user.user_metadata?.full_name as string) || (session.user.user_metadata?.name as string)
+      const user: HostUser = {
+        id: session.user.id,
+        name: fullName || existing?.name || email.split('@')[0] || 'Teacher',
+        email,
+        school: (session.user.user_metadata?.school as string) || existing?.school || 'General Classroom',
+        avatarSeed: fullName || existing?.avatarSeed || email,
+        createdAt: existing ? existing.createdAt : Date.now()
+      }
+      localStorage.setItem(AUTH_KEY, JSON.stringify(user))
+      saveAccountToRegistry(user)
+      if (onUserChange) onUserChange(user)
+    }
+  })
+
   const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
     if (session?.user) {
       const email = session.user.email || ''
       const existing = getAccountFromRegistry(email)
+      const fullName = (session.user.user_metadata?.full_name as string) || (session.user.user_metadata?.name as string)
       const user: HostUser = {
         id: session.user.id,
-        name: (session.user.user_metadata?.name as string) || existing?.name || email.split('@')[0] || 'Teacher',
+        name: fullName || existing?.name || email.split('@')[0] || 'Teacher',
         email,
         school: (session.user.user_metadata?.school as string) || existing?.school || 'General Classroom',
-        avatarSeed: (session.user.user_metadata?.name as string) || existing?.avatarSeed || email,
+        avatarSeed: fullName || existing?.avatarSeed || email,
         createdAt: existing ? existing.createdAt : Date.now()
       }
       localStorage.setItem(AUTH_KEY, JSON.stringify(user))
+      saveAccountToRegistry(user)
       if (onUserChange) onUserChange(user)
     } else if (_event === 'SIGNED_OUT') {
       localStorage.removeItem(AUTH_KEY)

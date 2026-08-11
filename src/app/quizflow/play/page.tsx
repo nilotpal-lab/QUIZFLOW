@@ -629,6 +629,27 @@ function StudentPlayScreen() {
                 </button>
               </div>
             </div>
+            {(q.imageUrl || q.media_url) && (
+              <div style={{ marginTop: 14, textAlign: 'center' }}>
+                <img
+                  src={q.imageUrl || q.media_url}
+                  alt="Question Diagram"
+                  style={{
+                    maxHeight: 200,
+                    maxWidth: '100%',
+                    objectFit: 'contain',
+                    borderRadius: 12,
+                    border: '3px solid var(--ink)',
+                    boxShadow: '3px 3px 0 var(--ink)',
+                    margin: '0 auto',
+                    background: 'var(--paper)'
+                  }}
+                  onError={(e) => {
+                    (e.currentTarget as HTMLElement).style.display = 'none'
+                  }}
+                />
+              </div>
+            )}
             <div style={{ marginTop: 10, fontSize: 12, color: 'var(--ink)', fontFamily: 'Space Grotesk', opacity: 0.6, fontWeight: 700 }}>
               QUESTION {gameState.currentQuestionIndex + 1} OF {gameState.quiz.questions.length}
             </div>

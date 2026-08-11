@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic'
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { getHostUser, logoutHostAsync, updateHostProfile, type HostUser } from '@/quizflow/authStore'
+import { getHostUser, logoutHostAsync, updateHostProfile, initAuthSync, type HostUser } from '@/quizflow/authStore'
 import { getSavedQuizzes, deleteSavedQuiz, type SavedQuizItem } from '@/quizflow/quizStore'
 import { getSessionHistory, type SessionHistoryRecord } from '@/quizflow/historyStore'
 import { createSession } from '@/quizflow/sessionStore'
@@ -56,16 +56,26 @@ export default function TeacherDashboard() {
 
   useEffect(() => {
     const hostUser = getHostUser()
-    if (!hostUser) {
-      router.push('/quizflow/auth')
-      return
+    if (hostUser) {
+      setUser(hostUser)
+      setProfileName(hostUser.name)
+      setProfileSchool(hostUser.school)
     }
-    setUser(hostUser)
-    setProfileName(hostUser.name)
-    setProfileSchool(hostUser.school)
+
+    const unsubscribe = initAuthSync(updatedUser => {
+      if (updatedUser) {
+        setUser(updatedUser)
+        setProfileName(updatedUser.name)
+        setProfileSchool(updatedUser.school)
+      } else if (!getHostUser()) {
+        router.push('/quizflow/auth')
+      }
+    })
 
     setAllQuizzes(getSavedQuizzes())
     setHistory(getSessionHistory())
+
+    return () => unsubscribe()
   }, [router])
 
   const draftQuizzes = allQuizzes.filter(q => q.isDraft)

@@ -40,7 +40,8 @@ const DEFAULT_QUIZ: AIGeneratedQuiz = {
 export default function AIQuizStudio() {
   const router = useRouter()
   const [topicInput, setTopicInput]         = useState('')
-  const [questionCount, setQuestionCount]   = useState(5)
+  const [questionCount, setQuestionCount]   = useState<number | string>(5)
+  const [showCountErrorModal, setShowCountErrorModal] = useState(false)
   const [selectedLang, setSelectedLang]     = useState('English')
   const [bloomLevel, setBloomLevel]         = useState<BloomLevel>('Recall')
   const [generating, setGenerating]         = useState(false)
@@ -142,6 +143,12 @@ export default function AIQuizStudio() {
 
   // Generate New Quiz
   const handleGenerate = async () => {
+    const countNum = Number(questionCount)
+    if (isNaN(countNum) || countNum < 1 || countNum > 25) {
+      setShowCountErrorModal(true)
+      return
+    }
+
     let topic = topicInput.trim()
     let sourceText = ''
     let metaUrl = ''
@@ -252,6 +259,29 @@ export default function AIQuizStudio() {
 
   return (
     <div className="min-h-screen bg-[#F6F1E7] text-[#10100F] selection:bg-[#FFE57F] flex flex-col relative grain">
+      
+      {/* Question Count Limit Error Modal */}
+      {showCountErrorModal && (
+        <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#FFF8EB] border-[4px] border-[#10100F] rounded-[20px] hard p-6 max-w-[400px] w-full text-center animate-scale-in">
+            <div className="text-[44px] mb-2">⚠️</div>
+            <h3 className="sg font-black text-[20px] text-[#10100F] mb-2">Invalid Question Count</h3>
+            <p className="font-medium text-[14px] text-black/80 mb-5 leading-relaxed">
+              Please enter a number of questions between <strong>1 and 25</strong>.
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                setShowCountErrorModal(false)
+                setQuestionCount(5)
+              }}
+              className="w-full h-11 bg-[#FFE57F] hover:bg-[#FFD54F] border-[3px] border-[#10100F] rounded-[12px] font-extrabold text-[14px] btn-press soft text-[#10100F]"
+            >
+              Got it! (Set to 5) 👍
+            </button>
+          </div>
+        </div>
+      )}
       
       {/* Styles Injection */}
       <style>{`
@@ -531,19 +561,24 @@ export default function AIQuizStudio() {
               </div>
 
               <div>
-                <label className="sg text-[11px] font-bold tracking-[0.08em] text-black/50 block mb-2 uppercase">NUMBER OF QUESTIONS</label>
+                <label className="sg text-[11px] font-bold tracking-[0.08em] text-black/50 block mb-2 uppercase">NUMBER OF QUESTIONS (1–25)</label>
                 <div className="relative">
-                  <select
+                  <input
+                    type="number"
+                    min={1}
+                    max={25}
                     value={questionCount}
-                    onChange={e => setQuestionCount(Number(e.target.value))}
-                    className="w-full h-[44px] bg-[#FFFCF5] border-[3px] border-[#10100F] rounded-[12px] px-3 text-[13px] font-semibold outline-none appearance-none"
-                  >
-                    <option value={3}>3 Questions</option>
-                    <option value={5}>5 Questions</option>
-                    <option value={10}>10 Questions</option>
-                    <option value={15}>15 Questions</option>
-                  </select>
-                  <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-black/55 font-bold">⌄</div>
+                    onChange={e => {
+                      const val = e.target.value
+                      setQuestionCount(val)
+                      const num = Number(val)
+                      if (val !== '' && (num < 1 || num > 25)) {
+                        setShowCountErrorModal(true)
+                      }
+                    }}
+                    className="w-full h-[44px] bg-[#FFFCF5] border-[3px] border-[#10100F] rounded-[12px] px-3.5 text-[14px] font-extrabold outline-none text-[#10100F]"
+                    placeholder="1 - 25"
+                  />
                 </div>
               </div>
 
@@ -685,6 +720,55 @@ export default function AIQuizStudio() {
                     className="w-full mt-4 p-3 bg-[#FFF8EB] border-[2px] border-[#10100F]/20 focus:border-[#10100F] rounded-[10px] text-[16px] font-bold leading-[1.5] outline-none resize-y text-[#10100F] transition-all"
                     rows={2}
                   />
+
+                  {/* Optional Question Image Section */}
+                  <div className="mt-3 flex flex-col gap-2">
+                    {(q.imageUrl || q.media_url) ? (
+                      <div className="relative group max-w-[340px] rounded-[12px] overflow-hidden border-[3px] border-[#10100F] soft bg-black/5 p-2">
+                        <img
+                          src={q.imageUrl || q.media_url}
+                          alt="Question diagram"
+                          className="w-full h-[180px] object-cover rounded-[8px] bg-white border border-[#10100F]/20"
+                          onError={(e) => {
+                            (e.currentTarget as HTMLElement).style.display = 'none'
+                          }}
+                        />
+                        <div className="mt-2 flex items-center justify-between gap-2">
+                          <span className="text-[11px] font-mono text-black/60 truncate flex-1">{q.imageUrl || q.media_url}</span>
+                          <button
+                            type="button"
+                            onClick={() => updateQuestion(qIdx, { imageUrl: undefined, media_url: undefined })}
+                            className="h-7 px-2.5 bg-[#FF5252] text-white border-[2px] border-[#10100F] rounded-[6px] text-[11px] font-bold btn-press shrink-0"
+                          >
+                            ✕ Remove Image
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const promptText = q.prompt || 'education question'
+                            const cleanPrompt = promptText.replace(/[^a-zA-Z0-9\s]/g, '').trim().substring(0, 60) || 'knowledge'
+                            const imgUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(cleanPrompt + ' HD photo illustration educational')}?nologo=true`
+                            updateQuestion(qIdx, { imageUrl: imgUrl, media_url: imgUrl })
+                          }}
+                          className="h-8 px-3 bg-[#FFE57F] hover:bg-[#FFD54F] border-[2px] border-[#10100F] rounded-[8px] text-[12px] font-extrabold flex items-center gap-1.5 btn-press"
+                        >
+                          <span>🖼️</span> ✨ Auto-Fetch AI Image
+                        </button>
+
+                        <input
+                          type="url"
+                          placeholder="Or paste image URL (https://...)"
+                          value={q.imageUrl || q.media_url || ''}
+                          onChange={e => updateQuestion(qIdx, { imageUrl: e.target.value, media_url: e.target.value })}
+                          className="flex-1 min-w-[200px] h-8 px-3 bg-[#FFF8EB] border-[2px] border-[#10100F]/20 focus:border-[#10100F] rounded-[8px] text-[12px] font-semibold outline-none"
+                        />
+                      </div>
+                    )}
+                  </div>
 
                   {/* 2-Column Options Grid */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">

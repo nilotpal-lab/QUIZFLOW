@@ -110,6 +110,8 @@ export interface AIGeneratedQuestion {
   time_limit_ms: number
   bloom_level?: BloomLevel | string
   misconceptions?: string[]
+  imageUrl?: string
+  media_url?: string
 }
 
 export interface AIGeneratedQuiz {
