@@ -7,9 +7,12 @@ import {
   getCommunityQuizzes,
   addQuizComment,
   incrementQuizPlays,
+  publishQuizToCommunity,
   type CommunityQuiz,
   type QuizCategory
 } from '@/quizflow/communityStore'
+import { getSavedQuizzes, type SavedQuizItem } from '@/quizflow/quizStore'
+import { getHostUser } from '@/quizflow/authStore'
 import { createSession } from '@/quizflow/sessionStore'
 import { speakText, stopSpeech } from '@/quizflow/speech'
 import { playClickSound, playCorrectChime, playLevelUpFanfare } from '@/quizflow/sound'
@@ -40,9 +43,14 @@ const CATEGORY_COLORS: Record<string, { bg: string; border: string; text: string
 export default function CommunityPracticeHub() {
   const router = useRouter()
   const [quizzes, setQuizzes] = useState<CommunityQuiz[]>([])
+  const [savedQuizzes, setSavedQuizzes] = useState<SavedQuizItem[]>([])
   const [selectedCategory, setSelectedCategory] = useState<QuizCategory | 'Founders'>('All')
   const [searchQuery, setSearchQuery] = useState('')
   const [difficultyFilter, setDifficultyFilter] = useState<string>('all')
+
+  // Add to Library Modal state
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false)
+  const [addModeTab, setAddModeTab] = useState<'dashboard' | 'studio'>('dashboard')
 
   // Preview Questions Modal
   const [previewQuiz, setPreviewQuiz] = useState<CommunityQuiz | null>(null)
@@ -65,11 +73,12 @@ export default function CommunityPracticeHub() {
 
   useEffect(() => {
     setQuizzes(getCommunityQuizzes())
+    setSavedQuizzes(getSavedQuizzes())
   }, [])
 
   const showToast = (msg: string) => {
     setToastMsg(msg)
-    setTimeout(() => setToastMsg(null), 3000)
+    setTimeout(() => setToastMsg(null), 3500)
   }
 
   // Filter quizzes
@@ -87,6 +96,18 @@ export default function CommunityPracticeHub() {
     }
     return true
   })
+
+  // Import / Publish a saved quiz from dashboard to community library
+  const handlePublishSavedQuiz = (savedItem: SavedQuizItem) => {
+    playClickSound()
+    const user = getHostUser()
+    const author = user?.name || 'Teacher Creator'
+    const newQuiz = publishQuizToCommunity(savedItem.quiz, author)
+    setQuizzes(getCommunityQuizzes())
+    playLevelUpFanfare()
+    showToast(`✅ "${newQuiz.title}" published to Library under ${newQuiz.category}!`)
+    setIsAddModalOpen(false)
+  }
 
   // Launch live hosting
   const handleHostQuiz = (quizItem: CommunityQuiz) => {
@@ -212,7 +233,7 @@ export default function CommunityPracticeHub() {
 
       {/* TOAST NOTIFICATION */}
       {toastMsg && (
-        <div className="fixed top-20 right-5 z-[150] bg-[#10100F] text-[#FFFCF5] px-5 py-3 rounded-[12px] hard border-[2px] border-white/20 text-[13px] font-bold animate-scale-in">
+        <div className="fixed top-20 right-5 z-[250] bg-[#10100F] text-[#FFFCF5] px-5 py-3 rounded-[12px] hard border-[2px] border-white/20 text-[13px] font-bold animate-scale-in">
           {toastMsg}
         </div>
       )}
@@ -227,14 +248,26 @@ export default function CommunityPracticeHub() {
           </Link>
           <div className="flex items-center gap-2 text-[#FFFCF5] sg font-extrabold text-[18px] md:text-[20px] tracking-[-0.03em]">
             <span className="w-8 h-8 bg-[#FFE57F] rounded-[8px] border-[2px] border-white/20 grid place-items-center text-[#10100F] text-[15px]">✦</span>
-            QuizFlow Library & Practice
+            QuizFlow Library &amp; Practice
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          <Link href="/quizflow/studio">
+        <div className="flex items-center gap-2.5">
+          {/* Add Quiz to Library Button */}
+          <button
+            onClick={() => {
+              playClickSound()
+              setSavedQuizzes(getSavedQuizzes())
+              setIsAddModalOpen(true)
+            }}
+            className="h-10 px-4 bg-[#FFE57F] hover:bg-[#FFD54F] border-[3px] border-[#10100F] rounded-[12px] text-[13px] font-extrabold flex items-center gap-1.5 btn-press hard-white text-[#10100F]"
+          >
+            <span>➕</span> Add Quiz to Library
+          </button>
+
+          <Link href="/quizflow/studio" className="hidden sm:inline-block">
             <button className="h-10 px-4 bg-[#00E676] border-[3px] border-[#10100F] rounded-[12px] text-[13px] font-extrabold flex items-center gap-1.5 btn-press hard-white text-[#10100F]">
-              <span>✨</span> Create with AI Studio
+              <span>✨</span> AI Studio
             </button>
           </Link>
         </div>
@@ -245,13 +278,13 @@ export default function CommunityPracticeHub() {
         <div className="max-w-[1280px] mx-auto flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
           <div>
             <div className="inline-flex items-center gap-2 bg-[#FFE57F] border-[2px] border-[#10100F] px-3 py-1 rounded-[20px] text-[11px] font-extrabold sg uppercase mb-2.5 soft">
-              <span>✦</span> AI-Categorized & Founder-Verified Quizzes
+              <span>✦</span> AI-Categorized &amp; Founder-Verified Quizzes
             </div>
             <h1 className="sg font-black text-[28px] md:text-[36px] tracking-[-0.03em] leading-tight text-[#10100F]">
-              Discover, Practice & Host Ready-to-Play Quizzes
+              Discover, Practice &amp; Host Ready-to-Play Quizzes
             </h1>
             <p className="text-[14px] md:text-[15px] text-black/70 font-medium mt-1 max-w-[680px]">
-              Click on any quiz to view its questions, practice individually with flashcards, or host a live multiplayer game with your students!
+              Click on any quiz to view all its questions, practice individually with flashcards, or host a live multiplayer game with your students!
             </p>
           </div>
 
@@ -347,18 +380,29 @@ export default function CommunityPracticeHub() {
             <div className="text-[44px] mb-2">🔍</div>
             <h3 className="sg font-black text-[20px]">No quizzes found</h3>
             <p className="text-[14px] text-black/60 font-medium mt-1 mb-5">
-              Try adjusting your search query or select another category.
+              Try adjusting your search query, or add your own quiz to this category!
             </p>
-            <button
-              onClick={() => {
-                setSelectedCategory('All')
-                setSearchQuery('')
-                setDifficultyFilter('all')
-              }}
-              className="h-10 px-5 bg-[#FFE57F] border-[2px] border-[#10100F] rounded-[10px] font-extrabold text-[13px] btn-press soft"
-            >
-              Clear Filters
-            </button>
+            <div className="flex gap-3 justify-center">
+              <button
+                onClick={() => {
+                  setSelectedCategory('All')
+                  setSearchQuery('')
+                  setDifficultyFilter('all')
+                }}
+                className="h-10 px-5 bg-[#FFE57F] border-[2px] border-[#10100F] rounded-[10px] font-extrabold text-[13px] btn-press soft"
+              >
+                Clear Filters
+              </button>
+              <button
+                onClick={() => {
+                  setSavedQuizzes(getSavedQuizzes())
+                  setIsAddModalOpen(true)
+                }}
+                className="h-10 px-5 bg-[#00E676] border-[2px] border-[#10100F] rounded-[10px] font-extrabold text-[13px] btn-press soft"
+              >
+                ➕ Add Quiz
+              </button>
+            </div>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -391,7 +435,7 @@ export default function CommunityPracticeHub() {
                         </span>
                       ) : (
                         <span className="px-2.5 py-0.5 rounded-[20px] bg-black/5 border border-black/20 text-[11px] font-bold text-black/60">
-                          Community
+                          👤 {item.authorName}
                         </span>
                       )}
                     </div>
@@ -477,6 +521,128 @@ export default function CommunityPracticeHub() {
       </main>
 
       {/* ================================================================
+          ADD QUIZ TO LIBRARY MODAL (Dashboard Import vs AI Studio)
+          ================================================================ */}
+      {isAddModalOpen && (
+        <div className="fixed inset-0 z-[200] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#FFF8EB] border-[4px] border-[#10100F] rounded-[22px] hard-lg max-w-[700px] w-full p-6 md:p-8 animate-scale-in max-h-[90vh] overflow-y-auto flex flex-col justify-between">
+            
+            {/* Header */}
+            <div className="flex items-center justify-between border-b-[2px] border-black/10 pb-4 mb-4">
+              <div>
+                <h3 className="sg font-black text-[22px] text-[#10100F]">
+                  ➕ Add Quiz to Library
+                </h3>
+                <p className="text-[13px] text-black/70 font-medium">
+                  Publish quizzes from your dashboard or create brand new ones with AI.
+                </p>
+              </div>
+              <button
+                onClick={() => setIsAddModalOpen(false)}
+                className="w-9 h-9 rounded-[10px] bg-[#FF5252] text-white border-[2px] border-[#10100F] font-bold text-[14px] btn-press grid place-items-center"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Modal Tabs */}
+            <div className="flex border-b-[2px] border-black/10 mb-5 gap-3">
+              <button
+                onClick={() => setAddModeTab('dashboard')}
+                className={`pb-2.5 px-4 font-black sg text-[14px] border-b-[3px] transition-colors ${
+                  addModeTab === 'dashboard'
+                    ? 'border-[#10100F] text-[#10100F]'
+                    : 'border-transparent text-black/40 hover:text-black'
+                }`}
+              >
+                📂 Import from Dashboard ({savedQuizzes.length})
+              </button>
+              <button
+                onClick={() => setAddModeTab('studio')}
+                className={`pb-2.5 px-4 font-black sg text-[14px] border-b-[3px] transition-colors ${
+                  addModeTab === 'studio'
+                    ? 'border-[#10100F] text-[#10100F]'
+                    : 'border-transparent text-black/40 hover:text-black'
+                }`}
+              >
+                ✨ Create New with AI Studio
+              </button>
+            </div>
+
+            {/* TAB 1: Import from Dashboard */}
+            {addModeTab === 'dashboard' && (
+              <div>
+                {savedQuizzes.length === 0 ? (
+                  <div className="text-center py-8 bg-[#FFFCF5] border-[2px] border-dashed border-[#10100F]/30 rounded-[14px] p-6">
+                    <div className="text-[36px] mb-2">📭</div>
+                    <h4 className="sg font-black text-[16px]">No saved quizzes in Dashboard</h4>
+                    <p className="text-[13px] text-black/60 font-medium mt-1 mb-4">
+                      You don't have any quizzes in your dashboard yet. Use the AI Studio to generate your first quiz!
+                    </p>
+                    <Link href="/quizflow/studio">
+                      <button className="h-10 px-5 bg-[#00E676] border-[2px] border-[#10100F] rounded-[10px] font-extrabold text-[13px] btn-press soft">
+                        ✨ Create Quiz with AI Studio →
+                      </button>
+                    </Link>
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-3 max-h-[380px] overflow-y-auto pr-1">
+                    {savedQuizzes.map((item) => (
+                      <div
+                        key={item.id}
+                        className="bg-[#FFFCF5] border-[2.5px] border-[#10100F] rounded-[14px] p-4 soft flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3"
+                      >
+                        <div className="flex-1">
+                          <h4 className="sg font-black text-[16px] text-[#10100F]">{item.title}</h4>
+                          <p className="text-[12px] text-black/60 font-medium line-clamp-1 mt-0.5">{item.description}</p>
+                          <div className="flex items-center gap-2 mt-2">
+                            <span className="text-[11px] font-bold bg-[#FFE57F] border border-[#10100F]/20 px-2 py-0.5 rounded-[6px]">
+                              {item.questionCount || item.quiz.questions?.length} Questions
+                            </span>
+                            <span className="text-[11px] font-bold bg-black/5 px-2 py-0.5 rounded-[6px] text-black/60">
+                              {item.bloomLevel || 'Recall'}
+                            </span>
+                          </div>
+                        </div>
+
+                        <button
+                          onClick={() => handlePublishSavedQuiz(item)}
+                          className="h-10 px-4 bg-[#00E676] hover:bg-[#00C853] border-[2px] border-[#10100F] rounded-[10px] font-black text-[12px] btn-press soft shrink-0 text-[#10100F] w-full sm:w-auto"
+                        >
+                          Publish to Library 🚀
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* TAB 2: Create with AI Studio */}
+            {addModeTab === 'studio' && (
+              <div className="bg-[#FFFCF5] border-[3px] border-[#10100F] rounded-[16px] p-6 soft text-center">
+                <div className="text-[44px] mb-2">🪄</div>
+                <h4 className="sg font-black text-[20px]">Generate a Brand New Quiz</h4>
+                <p className="text-[13px] text-black/70 font-medium max-w-[460px] mx-auto mt-1 mb-6 leading-relaxed">
+                  Enter any curriculum topic or paste notes. QuizFlow AI creates higher-order thinking questions with images, distractor explanations, and auto-categorization.
+                </p>
+                <Link href="/quizflow/studio">
+                  <button
+                    onClick={() => setIsAddModalOpen(false)}
+                    className="h-12 px-6 bg-[#FFE57F] hover:bg-[#FFD54F] border-[3px] border-[#10100F] rounded-[14px] font-black text-[14px] btn-press hard text-[#10100F] inline-flex items-center gap-2"
+                  >
+                    <span>✨ Launch AI Studio</span>
+                    <span>→</span>
+                  </button>
+                </Link>
+              </div>
+            )}
+
+          </div>
+        </div>
+      )}
+
+      {/* ================================================================
           VIEW QUESTIONS PREVIEW MODAL
           ================================================================ */}
       {previewQuiz && (
@@ -513,7 +679,7 @@ export default function CommunityPracticeHub() {
                       Q{idx + 1}
                     </span>
                     <span className="text-[11px] font-bold text-black/50 uppercase">
-                      ⏱ {Math.round(q.time_limit_ms / 1000)}s · {q.difficulty}
+                      ⏱ {Math.round((q.time_limit_ms || 20000) / 1000)}s · {q.difficulty || 'medium'}
                     </span>
                   </div>
 
