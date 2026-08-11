@@ -57,26 +57,14 @@ export default function MarketingHomepage() {
             <span className="text-[var(--violet)] drop-shadow-[1px_1px_0px_var(--ink)]">⚡</span> QuizFlow
           </div>
           <div className="flex items-center gap-3">
-            <Link href="/quizflow/practice">
-              <button className="hard bg-white border-[2.5px] border-[var(--ink)] text-[var(--ink)] rounded-full px-4 py-1.5 text-[12px] font-display font-black uppercase tracking-wider btn-press hidden sm:inline-block">
-                📚 Quiz Library
-              </button>
-            </Link>
             {user ? (
-              <div className="flex items-center gap-2.5">
-                <Link href="/quizflow/studio">
-                  <button className="hard bg-[var(--sun)] text-[var(--ink)] rounded-full px-4 py-1.5 text-[12px] font-display font-black uppercase tracking-wider btn-press hidden sm:inline-block">
-                    ✨ AI Studio
-                  </button>
-                </Link>
-                <Link href="/quizflow/dashboard">
-                  <div className="hard bg-white border-[2.5px] border-[var(--ink)] rounded-full px-4 py-1.5 text-[13px] font-display font-black text-[var(--ink)] flex items-center gap-2 btn-press cursor-pointer">
-                    <span>🎓</span>
-                    <span className="max-w-[140px] truncate">{user.name}</span>
-                    <span className="text-[11px] opacity-60">→</span>
-                  </div>
-                </Link>
-              </div>
+              <Link href="/quizflow/dashboard">
+                <div className="hard bg-white border-[2.5px] border-[var(--ink)] rounded-full px-4 py-1.5 text-[13px] font-display font-black text-[var(--ink)] flex items-center gap-2 btn-press cursor-pointer">
+                  <span>🎓</span>
+                  <span className="max-w-[140px] truncate">{user.name}</span>
+                  <span className="text-[11px] opacity-60">→</span>
+                </div>
+              </Link>
             ) : (
               <Link href="/quizflow/auth">
                 <button className="hard bg-white text-[var(--ink)] rounded-full px-5 py-2 text-[13px] font-display font-black uppercase tracking-wider btn-press">
