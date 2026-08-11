@@ -80,7 +80,7 @@ export default function MarketingHomepage() {
       <main className="flex-1 flex flex-col items-center justify-center relative z-10">
         
         {/* Section 1: Hero */}
-        <section className="w-full max-w-[1280px] mx-auto px-4 md:px-6 py-16 md:py-24 relative flex flex-col items-center text-center">
+        <section className="w-full max-w-[1280px] mx-auto px-4 md:px-6 py-16 md:py-24 relative flex flex-col items-center text-center overflow-x-hidden">
           
           {/* Asymmetric Memphis Graphic Elements */}
           <div className="interactive-shape absolute top-8 left-10 md:left-24 w-14 h-20 bg-[var(--cherry)] border-[3px] border-[var(--ink)] shadow-[4px_4px_0px_#10100F] -rotate-[15deg] hidden md:block"></div>
@@ -102,19 +102,19 @@ export default function MarketingHomepage() {
           <div className="interactive-shape absolute top-48 right-8 md:right-16 w-8 h-20 bg-[var(--cherry)] border-[3px] border-[var(--ink)] shadow-[4px_4px_0px_#10100F] rotate-[80deg] hidden lg:block"></div>
 
           {/* Premium Pill Badge (50% bigger & bolder) */}
-          <div className="inline-flex items-center gap-2.5 bg-[var(--ink)] text-[var(--paper)] px-7 py-3 rounded-full font-display font-[900] text-[16px] md:text-[18px] tracking-[0.08em] uppercase mb-8 hard shadow-[3px_3px_0px_var(--violet)] border-[2.5px] border-white/20">
+          <div className="inline-flex items-center gap-2.5 bg-[var(--ink)] text-[var(--paper)] px-7 py-3 rounded-full font-display font-[900] text-[15px] md:text-[18px] tracking-[0.08em] uppercase mb-8 hard shadow-[3px_3px_0px_var(--violet)] border-[2.5px] border-white/20">
             <span>⚡</span> Classroom Engagement Redefined
           </div>
           
-          <h1 className="font-display font-[900] text-[52px] md:text-[84px] lg:text-[105px] leading-[0.88] tracking-[-0.03em] uppercase max-w-[1050px]">
+          <h1 className="font-display font-[900] text-[36px] xs:text-[42px] sm:text-[52px] md:text-[84px] lg:text-[105px] leading-[0.98] sm:leading-[0.88] tracking-[-0.03em] uppercase max-w-[1050px] px-2">
             The Classroom <br />
-            <span className="text-[var(--violet)] relative inline-block">
+            <span className="text-[var(--violet)] relative inline-block mt-2 sm:mt-0">
               Battle Arena
-              <span className="absolute -bottom-2 left-0 w-full h-[6px] md:h-[10px] bg-[var(--sun)] border-[2.5px] border-[var(--ink)] rounded-full -z-10"></span>
+              <span className="absolute -bottom-1.5 sm:-bottom-2 left-0 w-full h-[6px] md:h-[10px] bg-[var(--sun)] border-[2.5px] border-[var(--ink)] rounded-full -z-10"></span>
             </span>
           </h1>
           
-          <p className="font-body text-[16px] md:text-[21px] font-[600] mt-8 max-w-[640px] opacity-90 leading-relaxed">
+          <p className="font-body text-[15px] md:text-[21px] font-[600] mt-8 max-w-[640px] opacity-90 leading-relaxed px-4">
             Generate custom AI quizzes, host live multiplayer rooms, and build long-term mastery with practice decks.
           </p>
 
