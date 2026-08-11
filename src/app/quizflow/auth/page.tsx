@@ -99,11 +99,7 @@ export default function TeacherAuthPage() {
     setAuthNotice('')
     setIsSubmitting(true)
     try {
-      const gUser = await loginWithGoogleAsync()
-      if (gUser) {
-        setUser(gUser)
-        router.push('/quizflow/dashboard')
-      }
+      await loginWithGoogleAsync()
     } catch (err: any) {
       setAuthError(err.message || 'Google authentication failed. Please try again.')
     } finally {

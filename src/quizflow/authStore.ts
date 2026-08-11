@@ -215,50 +215,37 @@ export async function loginHostAsync(email: string, password: string): Promise<H
   return loginHost(cleanEmail)
 }
 
-export async function loginWithGoogleAsync(): Promise<HostUser | void> {
-  const googleUser: HostUser = {
-    id: 'host_google_' + Date.now(),
-    name: 'Google Teacher User',
-    email: 'teacher.google@school.edu',
-    school: 'Google Certified Educator',
-    avatarSeed: 'GoogleTeacher',
-    createdAt: Date.now()
+export async function loginWithGoogleAsync(): Promise<void> {
+  if (!supabase) {
+    throw new Error('Supabase client is not configured.')
   }
 
-  if (supabase) {
-    const redirectTo = typeof window !== 'undefined'
-      ? `${window.location.origin}/quizflow/dashboard`
-      : 'https://quizflow-peach.vercel.app/quizflow/dashboard'
+  const redirectTo = typeof window !== 'undefined'
+    ? `${window.location.origin}/quizflow/dashboard`
+    : 'https://quizflow-peach.vercel.app/quizflow/dashboard'
 
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo
+  const { error } = await supabase.auth.signInWithOAuth({
+    provider: 'google',
+    options: {
+      redirectTo,
+      queryParams: {
+        access_type: 'offline',
+        prompt: 'consent'
       }
-    })
-
-    if (error) {
-      if (
-        error.message.toLowerCase().includes('provider is not enabled') ||
-        error.message.toLowerCase().includes('unsupported provider')
-      ) {
-        console.warn('Google Provider not toggled ON in Supabase project console. Falling back to instant Google Teacher session.')
-        if (typeof window !== 'undefined') {
-          localStorage.setItem(AUTH_KEY, JSON.stringify(googleUser))
-          saveAccountToRegistry(googleUser)
-        }
-        return googleUser
-      }
-      throw new Error(error.message)
     }
-    return
-  }
+  })
 
-  if (typeof window !== 'undefined') {
-    localStorage.setItem(AUTH_KEY, JSON.stringify(googleUser))
-    saveAccountToRegistry(googleUser)
+  if (error) {
+    if (
+      error.message.toLowerCase().includes('provider is not enabled') ||
+      error.message.toLowerCase().includes('unsupported provider')
+    ) {
+      throw new Error(
+        'Google OAuth Provider is disabled in your Supabase Project Console. Go to Supabase Dashboard > Authentication > Providers > Google, toggle ON, and paste your Google Client ID & Secret.'
+      )
+    }
+    throw new Error(error.message)
   }
-  return googleUser
 }
 
 export async function resendConfirmationEmailAsync(email: string): Promise<string> {
