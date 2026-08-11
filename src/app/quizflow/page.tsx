@@ -259,22 +259,101 @@ export default function MarketingHomepage() {
             </div>
           </div>
         </section>
+
+        {/* Section 5: SEO FAQ Section (Matches JSON-LD FAQPage Schema) */}
+        <section className="w-full max-w-[1080px] mx-auto px-4 md:px-6 py-16 md:py-24">
+          <div className="text-center mb-12">
+            <span className="text-[15px] md:text-[17px] font-display font-[900] tracking-[0.12em] text-[var(--violet)] uppercase bg-[var(--paper-2)] border-[3px] border-[var(--ink)] px-6 py-2 rounded-full hard shadow-[3px_3px_0px_#10100F] inline-block mb-4">
+              FAQ
+            </span>
+            <h2 className="font-display font-[900] text-[36px] md:text-[48px] uppercase tracking-tight leading-none">
+              Frequently Asked Questions
+            </h2>
+            <p className="font-body text-[15px] md:text-[17px] font-semibold mt-3 opacity-80">
+              Everything you need to know about QuizFlow, AI quiz generation, and classroom battle arenas.
+            </p>
+          </div>
+
+          <div className="flex flex-col gap-4">
+            <details className="group bg-[var(--paper-2)] border-[3px] border-[var(--ink)] rounded-[var(--radius-card)] p-5 md:p-6 hard open:bg-white transition-colors cursor-pointer">
+              <summary className="font-display font-[900] text-[18px] md:text-[20px] uppercase flex items-center justify-between list-none select-none">
+                <span>What is QuizFlow?</span>
+                <span className="w-8 h-8 rounded-full border-[2px] border-[var(--ink)] grid place-items-center bg-[var(--sun)] text-[16px] group-open:rotate-180 transition-transform">▼</span>
+              </summary>
+              <p className="font-body text-[14px] md:text-[15px] leading-relaxed mt-4 opacity-90">
+                QuizFlow is a premier AI-powered classroom quiz competition platform designed for teachers, educators, and students. It allows anyone to instantly generate high-order thinking quizzes aligned with Bloom's Taxonomy, host real-time multiplayer classroom competitions with 6-digit game PINs, and master academic subjects through curated practice decks.
+              </p>
+            </details>
+
+            <details className="group bg-[var(--paper-2)] border-[3px] border-[var(--ink)] rounded-[var(--radius-card)] p-5 md:p-6 hard open:bg-white transition-colors cursor-pointer">
+              <summary className="font-display font-[900] text-[18px] md:text-[20px] uppercase flex items-center justify-between list-none select-none">
+                <span>How does QuizFlow AI generate questions?</span>
+                <span className="w-8 h-8 rounded-full border-[2px] border-[var(--ink)] grid place-items-center bg-[var(--mint)] text-[16px] group-open:rotate-180 transition-transform">▼</span>
+              </summary>
+              <p className="font-body text-[14px] md:text-[15px] leading-relaxed mt-4 opacity-90">
+                QuizFlow utilizes advanced educational AI to turn any topic, text notes, or curriculum prompt into structured multiple-choice questions. It provides adaptive Bloom’s Taxonomy difficulty levels, automatic Google image fetching for question diagrams, distractor misconception explanations, and customizable countdown timers.
+              </p>
+            </details>
+
+            <details className="group bg-[var(--paper-2)] border-[3px] border-[var(--ink)] rounded-[var(--radius-card)] p-5 md:p-6 hard open:bg-white transition-colors cursor-pointer">
+              <summary className="font-display font-[900] text-[18px] md:text-[20px] uppercase flex items-center justify-between list-none select-none">
+                <span>How do students join a live QuizFlow battle?</span>
+                <span className="w-8 h-8 rounded-full border-[2px] border-[var(--ink)] grid place-items-center bg-[var(--sky)] text-[16px] group-open:rotate-180 transition-transform">▼</span>
+              </summary>
+              <p className="font-body text-[14px] md:text-[15px] leading-relaxed mt-4 opacity-90">
+                Students do not need an account to play! They simply go to the Join Game page on any phone, tablet, or computer, type in the 6-digit room PIN displayed on the teacher's screen, pick a nickname and custom avatar, and compete in real-time.
+              </p>
+            </details>
+
+            <details className="group bg-[var(--paper-2)] border-[3px] border-[var(--ink)] rounded-[var(--radius-card)] p-5 md:p-6 hard open:bg-white transition-colors cursor-pointer">
+              <summary className="font-display font-[900] text-[18px] md:text-[20px] uppercase flex items-center justify-between list-none select-none">
+                <span>Is QuizFlow free for teachers and schools?</span>
+                <span className="w-8 h-8 rounded-full border-[2px] border-[var(--ink)] grid place-items-center bg-[#FFE0B2] text-[16px] group-open:rotate-180 transition-transform">▼</span>
+              </summary>
+              <p className="font-body text-[14px] md:text-[15px] leading-relaxed mt-4 opacity-90">
+                Yes! QuizFlow is 100% free for teachers and classrooms to generate quizzes with AI, host live multiplayer games, export printable PDF worksheets, and study with spaced-repetition flashcards.
+              </p>
+            </details>
+
+            <details className="group bg-[var(--paper-2)] border-[3px] border-[var(--ink)] rounded-[var(--radius-card)] p-5 md:p-6 hard open:bg-white transition-colors cursor-pointer">
+              <summary className="font-display font-[900] text-[18px] md:text-[20px] uppercase flex items-center justify-between list-none select-none">
+                <span>What topics are available in the QuizFlow Library?</span>
+                <span className="w-8 h-8 rounded-full border-[2px] border-[var(--ink)] grid place-items-center bg-[#EDE7FF] text-[16px] group-open:rotate-180 transition-transform">▼</span>
+              </summary>
+              <p className="font-body text-[14px] md:text-[15px] leading-relaxed mt-4 opacity-90">
+                The QuizFlow Library features verified quizzes across Sports & Athletics, Biology & Life Sciences, Mathematics & Logic, Technology & Code, World History, Cosmology & Physics, and General Knowledge. You can practice solo with audio text-to-speech or host any deck live.
+              </p>
+            </details>
+          </div>
+        </section>
+
       </main>
 
-      {/* Clean Minimalist Footer */}
-      <footer className="border-t-[3px] border-[var(--ink)] bg-[var(--paper)] py-12 text-center font-display relative z-10">
-        <div className="max-w-[1280px] mx-auto px-4 flex flex-col items-center gap-4">
-          <div className="font-display font-[900] text-[22px] tracking-tight">
-            ⚡ QuizFlow
+      {/* SEO-Rich Semantic Footer */}
+      <footer className="border-t-[3px] border-[var(--ink)] bg-[var(--paper)] py-14 text-center font-display relative z-10">
+        <div className="max-w-[1280px] mx-auto px-4 md:px-6 flex flex-col items-center gap-6">
+          <div className="flex items-center gap-2 font-display font-[900] text-[26px] tracking-tight">
+            <span className="text-[var(--violet)]">⚡</span> QuizFlow
           </div>
-          <div className="flex gap-4 text-[12px] font-display font-black uppercase tracking-wider text-[var(--violet)]">
-            <Link href="/quizflow/join" className="hover:underline">Join Game</Link>
+
+          <p className="font-body text-[14px] max-w-[620px] opacity-80 font-medium">
+            The #1 AI-Powered Classroom Quiz Generator, Live Multiplayer Battle Arena &amp; Interactive Learning Platform.
+          </p>
+
+          <nav aria-label="Footer Navigation" className="flex flex-wrap justify-center gap-4 md:gap-6 text-[13px] font-display font-black uppercase tracking-wider text-[var(--violet)]">
+            <Link href="/quizflow/join" className="hover:underline">Join Live Quiz (Enter PIN)</Link>
             <span>·</span>
-            <Link href="/quizflow/host/new" className="hover:underline">Host Quiz</Link>
+            <Link href="/quizflow/practice" className="hover:underline">Quiz Library &amp; Practice</Link>
             <span>·</span>
-            <Link href="/quizflow/studio" className="hover:underline">AI Studio</Link>
+            <Link href="/quizflow/studio" className="hover:underline">AI Quiz Generator Studio</Link>
             <span>·</span>
-            <Link href="/quizflow/dashboard" className="hover:underline">Dashboard</Link>
+            <Link href="/quizflow/dashboard" className="hover:underline">Teacher Workspace &amp; Dashboard</Link>
+            <span>·</span>
+            <Link href="/quizflow/auth" className="hover:underline">Teacher Sign In</Link>
+          </nav>
+
+          <div className="text-[12px] font-body font-semibold opacity-60 mt-2">
+            © {new Date().getFullYear()} QuizFlow Technologies. All rights reserved. Built for modern classrooms.
           </div>
         </div>
       </footer>
