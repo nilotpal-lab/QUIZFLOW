@@ -288,7 +288,9 @@ export function updateHostProfile(updated: Partial<HostUser>): HostUser | null {
 
 export function logoutHost(): void {
   if (typeof window !== 'undefined') {
-    localStorage.removeItem(AUTH_KEY)
+    try {
+      localStorage.removeItem(AUTH_KEY)
+    } catch {}
   }
 }
 
@@ -309,11 +311,15 @@ export function initAuthSync(onUserChange?: (user: HostUser | null) => void): ()
         avatarSeed: fullName || existing?.avatarSeed || email,
         createdAt: existing ? existing.createdAt : Date.now()
       }
-      localStorage.setItem(AUTH_KEY, JSON.stringify(user))
-      saveAccountToRegistry(user)
+      try {
+        localStorage.setItem(AUTH_KEY, JSON.stringify(user))
+        saveAccountToRegistry(user)
+      } catch (err) {
+        console.warn('LocalStorage error in getSession:', err)
+      }
       if (onUserChange) onUserChange(user)
     }
-  })
+  }).catch(() => {})
 
   const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
     if (session?.user) {
@@ -328,16 +334,24 @@ export function initAuthSync(onUserChange?: (user: HostUser | null) => void): ()
         avatarSeed: fullName || existing?.avatarSeed || email,
         createdAt: existing ? existing.createdAt : Date.now()
       }
-      localStorage.setItem(AUTH_KEY, JSON.stringify(user))
-      saveAccountToRegistry(user)
+      try {
+        localStorage.setItem(AUTH_KEY, JSON.stringify(user))
+        saveAccountToRegistry(user)
+      } catch (err) {
+        console.warn('LocalStorage error in onAuthStateChange:', err)
+      }
       if (onUserChange) onUserChange(user)
     } else if (_event === 'SIGNED_OUT') {
-      localStorage.removeItem(AUTH_KEY)
+      try {
+        localStorage.removeItem(AUTH_KEY)
+      } catch {}
       if (onUserChange) onUserChange(null)
     }
   })
 
   return () => {
-    listener.subscription.unsubscribe()
+    if (listener?.subscription) {
+      listener.subscription.unsubscribe()
+    }
   }
 }

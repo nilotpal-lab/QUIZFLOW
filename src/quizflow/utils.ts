@@ -184,3 +184,47 @@ export function sanitizeInput(text: string): string {
     .trim()
 }
 
+/**
+ * Safe local storage get wrapper
+ */
+export function safeGetLocalStorage(key: string, fallback = ''): string {
+  if (typeof window === 'undefined') return fallback
+  try {
+    return localStorage.getItem(key) || fallback
+  } catch {
+    return fallback
+  }
+}
+
+/**
+ * Safe local storage set wrapper
+ */
+export function safeSetLocalStorage(key: string, value: string): void {
+  if (typeof window === 'undefined') return
+  try {
+    localStorage.setItem(key, value)
+  } catch {}
+}
+
+/**
+ * Safe session storage get wrapper
+ */
+export function safeGetSessionStorage(key: string, fallback = ''): string {
+  if (typeof window === 'undefined') return fallback
+  try {
+    return sessionStorage.getItem(key) || fallback
+  } catch {
+    return fallback
+  }
+}
+
+/**
+ * Safe session storage set wrapper
+ */
+export function safeSetSessionStorage(key: string, value: string): void {
+  if (typeof window === 'undefined') return
+  try {
+    sessionStorage.setItem(key, value)
+  } catch {}
+}
+

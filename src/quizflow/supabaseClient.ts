@@ -24,13 +24,36 @@ export const isSupabaseConfigured = (): boolean => {
 }
 
 export const supabase = isSupabaseConfigured()
-  ? createClient(supabaseUrl, supabaseAnonKey, {
-      realtime: {
-        params: {
-          eventsPerSecond: 20
+  ? (() => {
+      try {
+        // Test if localStorage is accessible in this environment
+        if (typeof window !== 'undefined') {
+          const testKey = '__storage_test__'
+          window.localStorage.setItem(testKey, testKey)
+          window.localStorage.removeItem(testKey)
         }
+        return createClient(supabaseUrl, supabaseAnonKey, {
+          realtime: {
+            params: {
+              eventsPerSecond: 20
+            }
+          }
+        })
+      } catch (err) {
+        console.warn('[QuizFlow Supabase] LocalStorage is blocked or disabled in this browser. Initializing with in-memory auth fallback.', err)
+        return createClient(supabaseUrl, supabaseAnonKey, {
+          auth: {
+            persistSession: false, // Fallback to in-memory storage to prevent crash
+            detectSessionInUrl: false
+          },
+          realtime: {
+            params: {
+              eventsPerSecond: 20
+            }
+          }
+        })
       }
-    })
+    })()
   : null
 
 /* ================================================================

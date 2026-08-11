@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useParams, useSearchParams, useRouter } from 'next/navigation'
 import { subscribeToSession, joinSessionAsync, sendReaction } from '@/quizflow/sessionStore'
 import type { GameState } from '@/quizflow/sessionStore'
-import { buildAvatarUrl } from '@/quizflow/utils'
+import { buildAvatarUrl, safeGetSessionStorage, safeSetSessionStorage } from '@/quizflow/utils'
 import { playClickSound } from '@/quizflow/sound'
 import { FloatingReactions } from '@/quizflow/FloatingReactions'
 
@@ -19,52 +19,41 @@ export default function LobbyPage() {
 
   const [playerId] = useState(() => {
     if (pidFromUrl) {
-      if (typeof window !== 'undefined') sessionStorage.setItem('qf_pid_' + pin, pidFromUrl)
+      safeSetSessionStorage('qf_pid_' + pin, pidFromUrl)
       return pidFromUrl
     }
-    if (typeof window !== 'undefined') {
-      const saved = sessionStorage.getItem('qf_pid_' + pin)
-      if (saved) return saved
-    }
+    const saved = safeGetSessionStorage('qf_pid_' + pin)
+    if (saved) return saved
     const newId = 'player_' + Date.now() + '_' + Math.random().toString(36).slice(2)
-    if (typeof window !== 'undefined') sessionStorage.setItem('qf_pid_' + pin, newId)
+    safeSetSessionStorage('qf_pid_' + pin, newId)
     return newId
   })
 
   const [nickname] = useState(() => {
     const fromUrl = searchParams.get('nickname')
     if (fromUrl) {
-      if (typeof window !== 'undefined') sessionStorage.setItem(`qf_nick_${pin}`, fromUrl)
+      safeSetSessionStorage(`qf_nick_${pin}`, fromUrl)
       return fromUrl
     }
-    if (typeof window !== 'undefined') {
-      return sessionStorage.getItem(`qf_nick_${pin}`) || 'Player'
-    }
-    return 'Player'
+    return safeGetSessionStorage(`qf_nick_${pin}`, 'Player')
   })
 
   const [avatarSeed] = useState(() => {
     const fromUrl = searchParams.get('seed')
     if (fromUrl) {
-      if (typeof window !== 'undefined') sessionStorage.setItem(`qf_seed_${pin}`, fromUrl)
+      safeSetSessionStorage(`qf_seed_${pin}`, fromUrl)
       return fromUrl
     }
-    if (typeof window !== 'undefined') {
-      return sessionStorage.getItem(`qf_seed_${pin}`) || 'Totoro'
-    }
-    return 'Totoro'
+    return safeGetSessionStorage(`qf_seed_${pin}`, 'Totoro')
   })
 
   const [avatarStyle] = useState(() => {
     const fromUrl = searchParams.get('style')
     if (fromUrl) {
-      if (typeof window !== 'undefined') sessionStorage.setItem(`qf_style_${pin}`, fromUrl)
+      safeSetSessionStorage(`qf_style_${pin}`, fromUrl)
       return fromUrl
     }
-    if (typeof window !== 'undefined') {
-      return sessionStorage.getItem(`qf_style_${pin}`) || 'custom'
-    }
-    return 'custom'
+    return safeGetSessionStorage(`qf_style_${pin}`, 'custom')
   })
 
   const [gameState, setGameState]  = useState<GameState | null>(null)

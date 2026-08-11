@@ -9,13 +9,20 @@ let ctx: AudioContext | null = null
 function getAudioContext(): AudioContext | null {
   if (typeof window === 'undefined') return null
   if (!ctx) {
-    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext
-    if (AudioCtx) {
-      ctx = new AudioCtx()
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext
+      if (AudioCtx) {
+        ctx = new AudioCtx()
+      }
+    } catch (e) {
+      console.warn('[QuizFlow Audio] Failed to initialize AudioContext:', e)
+      return null
     }
   }
   if (ctx && ctx.state === 'suspended') {
-    ctx.resume().catch(() => {})
+    try {
+      ctx.resume().catch(() => {})
+    } catch {}
   }
   return ctx
 }

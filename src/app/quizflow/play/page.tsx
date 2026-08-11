@@ -7,7 +7,7 @@ import {
   subscribeToSession, submitAnswer
 } from '@/quizflow/sessionStore'
 import type { GameState } from '@/quizflow/sessionStore'
-import { buildAvatarUrl, POWER_UPS, calculatePoints, formatPoints } from '@/quizflow/utils'
+import { buildAvatarUrl, POWER_UPS, calculatePoints, formatPoints, safeGetSessionStorage, safeSetSessionStorage } from '@/quizflow/utils'
 import type { PowerUpType } from '@/quizflow/types'
 import {
   playClickSound, playLockInSound, playCountdownTick,
@@ -32,37 +32,28 @@ function StudentPlayScreen() {
   const [nickname] = useState(() => {
     const fromUrl = searchParams.get('nickname')
     if (fromUrl) {
-      if (typeof window !== 'undefined') sessionStorage.setItem(`qf_nick_${pin}`, fromUrl)
+      safeSetSessionStorage(`qf_nick_${pin}`, fromUrl)
       return fromUrl
     }
-    if (typeof window !== 'undefined') {
-      return sessionStorage.getItem(`qf_nick_${pin}`) || 'Player'
-    }
-    return 'Player'
+    return safeGetSessionStorage(`qf_nick_${pin}`, 'Player')
   })
 
   const [avatarSeed] = useState(() => {
     const fromUrl = searchParams.get('seed')
     if (fromUrl) {
-      if (typeof window !== 'undefined') sessionStorage.setItem(`qf_seed_${pin}`, fromUrl)
+      safeSetSessionStorage(`qf_seed_${pin}`, fromUrl)
       return fromUrl
     }
-    if (typeof window !== 'undefined') {
-      return sessionStorage.getItem(`qf_seed_${pin}`) || 'Totoro'
-    }
-    return 'Totoro'
+    return safeGetSessionStorage(`qf_seed_${pin}`, 'Totoro')
   })
 
   const [avatarStyle] = useState(() => {
     const fromUrl = searchParams.get('style')
     if (fromUrl) {
-      if (typeof window !== 'undefined') sessionStorage.setItem(`qf_style_${pin}`, fromUrl)
+      safeSetSessionStorage(`qf_style_${pin}`, fromUrl)
       return fromUrl
     }
-    if (typeof window !== 'undefined') {
-      return sessionStorage.getItem(`qf_style_${pin}`) || 'custom'
-    }
-    return 'custom'
+    return safeGetSessionStorage(`qf_style_${pin}`, 'custom')
   })
 
   const [gameState, setGameState]       = useState<GameState | null>(null)
