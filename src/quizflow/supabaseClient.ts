@@ -3,7 +3,7 @@
    Supports direct Supabase PostgreSQL Cloud DB sync with fallback.
    ================================================================ */
 
-import { createClient } from '@supabase/supabase-js'
+import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import type { HostUser } from './authStore'
 import type { SavedQuizItem } from './quizStore'
 import type { SessionHistoryRecord } from './historyStore'
@@ -14,47 +14,97 @@ const DEFAULT_SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJz
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || DEFAULT_SUPABASE_URL
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || DEFAULT_SUPABASE_ANON
 
-export const isSupabaseConfigured = (): boolean => {
-  return (
-    Boolean(supabaseUrl) &&
-    Boolean(supabaseAnonKey) &&
+// ── Lazy singleton — never runs at module parse time ──────────────
+let _supabase: SupabaseClient | null | false = false   // false = not yet resolved
+
+function getSupabaseClient(): SupabaseClient | null {
+  // Already resolved — return cached result
+  if (_supabase !== false) return _supabase
+
+  // Only run in browser
+  if (typeof window === 'undefined') {
+    _supabase = null
+    return null
+  }
+
+  // Validate config
+  if (
+    !supabaseUrl ||
+    !supabaseAnonKey ||
+    supabaseUrl.includes('placeholder') ||
+    supabaseAnonKey.includes('placeholder')
+  ) {
+    _supabase = null
+    return null
+  }
+
+  // Probe storage access
+  let storageOk = false
+  try {
+    const testKey = '__qf_storage_probe__'
+    localStorage.setItem(testKey, '1')
+    localStorage.removeItem(testKey)
+    storageOk = true
+  } catch {
+    storageOk = false
+  }
+
+  try {
+    if (storageOk) {
+      _supabase = createClient(supabaseUrl, supabaseAnonKey, {
+        realtime: { params: { eventsPerSecond: 20 } }
+      })
+    } else {
+      // Storage is blocked (private/incognito/strict mobile settings)
+      // Use in-memory auth so the app still works, just not persistent
+      _supabase = createClient(supabaseUrl, supabaseAnonKey, {
+        auth: {
+          persistSession: false,
+          detectSessionInUrl: false,
+          storage: {
+            getItem: () => null,
+            setItem: () => {},
+            removeItem: () => {}
+          }
+        },
+        realtime: { params: { eventsPerSecond: 20 } }
+      })
+    }
+  } catch (err) {
+    console.warn('[QuizFlow Supabase] Client initialization failed silently:', err)
+    _supabase = null
+  }
+
+  return _supabase
+}
+
+export function isSupabaseConfigured(): boolean {
+  return Boolean(
+    supabaseUrl &&
+    supabaseAnonKey &&
     !supabaseUrl.includes('placeholder') &&
     !supabaseAnonKey.includes('placeholder')
   )
 }
 
-export const supabase = isSupabaseConfigured()
-  ? (() => {
-      try {
-        // Test if localStorage is accessible in this environment
-        if (typeof window !== 'undefined') {
-          const testKey = '__storage_test__'
-          window.localStorage.setItem(testKey, testKey)
-          window.localStorage.removeItem(testKey)
-        }
-        return createClient(supabaseUrl, supabaseAnonKey, {
-          realtime: {
-            params: {
-              eventsPerSecond: 20
-            }
-          }
-        })
-      } catch (err) {
-        console.warn('[QuizFlow Supabase] LocalStorage is blocked or disabled in this browser. Initializing with in-memory auth fallback.', err)
-        return createClient(supabaseUrl, supabaseAnonKey, {
-          auth: {
-            persistSession: false, // Fallback to in-memory storage to prevent crash
-            detectSessionInUrl: false
-          },
-          realtime: {
-            params: {
-              eventsPerSecond: 20
-            }
-          }
-        })
-      }
-    })()
-  : null
+/**
+ * Always use this export — not a module-level const.
+ * Safe for SSR, mobile Chrome, incognito, and strict cookie policies.
+ */
+export const supabase = new Proxy({} as SupabaseClient, {
+  get(_target, prop) {
+    const client = getSupabaseClient()
+    if (!client) return undefined
+    const value = (client as unknown as Record<string | symbol, unknown>)[prop]
+    if (typeof value === 'function') return value.bind(client)
+    return value
+  }
+}) as SupabaseClient | null
+
+// Re-export a nullable version for code that checks `if (supabase)`
+export function getSupabase(): SupabaseClient | null {
+  return getSupabaseClient()
+}
 
 /* ================================================================
    SQL DDL SCHEMA (Run this in Supabase SQL Editor if creating tables)
@@ -103,9 +153,10 @@ export const supabase = isSupabaseConfigured()
 // ── Supabase Cloud Sync Helpers ──────────────────────────────────
 
 export async function syncHostUserToSupabase(user: HostUser) {
-  if (!supabase) return null
+  const client = getSupabaseClient()
+  if (!client) return null
   try {
-    const { data, error } = await supabase.from('hosts').upsert({
+    const { data, error } = await client.from('hosts').upsert({
       id: user.id,
       name: user.name,
       email: user.email,
@@ -121,9 +172,10 @@ export async function syncHostUserToSupabase(user: HostUser) {
 }
 
 export async function syncQuizToSupabase(item: SavedQuizItem, hostId?: string) {
-  if (!supabase) return null
+  const client = getSupabaseClient()
+  if (!client) return null
   try {
-    const { data, error } = await supabase.from('quizzes').upsert({
+    const { data, error } = await client.from('quizzes').upsert({
       id: item.id,
       host_id: hostId || 'host_demo',
       title: item.title,
@@ -144,9 +196,10 @@ export async function syncQuizToSupabase(item: SavedQuizItem, hostId?: string) {
 }
 
 export async function syncSessionHistoryToSupabase(rec: SessionHistoryRecord) {
-  if (!supabase) return null
+  const client = getSupabaseClient()
+  if (!client) return null
   try {
-    const { data, error } = await supabase.from('session_history').upsert({
+    const { data, error } = await client.from('session_history').upsert({
       id: rec.id,
       pin: rec.pin,
       quiz_title: rec.quizTitle,

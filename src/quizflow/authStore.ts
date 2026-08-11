@@ -4,7 +4,7 @@
    sessions, user metadata) with local fallback.
    ================================================================ */
 
-import { supabase, syncHostUserToSupabase } from './supabaseClient'
+import { getSupabase, syncHostUserToSupabase } from './supabaseClient'
 
 export interface HostUser {
   id: string
@@ -112,6 +112,7 @@ export async function signUpHostAsync(
     throw new Error('Password must be at least 6 characters long.')
   }
 
+  const supabase = getSupabase()
   if (supabase) {
     const { data, error } = await supabase.auth.signUp({
       email: cleanEmail,
@@ -163,6 +164,7 @@ export async function loginHostAsync(email: string, password: string): Promise<H
     throw new Error('Password must be at least 6 characters long.')
   }
 
+  const supabase = getSupabase()
   if (supabase) {
     const { data, error } = await supabase.auth.signInWithPassword({
       email: cleanEmail,
@@ -216,6 +218,7 @@ export async function loginHostAsync(email: string, password: string): Promise<H
 }
 
 export async function loginWithGoogleAsync(): Promise<void> {
+  const supabase = getSupabase()
   if (!supabase) {
     throw new Error('Supabase client is not configured.')
   }
@@ -250,6 +253,7 @@ export async function loginWithGoogleAsync(): Promise<void> {
 
 export async function resendConfirmationEmailAsync(email: string): Promise<string> {
   const cleanEmail = email.trim().toLowerCase()
+  const supabase = getSupabase()
   if (supabase) {
     const { error } = await supabase.auth.resend({
       type: 'signup',
@@ -264,6 +268,7 @@ export async function resendConfirmationEmailAsync(email: string): Promise<strin
 }
 
 export async function logoutHostAsync(): Promise<void> {
+  const supabase = getSupabase()
   if (supabase) {
     try {
       await supabase.auth.signOut()
@@ -295,7 +300,9 @@ export function logoutHost(): void {
 }
 
 export function initAuthSync(onUserChange?: (user: HostUser | null) => void): () => void {
-  if (typeof window === 'undefined' || !supabase) return () => {}
+  if (typeof window === 'undefined') return () => {}
+  const supabase = getSupabase()
+  if (!supabase) return () => {}
 
   // Parse immediate OAuth session if returning from Google login
   supabase.auth.getSession().then(({ data: { session } }) => {
