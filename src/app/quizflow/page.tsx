@@ -93,7 +93,6 @@ export default function MarketingHomepage() {
           
           {/* New Additional Graphic Elements */}
           <div className="interactive-shape interactive-shape-circle absolute top-64 left-4 md:left-12 w-10 h-10 bg-[var(--sky)] border-[3px] border-[var(--ink)] shadow-[4px_4px_0px_#10100F] rounded-full hidden md:block"></div>
-          <div className="interactive-shape absolute bottom-32 right-10 md:right-20 w-14 h-14 bg-[var(--violet)] border-[3px] border-[var(--ink)] shadow-[4px_4px_0px_#10100F] rotate-[-10deg] hidden md:block"></div>
           
           {/* Actual Small Yellow Triangle */}
           <svg viewBox="0 0 100 100" className="interactive-shape interactive-shape-triangle absolute top-12 right-1/3 w-10 h-10 rotate-[45deg] hidden lg:block filter drop-shadow-[2px_2px_0px_#10100F]">
@@ -120,48 +119,36 @@ export default function MarketingHomepage() {
           </p>
 
           {/* Action Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-12 w-full max-w-[1140px]">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-12 w-full max-w-[1140px] relative z-20">
             
-            {/* CTA 1: Join Live Game (Students) */}
+            {/* CTA 1: Join Live Game */}
             <Link href="/quizflow/join" className="group">
-              <div className="w-full h-24 hard bg-[var(--violet)] hover:bg-[#8f66ff] text-white rounded-[var(--radius-card)] p-4 flex items-center justify-between btn-press shadow-[4px_4px_0px_#10100F] transition-all hover:shadow-[6px_6px_0px_#10100F] cursor-pointer">
-                <div className="text-left">
-                  <span className="text-[10px] font-display font-black tracking-widest text-white uppercase block mb-1">STUDENTS</span>
-                  <span className="font-display font-[900] text-[18px] uppercase tracking-tight">Join Game</span>
-                </div>
+              <div className="w-full h-20 hard bg-[var(--violet)] hover:bg-[#8f66ff] text-white rounded-[var(--radius-card)] px-5 flex items-center justify-between btn-press shadow-[4px_4px_0px_#10100F] transition-all hover:shadow-[6px_6px_0px_#10100F] cursor-pointer">
+                <span className="font-display font-[900] text-[20px] uppercase tracking-tight">Join Game</span>
                 <div className="w-9 h-9 rounded-full bg-white text-[var(--ink)] flex items-center justify-center font-display font-black text-[16px] hard border-[2px] border-[var(--ink)] shrink-0">→</div>
               </div>
             </Link>
 
             {/* CTA 2: Practice Playing Area & Library */}
             <Link href="/quizflow/practice" className="group">
-              <div className="w-full h-24 hard bg-[#FFE0B2] hover:bg-[#FFCC80] text-[var(--ink)] rounded-[var(--radius-card)] p-4 flex items-center justify-between btn-press shadow-[4px_4px_0px_#10100F] transition-all hover:shadow-[6px_6px_0px_#10100F] cursor-pointer">
-                <div className="text-left">
-                  <span className="text-[10px] font-display font-black tracking-widest text-[#E65100] uppercase block mb-1">PRACTICE ARENA</span>
-                  <span className="font-display font-[900] text-[18px] uppercase tracking-tight">Play Quizzes</span>
-                </div>
+              <div className="w-full h-20 hard bg-[#FFE0B2] hover:bg-[#FFCC80] text-[var(--ink)] rounded-[var(--radius-card)] px-5 flex items-center justify-between btn-press shadow-[4px_4px_0px_#10100F] transition-all hover:shadow-[6px_6px_0px_#10100F] cursor-pointer">
+                <span className="font-display font-[900] text-[20px] uppercase tracking-tight">Play Quizzes</span>
                 <div className="w-9 h-9 rounded-full bg-white text-[var(--ink)] flex items-center justify-center font-display font-black text-[16px] hard border-[2px] border-[var(--ink)] shrink-0">→</div>
               </div>
             </Link>
 
             {/* CTA 3: AI Quiz Studio */}
             <Link href="/quizflow/studio" className="group">
-              <div className="w-full h-24 hard bg-[var(--sun)] hover:bg-[#ffe799] text-[var(--ink)] rounded-[var(--radius-card)] p-4 flex items-center justify-between btn-press shadow-[4px_4px_0px_#10100F] transition-all hover:shadow-[6px_6px_0px_#10100F] cursor-pointer">
-                <div className="text-left">
-                  <span className="text-[10px] font-display font-black tracking-widest text-[var(--cherry)] uppercase block mb-1">TEACHERS</span>
-                  <span className="font-display font-[900] text-[18px] uppercase tracking-tight">AI Studio</span>
-                </div>
+              <div className="w-full h-20 hard bg-[var(--sun)] hover:bg-[#ffe799] text-[var(--ink)] rounded-[var(--radius-card)] px-5 flex items-center justify-between btn-press shadow-[4px_4px_0px_#10100F] transition-all hover:shadow-[6px_6px_0px_#10100F] cursor-pointer">
+                <span className="font-display font-[900] text-[20px] uppercase tracking-tight">AI Studio</span>
                 <div className="w-9 h-9 rounded-full bg-white text-[var(--ink)] flex items-center justify-center font-display font-black text-[16px] hard border-[2px] border-[var(--ink)] shrink-0">→</div>
               </div>
             </Link>
 
             {/* CTA 4: Teacher Workspace & Host */}
             <Link href="/quizflow/dashboard" className="group">
-              <div className="w-full h-24 hard bg-[var(--mint)] hover:bg-[#2eff99] text-[var(--ink)] rounded-[var(--radius-card)] p-4 flex items-center justify-between btn-press shadow-[4px_4px_0px_#10100F] transition-all hover:shadow-[6px_6px_0px_#10100F] cursor-pointer">
-                <div className="text-left">
-                  <span className="text-[10px] font-display font-black tracking-widest text-[var(--ink)] uppercase block mb-1">WORKSPACE</span>
-                  <span className="font-display font-[900] text-[18px] uppercase tracking-tight">Dashboard</span>
-                </div>
+              <div className="w-full h-20 hard bg-[var(--mint)] hover:bg-[#2eff99] text-[var(--ink)] rounded-[var(--radius-card)] px-5 flex items-center justify-between btn-press shadow-[4px_4px_0px_#10100F] transition-all hover:shadow-[6px_6px_0px_#10100F] cursor-pointer">
+                <span className="font-display font-[900] text-[20px] uppercase tracking-tight">Dashboard</span>
                 <div className="w-9 h-9 rounded-full bg-white text-[var(--ink)] flex items-center justify-center font-display font-black text-[16px] hard border-[2px] border-[var(--ink)] shrink-0">→</div>
               </div>
             </Link>
