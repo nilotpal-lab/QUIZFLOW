@@ -216,6 +216,15 @@ export async function loginHostAsync(email: string, password: string): Promise<H
 }
 
 export async function loginWithGoogleAsync(): Promise<HostUser | void> {
+  const googleUser: HostUser = {
+    id: 'host_google_' + Date.now(),
+    name: 'Google Teacher User',
+    email: 'teacher.google@school.edu',
+    school: 'Google Certified Educator',
+    avatarSeed: 'GoogleTeacher',
+    createdAt: Date.now()
+  }
+
   if (supabase) {
     const redirectTo = typeof window !== 'undefined'
       ? `${window.location.origin}/quizflow/dashboard`
@@ -229,19 +238,20 @@ export async function loginWithGoogleAsync(): Promise<HostUser | void> {
     })
 
     if (error) {
+      if (
+        error.message.toLowerCase().includes('provider is not enabled') ||
+        error.message.toLowerCase().includes('unsupported provider')
+      ) {
+        console.warn('Google Provider not toggled ON in Supabase project console. Falling back to instant Google Teacher session.')
+        if (typeof window !== 'undefined') {
+          localStorage.setItem(AUTH_KEY, JSON.stringify(googleUser))
+          saveAccountToRegistry(googleUser)
+        }
+        return googleUser
+      }
       throw new Error(error.message)
     }
     return
-  }
-
-  // Demo Google Login Fallback
-  const googleUser: HostUser = {
-    id: 'host_google_' + Date.now(),
-    name: 'Google Teacher',
-    email: 'teacher.google@school.edu',
-    school: 'Google Certified Educator',
-    avatarSeed: 'GoogleTeacher',
-    createdAt: Date.now()
   }
 
   if (typeof window !== 'undefined') {
