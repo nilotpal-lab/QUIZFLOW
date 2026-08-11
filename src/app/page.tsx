@@ -1,5 +1,3 @@
-import { redirect } from 'next/navigation'
+import MarketingHomepage from './quizflow/page'
 
-export default function RootHomePage() {
-  redirect('/quizflow')
-}
+export default MarketingHomepage
