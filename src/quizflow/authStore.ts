@@ -198,6 +198,21 @@ export async function loginHostAsync(email: string, password: string): Promise<H
   return loginHost(cleanEmail)
 }
 
+export async function resendConfirmationEmailAsync(email: string): Promise<string> {
+  const cleanEmail = email.trim().toLowerCase()
+  if (supabase) {
+    const { error } = await supabase.auth.resend({
+      type: 'signup',
+      email: cleanEmail
+    })
+    if (error) {
+      throw new Error(error.message)
+    }
+    return `Verification link resent to ${cleanEmail}! Please check your email inbox.`
+  }
+  return `Account active locally.`
+}
+
 export async function logoutHostAsync(): Promise<void> {
   if (supabase) {
     try {

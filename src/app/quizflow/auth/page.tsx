@@ -8,6 +8,8 @@ import {
   loginAsDemoHost,
   signUpHostAsync,
   loginHostAsync,
+  loginHost,
+  resendConfirmationEmailAsync,
   initAuthSync,
   type HostUser
 } from '@/quizflow/authStore'
@@ -63,6 +65,32 @@ export default function TeacherAuthPage() {
     } finally {
       setIsSubmitting(false)
     }
+  }
+
+  const handleResendEmail = async () => {
+    if (!email.trim()) {
+      setAuthError('Please enter your email address above to resend the confirmation link.')
+      return
+    }
+    setAuthError('')
+    setIsSubmitting(true)
+    try {
+      const msg = await resendConfirmationEmailAsync(email.trim())
+      setAuthNotice(msg)
+    } catch (err: any) {
+      setAuthError(err.message || 'Failed to resend confirmation email.')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const handleLocalBypassLogin = () => {
+    if (!email.trim()) return
+    setAuthError('')
+    setAuthNotice('')
+    const localUser = loginHost(email.trim())
+    setUser(localUser)
+    router.push('/quizflow/dashboard')
   }
 
   const handleDemoLogin = () => {
@@ -131,9 +159,37 @@ export default function TeacherAuthPage() {
 
           {/* AUTH ERROR ALERT */}
           {authError && (
-            <div className="hard bg-[var(--cherry)] text-white p-3.5 mb-5 rounded-[12px] border-[2.5px] border-[var(--ink)] flex items-start gap-2.5 text-[13px] font-display font-bold leading-snug">
-              <span className="text-[16px] shrink-0">⚠️</span>
-              <span>{authError}</span>
+            <div className="hard bg-[var(--cherry)] text-white p-4 mb-5 rounded-[12px] border-[2.5px] border-[var(--ink)] flex flex-col gap-2 text-[13px] font-display font-bold leading-snug">
+              <div className="flex items-start gap-2.5">
+                <span className="text-[18px] shrink-0">⚠️</span>
+                <div>
+                  <div>{authError}</div>
+                  {authError.toLowerCase().includes('email not confirmed') && (
+                    <div className="mt-1 font-body text-[12px] opacity-90">
+                      Supabase requires email verification link confirmation before signing in on a new browser.
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {authError.toLowerCase().includes('email not confirmed') && (
+                <div className="flex flex-col sm:flex-row gap-2 mt-2 pt-2 border-t border-white/20">
+                  <button
+                    type="button"
+                    onClick={handleResendEmail}
+                    className="hard btn-press bg-[var(--sun)] text-[var(--ink)] px-3 py-1.5 rounded-[8px] text-[12px] font-display font-extrabold border-[1.5px] border-[var(--ink)]"
+                  >
+                    📩 Resend Verification Link
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleLocalBypassLogin}
+                    className="hard btn-press bg-white text-[var(--ink)] px-3 py-1.5 rounded-[8px] text-[12px] font-display font-extrabold border-[1.5px] border-[var(--ink)]"
+                  >
+                    🔓 Continue Session on Device →
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
