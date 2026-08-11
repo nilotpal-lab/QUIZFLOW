@@ -101,6 +101,9 @@ export function constructMetadata({
       creator: '@quizflow',
       site: '@quizflow',
     },
+    verification: {
+      google: 'wQL1EpHqs-Hr1TdpGgz2udV0mgtOivVXXYjU4dpum9s',
+    },
     icons: {
       icon: '/favicon.ico',
       shortcut: '/favicon.ico',
