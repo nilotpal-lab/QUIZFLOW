@@ -101,9 +101,9 @@ export default function MarketingHomepage() {
           
           <div className="interactive-shape absolute top-48 right-8 md:right-16 w-8 h-20 bg-[var(--cherry)] border-[3px] border-[var(--ink)] shadow-[4px_4px_0px_#10100F] rotate-[80deg] hidden lg:block"></div>
 
-          {/* Premium Pill Badge */}
-          <div className="inline-flex items-center gap-2 bg-[var(--ink)] text-[var(--paper)] px-4 py-1.5 rounded-full font-display font-[800] text-[12px] tracking-wider uppercase mb-6 hard shadow-[2px_2px_0px_var(--violet)]">
-            Classroom Engagement Redefined
+          {/* Premium Pill Badge (50% bigger & bolder) */}
+          <div className="inline-flex items-center gap-2.5 bg-[var(--ink)] text-[var(--paper)] px-7 py-3 rounded-full font-display font-[900] text-[16px] md:text-[18px] tracking-[0.08em] uppercase mb-8 hard shadow-[3px_3px_0px_var(--violet)] border-[2.5px] border-white/20">
+            <span>⚡</span> Classroom Engagement Redefined
           </div>
           
           <h1 className="font-display font-[900] text-[52px] md:text-[84px] lg:text-[105px] leading-[0.88] tracking-[-0.03em] uppercase max-w-[1050px]">
@@ -173,7 +173,7 @@ export default function MarketingHomepage() {
         {/* Section 3: Feature Cards Grid (Bento Style) */}
         <section className="w-full max-w-[1280px] mx-auto px-4 md:px-6 py-16 md:py-24">
           <div className="text-center mb-16">
-            <span className="text-[11px] font-display font-black tracking-widest text-[var(--violet)] uppercase bg-[var(--paper-2)] border-[2.5px] border-[var(--ink)] px-3 py-1 rounded-full hard shadow-[1.5px_1.5px_0px_#10100F] inline-block mb-3">
+            <span className="text-[15px] md:text-[17px] font-display font-[900] tracking-[0.12em] text-[var(--violet)] uppercase bg-[var(--paper-2)] border-[3px] border-[var(--ink)] px-6 py-2 rounded-full hard shadow-[3px_3px_0px_#10100F] inline-block mb-4">
               FEATURES
             </span>
             <h2 className="font-display font-[900] text-[42px] md:text-[56px] uppercase tracking-tight leading-none">
@@ -225,7 +225,7 @@ export default function MarketingHomepage() {
           
           <div className="max-w-[1280px] mx-auto px-4 md:px-6">
             <div className="text-center mb-16">
-              <span className="text-[11px] font-display font-black tracking-widest text-[var(--cherry)] uppercase bg-white border-[2.5px] border-[var(--ink)] px-3 py-1 rounded-full hard shadow-[1.5px_1.5px_0px_#10100F] inline-block mb-3">
+              <span className="text-[15px] md:text-[17px] font-display font-[900] tracking-[0.12em] text-[var(--cherry)] uppercase bg-white border-[3px] border-[var(--ink)] px-6 py-2 rounded-full hard shadow-[3px_3px_0px_#10100F] inline-block mb-4">
                 GUIDE
               </span>
               <h2 className="font-display font-[900] text-[42px] md:text-[56px] uppercase tracking-tight leading-none">
