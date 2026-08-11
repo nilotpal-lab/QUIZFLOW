@@ -57,6 +57,11 @@ export default function MarketingHomepage() {
             <span className="text-[var(--violet)] drop-shadow-[1px_1px_0px_var(--ink)]">⚡</span> QuizFlow
           </div>
           <div className="flex items-center gap-3">
+            <Link href="/quizflow/practice">
+              <button className="hard bg-white border-[2.5px] border-[var(--ink)] text-[var(--ink)] rounded-full px-4 py-1.5 text-[12px] font-display font-black uppercase tracking-wider btn-press hidden sm:inline-block">
+                📚 Quiz Library
+              </button>
+            </Link>
             {user ? (
               <div className="flex items-center gap-2.5">
                 <Link href="/quizflow/studio">
@@ -208,13 +213,15 @@ export default function MarketingHomepage() {
               <p className="font-body text-[14px] leading-relaxed opacity-85 relative z-10">Generate custom high-order thinking quizzes instantly with adaptive difficulty tiers.</p>
             </div>
 
-            {/* Feature 3: Practice Mode */}
-            <div className="hard bg-[var(--paper-2)] rounded-[var(--radius-card)] p-6 relative overflow-hidden group hover:-translate-y-1.5 transition-all duration-200">
-              <div className="absolute right-10 bottom-4 w-12 h-12 border-[4px] border-[var(--mint)] opacity-30 group-hover:translate-y-1.5 transition-transform"></div>
-              <div className="w-12 h-12 rounded-[12px] hard bg-[var(--mint)] text-[var(--ink)] flex items-center justify-center text-[22px] font-display font-bold mb-6 relative z-10">DECK</div>
-              <h3 className="font-display font-[900] text-[22px] mb-2 relative z-10 uppercase tracking-tight">Practice Mode</h3>
-              <p className="font-body text-[14px] leading-relaxed opacity-85 relative z-10">Spaced repetition flashcards with interactive audio speech readouts for long-term retention.</p>
-            </div>
+            {/* Feature 3: Quiz Library & Practice */}
+            <Link href="/quizflow/practice" className="block group">
+              <div className="hard bg-[var(--paper-2)] hover:bg-[#D9FDE8] rounded-[var(--radius-card)] p-6 relative overflow-hidden group-hover:-translate-y-1.5 transition-all duration-200 cursor-pointer h-full">
+                <div className="absolute right-10 bottom-4 w-12 h-12 border-[4px] border-[var(--mint)] opacity-30 group-hover:translate-y-1.5 transition-transform"></div>
+                <div className="w-12 h-12 rounded-[12px] hard bg-[var(--mint)] text-[var(--ink)] flex items-center justify-center text-[22px] font-display font-bold mb-6 relative z-10">LIB</div>
+                <h3 className="font-display font-[900] text-[22px] mb-2 relative z-10 uppercase tracking-tight">Quiz Library</h3>
+                <p className="font-body text-[14px] leading-relaxed opacity-85 relative z-10">Explore AI-categorized quizzes across Sports, Biology, Maths & History. Host live or practice solo!</p>
+              </div>
+            </Link>
 
             {/* Feature 4: Boss Raids */}
             <div className="hard bg-[var(--paper-2)] rounded-[var(--radius-card)] p-6 relative overflow-hidden group hover:-translate-y-1.5 transition-all duration-200">
