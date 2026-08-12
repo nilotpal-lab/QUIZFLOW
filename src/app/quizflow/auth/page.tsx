@@ -28,16 +28,33 @@ export default function TeacherAuthPage() {
   const [authNotice, setAuthNotice]   = useState('')
 
   useEffect(() => {
+    // Check URL parameters for OAuth errors
+    if (typeof window !== 'undefined') {
+      const hash = window.location.hash
+      const search = window.location.search
+      if (hash.includes('error_description=') || search.includes('error_description=')) {
+        const match = (hash + search).match(/error_description=([^&]+)/)
+        if (match && match[1]) {
+          const decoded = decodeURIComponent(match[1].replace(/\+/g, ' '))
+          setAuthError(`Google Auth Notice: ${decoded}`)
+        }
+      }
+    }
+
     const existing = getHostUser()
     if (existing) {
       setUser(existing)
+      router.push('/quizflow/dashboard')
     }
 
     const unsubscribe = initAuthSync(updatedUser => {
-      setUser(updatedUser)
+      if (updatedUser) {
+        setUser(updatedUser)
+        router.push('/quizflow/dashboard')
+      }
     })
     return () => unsubscribe()
-  }, [])
+  }, [router])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()

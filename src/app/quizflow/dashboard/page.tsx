@@ -55,31 +55,44 @@ export default function TeacherDashboard() {
   const [saveSuccess, setSaveSuccess]     = useState(false)
 
   const [isCheckingAuth, setIsCheckingAuth] = useState(true)
+  const [isOAuthPending, setIsOAuthPending] = useState(false)
 
   useEffect(() => {
+    // Check if returning from Google OAuth redirect with code or token
+    const hasOAuthParams = typeof window !== 'undefined' && (
+      window.location.search.includes('code=') ||
+      window.location.hash.includes('access_token=') ||
+      window.location.hash.includes('error=')
+    )
+
+    if (hasOAuthParams) {
+      setIsOAuthPending(true)
+    }
+
     const hostUser = getHostUser()
     if (hostUser) {
       setUser(hostUser)
       setProfileName(hostUser.name)
       setProfileSchool(hostUser.school)
       setIsCheckingAuth(false)
-    } else {
-      // If not logged in, redirect after brief check
+    } else if (!hasOAuthParams) {
+      // If not logged in and no OAuth in progress, redirect after brief check
       const timer = setTimeout(() => {
         if (!getHostUser()) {
           router.push('/quizflow/auth')
         }
-      }, 800)
+      }, 1500)
       return () => clearTimeout(timer)
     }
 
     const unsubscribe = initAuthSync(updatedUser => {
       setIsCheckingAuth(false)
+      setIsOAuthPending(false)
       if (updatedUser) {
         setUser(updatedUser)
         setProfileName(updatedUser.name)
         setProfileSchool(updatedUser.school)
-      } else if (!getHostUser()) {
+      } else if (!getHostUser() && !hasOAuthParams) {
         router.push('/quizflow/auth')
       }
     })
@@ -137,29 +150,35 @@ export default function TeacherDashboard() {
     return (
       <div className="page-wrapper memphis-bg" style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
         <div className="card anim-scale-in" style={{ maxWidth: 440, width: '100%', padding: '40px 28px', textAlign: 'center' }}>
-          <div style={{ fontSize: 52, marginBottom: 12 }}>🎓</div>
+          <div style={{ fontSize: 52, marginBottom: 12 }}>
+            {isOAuthPending ? '✨' : '🎓'}
+          </div>
           <h2 style={{ fontFamily: 'Space Grotesk', fontSize: 24, fontWeight: 900, marginBottom: 8, color: 'var(--ink)' }}>
-            Teacher Workspace
+            {isOAuthPending ? 'Connecting Google Session' : 'Teacher Workspace'}
           </h2>
           <p style={{ fontFamily: 'Inter', fontSize: 14, color: '#555', marginBottom: 28, lineHeight: 1.5 }}>
-            {isCheckingAuth
-              ? 'Verifying your teacher credentials...'
-              : 'Please sign in or start a free teacher session to access your saved quizzes and class history.'}
+            {isOAuthPending
+              ? 'Finalizing your Google sign-in credentials...'
+              : isCheckingAuth
+                ? 'Verifying your teacher credentials...'
+                : 'Please sign in or start a free teacher session to access your saved quizzes and class history.'}
           </p>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <Link href="/quizflow/auth" style={{ textDecoration: 'none' }}>
-              <button className="btn btn-primary" style={{ width: '100%', height: 48, fontSize: 15 }}>
-                🔑 Sign In to Teacher Workspace →
-              </button>
-            </Link>
+          {!isOAuthPending && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <Link href="/quizflow/auth" style={{ textDecoration: 'none' }}>
+                <button className="btn btn-primary" style={{ width: '100%', height: 48, fontSize: 15 }}>
+                  🔑 Sign In to Teacher Workspace →
+                </button>
+              </Link>
 
-            <Link href="/quizflow" style={{ textDecoration: 'none' }}>
-              <button className="btn" style={{ width: '100%', height: 44, background: 'var(--paper)', border: '2px solid var(--ink)', color: 'var(--ink)' }}>
-                ← Return to Home
-              </button>
-            </Link>
-          </div>
+              <Link href="/quizflow" style={{ textDecoration: 'none' }}>
+                <button className="btn" style={{ width: '100%', height: 44, background: 'var(--paper)', border: '2px solid var(--ink)', color: 'var(--ink)' }}>
+                  ← Return to Home
+                </button>
+              </Link>
+            </div>
+          )}
         </div>
       </div>
     )

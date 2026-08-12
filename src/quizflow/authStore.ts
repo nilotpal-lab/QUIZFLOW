@@ -304,23 +304,32 @@ export function initAuthSync(onUserChange?: (user: HostUser | null) => void): ()
   const supabase = getSupabase()
   if (!supabase) return () => {}
 
+  function extractHostUser(sessionUser: any): HostUser {
+    const email = sessionUser.email || ''
+    const existing = getAccountFromRegistry(email)
+    const meta = sessionUser.user_metadata || {}
+    const fullName = meta.full_name || meta.name || meta.user_name || meta.display_name || (email ? email.split('@')[0] : 'Teacher')
+    const school = meta.school || existing?.school || 'General Classroom'
+    const avatar = meta.avatar_url || meta.picture || fullName || existing?.avatarSeed || email
+
+    return {
+      id: sessionUser.id,
+      name: fullName,
+      email,
+      school,
+      avatarSeed: avatar,
+      createdAt: existing ? existing.createdAt : Date.now()
+    }
+  }
+
   // Parse immediate OAuth session if returning from Google login
   supabase.auth.getSession().then(({ data: { session } }) => {
     if (session?.user) {
-      const email = session.user.email || ''
-      const existing = getAccountFromRegistry(email)
-      const fullName = (session.user.user_metadata?.full_name as string) || (session.user.user_metadata?.name as string)
-      const user: HostUser = {
-        id: session.user.id,
-        name: fullName || existing?.name || email.split('@')[0] || 'Teacher',
-        email,
-        school: (session.user.user_metadata?.school as string) || existing?.school || 'General Classroom',
-        avatarSeed: fullName || existing?.avatarSeed || email,
-        createdAt: existing ? existing.createdAt : Date.now()
-      }
+      const user = extractHostUser(session.user)
       try {
         localStorage.setItem(AUTH_KEY, JSON.stringify(user))
         saveAccountToRegistry(user)
+        syncHostUserToSupabase(user)
       } catch (err) {
         console.warn('LocalStorage error in getSession:', err)
       }
@@ -330,20 +339,11 @@ export function initAuthSync(onUserChange?: (user: HostUser | null) => void): ()
 
   const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
     if (session?.user) {
-      const email = session.user.email || ''
-      const existing = getAccountFromRegistry(email)
-      const fullName = (session.user.user_metadata?.full_name as string) || (session.user.user_metadata?.name as string)
-      const user: HostUser = {
-        id: session.user.id,
-        name: fullName || existing?.name || email.split('@')[0] || 'Teacher',
-        email,
-        school: (session.user.user_metadata?.school as string) || existing?.school || 'General Classroom',
-        avatarSeed: fullName || existing?.avatarSeed || email,
-        createdAt: existing ? existing.createdAt : Date.now()
-      }
+      const user = extractHostUser(session.user)
       try {
         localStorage.setItem(AUTH_KEY, JSON.stringify(user))
         saveAccountToRegistry(user)
+        syncHostUserToSupabase(user)
       } catch (err) {
         console.warn('LocalStorage error in onAuthStateChange:', err)
       }
