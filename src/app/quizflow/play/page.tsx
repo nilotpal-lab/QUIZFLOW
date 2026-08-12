@@ -16,6 +16,9 @@ import {
 } from '@/quizflow/sound'
 import { speakText, stopSpeech, toggleSpeech, isSpeaking } from '@/quizflow/speech'
 import { useAntiCheat } from '@/quizflow/antiCheat'
+import ParticleField from '@/quizflow/ParticleField'
+import { useScreenShake, DamageParticles, BossHealthBar } from '@/quizflow/BossVFX'
+import StreakBadge from '@/quizflow/StreakBadge'
 
 function ScorePopup({ points, onDone }: { points: number; onDone: () => void }) {
   useEffect(() => { const t = setTimeout(onDone, 1400); return () => clearTimeout(t) }, [onDone])
@@ -70,6 +73,15 @@ function StudentPlayScreen() {
   const [isTTSActive, setIsTTSActive]   = useState(false)
   const [sessionTimeout, setSessionTimeout] = useState(false)
   const intervalRef = useRef<NodeJS.Timeout | null>(null)
+
+  // VFX state
+  const { shakeStyle, triggerShake } = useScreenShake()
+  const [particleTrigger, setParticleTrigger] = useState<'correct'|'wrong'|'streak'|null>(null)
+  const [showDamageParticles, setShowDamageParticles] = useState(false)
+  const [prevStreak, setPrevStreak] = useState(0)
+  const [prevAnswerCorrect, setPrevAnswerCorrect] = useState<boolean|null>(null)
+  const [responseStartMs] = useState(() => Date.now())
+  const [answerResponseMs, setAnswerResponseMs] = useState<number|undefined>(undefined)
 
   // Anti-cheat shield integration
   const { violationCount, showWarning, dismissWarning, lastReason } = useAntiCheat({
@@ -134,15 +146,38 @@ function StudentPlayScreen() {
     if (!gameState || gameState.status !== 'question_reveal' || playedRevealSound) return
     setPlayedRevealSound(true)
     const mePlayer = gameState.players[playerId]
-    if (mePlayer?.lastAnswerCorrect) {
+    const isCorrect = mePlayer?.lastAnswerCorrect
+    const streak = mePlayer?.streak ?? 0
+    if (isCorrect) {
       playCorrectSound()
-      if ((mePlayer?.streak ?? 0) >= 3) {
+      // Trigger correct particle burst
+      setParticleTrigger('correct')
+      setTimeout(() => setParticleTrigger(null), 900)
+      // Streak VFX
+      if (streak >= 3) {
         setTimeout(playStreakSound, 400)
+        setParticleTrigger('streak')
+        setTimeout(() => setParticleTrigger(null), 1100)
+      }
+      // Update prev streak for badge
+      if (streak !== prevStreak) {
+        setPrevStreak(streak)
       }
     } else if (mePlayer?.hasAnswered) {
       playWrongSound()
+      // Boss raid screen shake + damage on wrong
+      if (gameState.gameMode === 'boss_raid') {
+        triggerShake(8)
+        setShowDamageParticles(true)
+      } else {
+        triggerShake(4)
+      }
+      setParticleTrigger('wrong')
+      setTimeout(() => setParticleTrigger(null), 500)
     }
-  }, [gameState?.status, playedRevealSound, playerId, gameState])
+    setPrevAnswerCorrect(isCorrect ?? null)
+  }, [gameState?.status, playedRevealSound, playerId, gameState, prevStreak, triggerShake])
+
 
   // Local timer (cosmetic — synced with server ends_at)
   useEffect(() => {
@@ -189,6 +224,36 @@ function StudentPlayScreen() {
   const timePct   = totalTime > 0 ? timeMs / totalTime : 0
   const seconds   = Math.ceil(timeMs / 1000)
 
+  // ── ELIMINATED STATE ──
+  const isEliminated = gameState?.eliminatedPlayers?.includes(playerId)
+  if (isEliminated && gameState?.status !== 'ended') {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--paper)', padding: 20 }}>
+        <div className="card anim-scale-in" style={{ padding: '48px 36px', textAlign: 'center', maxWidth: 400 }}>
+          <div style={{ fontSize: 64, marginBottom: 16 }}>💀</div>
+          <div style={{ fontFamily: 'Space Grotesk', fontSize: 28, fontWeight: 900, color: 'var(--cherry)', marginBottom: 8 }}>
+            You&apos;ve Been Eliminated
+          </div>
+          <div style={{ fontFamily: 'Inter', fontSize: 15, color: '#555', marginBottom: 8 }}>
+            {gameState?.tournamentRoundLabel || 'This round'}
+          </div>
+          {gameState?.tournamentConfig?.parsedRules && (
+            <div style={{ padding: '12px 14px', background: '#FFE4E7', border: '2px solid var(--cherry)', borderRadius: 12, fontFamily: 'Inter', fontSize: 13, textAlign: 'left', marginBottom: 20 }}>
+              <strong>Tournament Rules:</strong><br/>
+              {gameState.tournamentConfig.parsedRules.split('\n').slice(0,3).map((l,i) => <div key={i}>{l}</div>)}
+            </div>
+          )}
+          <div style={{ fontFamily: 'Inter', fontSize: 13, color: '#888', marginBottom: 24 }}>
+            You can still watch the game continue.
+          </div>
+          <a href="/quizflow">
+            <button className="btn btn-primary" style={{ width: '100%' }}>← Back to Home</button>
+          </a>
+        </div>
+      </div>
+    )
+  }
+
   const handleAnswer = useCallback((idx: number) => {
     if (!gameState || gameState.status !== 'question_active') return
     if (me?.hasAnswered) return
@@ -198,6 +263,9 @@ function StudentPlayScreen() {
     }
 
     playLockInSound()
+    // Record response time for speed badge
+    const elapsed = gameState.questionStartedAt > 0 ? Date.now() - gameState.questionStartedAt : undefined
+    setAnswerResponseMs(elapsed)
 
     if (q) {
       const isCorrect = idx === q.correct_index
@@ -371,9 +439,27 @@ function StudentPlayScreen() {
 
   return (
     <div
-      className={`page-wrapper ${frozen ? 'frosted-freeze-container' : ''} ${isRevealed && myCorrect && streakCount >= 5 ? 'anim-shake' : ''}`}
-      style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--paper)', position: 'relative' }}
+      className={`page-wrapper ${frozen ? 'frosted-freeze-container' : ''}`}
+      style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--paper)', position: 'relative', ...shakeStyle }}
     >
+      {/* 3D Particle Field background */}
+      <ParticleField trigger={particleTrigger} active />
+
+      {/* Damage particles (boss raid wrong answers) */}
+      {showDamageParticles && (
+        <DamageParticles count={14} color="damage" onDone={() => setShowDamageParticles(false)} />
+      )}
+
+      {/* Streak / Speed / Perfect badges */}
+      <StreakBadge
+        streak={streakCount}
+        lastPointsEarned={me?.lastPointsEarned ?? 0}
+        lastAnswerCorrect={me?.lastAnswerCorrect ?? null}
+        responseMs={answerResponseMs}
+        totalCorrect={me?.totalCorrect}
+        totalAnswered={me?.totalAnswered}
+      />
+
       {showPopup && <ScorePopup points={popupPoints} onDone={() => setShowPopup(false)} />}
 
       {/* FOCUS SHIELD WARNING POPUP MODAL */}
@@ -559,16 +645,14 @@ function StudentPlayScreen() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'Space Grotesk', fontWeight: 800, fontSize: 13, color: 'var(--ink)' }}>
             <span style={{ fontSize: 18 }}>🐉</span>
             <span>BOSS HP:</span>
-            <span>{gameState.bossHealth ?? 100} / {gameState.bossMaxHealth ?? 100}</span>
             {(gameState.bossHealth ?? 100) === 0 && <span className="badge badge-mint" style={{ fontSize: 10 }}>DEFEATED! 🎉</span>}
           </div>
-          <div style={{ flex: 1, maxWidth: 350, height: 16, background: 'var(--paper)', border: '2px solid var(--ink)', borderRadius: 8, overflow: 'hidden', boxShadow: '2px 2px 0 var(--ink)' }}>
-            <div style={{
-              width: `${Math.max(0, Math.min(100, ((gameState.bossHealth ?? 100) / (gameState.bossMaxHealth ?? 100)) * 100))}%`,
-              height: '100%',
-              background: (gameState.bossHealth ?? 100) > 50 ? 'var(--mint)' : (gameState.bossHealth ?? 100) > 25 ? 'var(--sun)' : 'var(--cherry)',
-              transition: 'width 0.3s ease, background 0.3s'
-            }} />
+          <div style={{ flex: 1, maxWidth: 350 }}>
+            <BossHealthBar
+              health={gameState.bossHealth ?? 100}
+              maxHealth={gameState.bossMaxHealth ?? 100}
+              isFlashing={showDamageParticles}
+            />
           </div>
         </div>
       )}

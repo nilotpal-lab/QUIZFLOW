@@ -65,6 +65,11 @@ export interface GameState {
   isPaused?: boolean
   pausedTimeRemainingMs?: number
   aliasMode?: boolean
+  // Multi-round tournament fields
+  tournamentConfig?: import('./types').TournamentConfig
+  currentRound?: number
+  eliminatedPlayers?: string[]  // player IDs eliminated from tournament
+  tournamentRoundLabel?: string // e.g. "Round 2 of 3"
 }
 
 const CHANNEL_NAME = 'quizflow_session'
@@ -644,6 +649,72 @@ export function kickPlayer(pin: string, playerId: string) {
   const players = { ...state.players }
   delete players[playerId]
   saveState({ ...state, players })
+}
+
+/**
+ * Eliminate players after a tournament round based on the elimination rule.
+ * rule examples: "bottom 30%", "bottom 3", "score < 500", "only top 5 survive"
+ */
+export function eliminateRoundLosers(pin: string, roundNumber: number, rule: string): string[] {
+  const state = loadState(pin)
+  if (!state) return []
+
+  const players = Object.values(state.players)
+  if (players.length === 0) return []
+
+  const sorted = getTacticsRankings(players)  // best -> worst
+  let eliminated: string[] = []
+
+  const ruleL = rule.toLowerCase().trim()
+
+  // Pattern: "bottom X%"
+  const pctMatch = ruleL.match(/bottom\s+(\d+)\s*%/)
+  if (pctMatch) {
+    const pct = parseInt(pctMatch[1]) / 100
+    const cutCount = Math.floor(players.length * pct)
+    eliminated = sorted.slice(sorted.length - cutCount).map(p => p.id)
+  }
+
+  // Pattern: "bottom X players" or "bottom X"
+  const countMatch = !pctMatch && ruleL.match(/bottom\s+(\d+)/)
+  if (countMatch) {
+    const n = parseInt(countMatch[1])
+    eliminated = sorted.slice(sorted.length - n).map(p => p.id)
+  }
+
+  // Pattern: "top X survive" or "only top X"
+  const topMatch = ruleL.match(/top\s+(\d+)/)
+  if (topMatch) {
+    const n = parseInt(topMatch[1])
+    eliminated = sorted.slice(n).map(p => p.id)
+  }
+
+  // Pattern: "score < N" or "score below N"
+  const scoreMatch = ruleL.match(/score\s*(?:<|below|less than)\s*(\d+)/)
+  if (scoreMatch) {
+    const minScore = parseInt(scoreMatch[1])
+    eliminated = players.filter(p => p.score < minScore).map(p => p.id)
+  }
+
+  // Pattern: "less than N correct" or "fewer than N correct"
+  const correctMatch = ruleL.match(/(?:less than|fewer than|<)\s*(\d+)\s*correct/)
+  if (correctMatch) {
+    const minCorrect = parseInt(correctMatch[1])
+    eliminated = players.filter(p => (p.totalCorrect || 0) < minCorrect).map(p => p.id)
+  }
+
+  // Record eliminations in tournamentConfig
+  const tc = state.tournamentConfig
+  const newEliminations = { ...(tc?.eliminations || {}), [roundNumber]: eliminated }
+  const allEliminated = Array.from(new Set((state.eliminatedPlayers || []).concat(eliminated)))
+
+  saveState({
+    ...state,
+    eliminatedPlayers: allEliminated,
+    tournamentConfig: tc ? { ...tc, eliminations: newEliminations } : undefined
+  })
+
+  return eliminated
 }
 
 export function togglePauseTimer(pin: string) {

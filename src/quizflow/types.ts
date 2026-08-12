@@ -129,3 +129,27 @@ export interface ScoreResult {
   streak_bonus: number
   power_up_multiplier: number
 }
+
+/* ---------- Multi-Round Tournament ----------------------------- */
+export interface RoundConfig {
+  roundNumber: number
+  quizId?: string
+  quizTitle: string
+  quiz: import('./types').AIGeneratedQuiz
+  eliminationRule: string   // raw host input, e.g. "bottom 30% by score"
+}
+
+export type EliminationCriteria =
+  | 'bottom_score_percent'   // e.g. bottom 30% by score
+  | 'bottom_score_count'     // e.g. bottom 3 players
+  | 'min_correct'            // e.g. less than 3 correct
+  | 'min_score'              // e.g. score below 500
+  | 'all_but_top'            // e.g. only top 5 survive
+  | 'custom'                 // AI-parsed freeform
+
+export interface TournamentConfig {
+  rounds: RoundConfig[]
+  parsedRules: string        // AI-simplified markdown bullet list
+  currentRoundIndex: number
+  eliminations: Record<number, string[]>  // roundNumber -> eliminated player IDs
+}

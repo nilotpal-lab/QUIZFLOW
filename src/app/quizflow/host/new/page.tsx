@@ -293,6 +293,45 @@ export default function HostNewPage() {
           </div>
         )}
 
+        {/* TOURNAMENT MODE CARD */}
+        <div style={{ marginBottom: 24 }}>
+          <Link href="/quizflow/host/tournament" style={{ textDecoration: 'none' }}>
+            <div
+              className="btn-press"
+              style={{
+                padding: '20px 24px',
+                border: '3px solid var(--ink)',
+                borderRadius: 18,
+                background: 'linear-gradient(135deg, #a78bfa 0%, #f472b6 100%)',
+                boxShadow: '5px 5px 0 var(--ink)',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 16,
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                <div style={{ fontSize: 36 }}>🏆</div>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                    <span style={{ fontFamily: 'Space Grotesk', fontSize: 20, fontWeight: 900, color: 'white' }}>
+                      Multi-Round Tournament
+                    </span>
+                    <span className="badge badge-sun" style={{ fontSize: 10 }}>NEW</span>
+                  </div>
+                  <p style={{ fontFamily: 'Inter', fontSize: 13, color: 'rgba(255,255,255,0.9)', margin: 0, lineHeight: 1.4 }}>
+                    Create elimination rounds with custom rules. AI parses your rules and shows exactly who survives each round.
+                  </p>
+                </div>
+              </div>
+              <div style={{ flexShrink: 0, width: 40, height: 40, borderRadius: '50%', background: 'white', border: '2px solid var(--ink)', display: 'grid', placeItems: 'center', fontWeight: 900, fontSize: 18 }}>
+                →
+              </div>
+            </div>
+          </Link>
+        </div>
+
         {/* SECTION 3: GAME MODE SELECTOR & LAUNCH */}
         <div className="card" style={{ padding: 24, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap', justifyContent: 'center' }}>
