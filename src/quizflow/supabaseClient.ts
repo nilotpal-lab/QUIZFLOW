@@ -84,21 +84,42 @@ export function isSupabaseConfigured(): boolean {
   )
 }
 
+// Safe no-op channel for offline / unconfigured fallback
+const noopChannel = {
+  send: async () => {},
+  on: () => noopChannel,
+  subscribe: (cb?: (status: string) => void) => {
+    if (cb) cb('CLOSED')
+    return noopChannel
+  }
+}
+
 /**
- * Always use this export — not a module-level const.
- * Safe for SSR, mobile Chrome, incognito, and strict cookie policies.
+ * Always use this export or getSupabase().
+ * Safe for SSR, mobile Chrome, Safari incognito, and offline mode.
  */
 export const supabase = new Proxy({} as SupabaseClient, {
   get(_target, prop) {
     const client = getSupabaseClient()
-    if (!client) return undefined
+    if (!client) {
+      if (prop === 'channel') return () => noopChannel
+      if (prop === 'removeChannel') return () => {}
+      if (prop === 'from') return () => ({
+        select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: null, error: null }), single: async () => ({ data: null, error: null }) }), maybeSingle: async () => ({ data: null, error: null }) }),
+        upsert: async () => ({ data: null, error: null }),
+        insert: async () => ({ data: null, error: null }),
+        update: async () => ({ data: null, error: null }),
+        delete: async () => ({ data: null, error: null })
+      })
+      return undefined
+    }
     const value = (client as unknown as Record<string | symbol, unknown>)[prop]
     if (typeof value === 'function') return value.bind(client)
     return value
   }
 }) as SupabaseClient | null
 
-// Re-export a nullable version for code that checks `if (supabase)`
+// Re-export a nullable version for code that checks `if (getSupabase())`
 export function getSupabase(): SupabaseClient | null {
   return getSupabaseClient()
 }

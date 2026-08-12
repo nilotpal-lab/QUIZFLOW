@@ -1,6 +1,6 @@
 'use client'
 export const dynamic = 'force-dynamic'
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, Suspense } from 'react'
 import Link from 'next/link'
 import { useParams, useSearchParams, useRouter } from 'next/navigation'
 import { subscribeToSession, joinSessionAsync, sendReaction } from '@/quizflow/sessionStore'
@@ -9,7 +9,7 @@ import { buildAvatarUrl, safeGetSessionStorage, safeSetSessionStorage } from '@/
 import { playClickSound } from '@/quizflow/sound'
 import { FloatingReactions } from '@/quizflow/FloatingReactions'
 
-export default function LobbyPage() {
+function LobbyInner() {
   const params = useParams()
   const searchParams = useSearchParams()
   const router = useRouter()
@@ -276,5 +276,17 @@ export default function LobbyPage() {
         }
       `}</style>
     </div>
+  )
+}
+
+export default function LobbyPage() {
+  return (
+    <Suspense fallback={
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--paper)', fontFamily: 'Space Grotesk', color: 'var(--ink)', fontSize: 20, fontWeight: 700 }}>
+        Loading Lobby…
+      </div>
+    }>
+      <LobbyInner />
+    </Suspense>
   )
 }

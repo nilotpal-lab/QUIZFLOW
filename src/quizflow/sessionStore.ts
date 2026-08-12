@@ -257,22 +257,35 @@ function broadcast(pin: string, state?: GameState) {
   }
 }
 
-// ── Storage helpers ───────────────────────────────────────────────
+// ── In-Memory & Storage helpers ──────────────────────────────────
+const _memState: Record<string, GameState> = {}
+
 function key(pin: string) { return STORE_PREFIX + pin }
 
 export function saveState(state: GameState) {
-  if (typeof window === 'undefined' || typeof localStorage === 'undefined') return
-  const current = loadState(state.pin)
-  const merged = mergeGameStates(current, state) || state
-  localStorage.setItem(key(state.pin), JSON.stringify(merged))
-  broadcast(state.pin, merged)
+  _memState[state.pin] = state
+  if (typeof window !== 'undefined') {
+    try {
+      const current = loadState(state.pin)
+      const merged = mergeGameStates(current, state) || state
+      _memState[state.pin] = merged
+      localStorage.setItem(key(state.pin), JSON.stringify(merged))
+    } catch {}
+  }
+  broadcast(state.pin, _memState[state.pin])
 }
 
 export function loadState(pin: string): GameState | null {
-  if (typeof window === 'undefined' || typeof localStorage === 'undefined') return null
-  const raw = localStorage.getItem(key(pin))
-  if (!raw) return null
-  try { return JSON.parse(raw) as GameState } catch { return null }
+  if (typeof window === 'undefined') return _memState[pin] || null
+  try {
+    const raw = localStorage.getItem(key(pin))
+    if (raw) {
+      const parsed = JSON.parse(raw) as GameState
+      _memState[pin] = parsed
+      return parsed
+    }
+  } catch {}
+  return _memState[pin] || null
 }
 
 export async function fetchRemoteState(pin: string): Promise<GameState | null> {
@@ -290,17 +303,24 @@ export async function fetchRemoteState(pin: string): Promise<GameState | null> {
       if (data?.state) {
         const local = loadState(pin)
         const merged = mergeGameStates(local, data.state as GameState) || data.state
-        localStorage.setItem(key(pin), JSON.stringify(merged))
+        _memState[pin] = merged
+        try {
+          localStorage.setItem(key(pin), JSON.stringify(merged))
+        } catch {}
         return merged as GameState
       }
     }
   } catch {}
-  return null
+  return _memState[pin] || null
 }
 
 export function deleteState(pin: string) {
-  if (typeof window === 'undefined' || typeof localStorage === 'undefined') return
-  localStorage.removeItem(key(pin))
+  delete _memState[pin]
+  if (typeof window !== 'undefined') {
+    try {
+      localStorage.removeItem(key(pin))
+    } catch {}
+  }
   broadcast(pin)
 }
 
@@ -356,7 +376,10 @@ export function subscribeToSession(
           if (res?.payload && res.payload.pin === pin) {
             const current = loadState(pin)
             const merged = mergeGameStates(current, res.payload) || res.payload
-            localStorage.setItem(key(pin), JSON.stringify(merged))
+            _memState[pin] = merged
+            try {
+              localStorage.setItem(key(pin), JSON.stringify(merged))
+            } catch {}
             callback(merged)
           }
         })
