@@ -95,11 +95,109 @@ export default function HostNewPage() {
         <div style={{ marginBottom: 32, textAlign: 'center' }}>
           <div className="badge badge-cherry" style={{ marginBottom: 10, fontSize: 12 }}>🎮 SELECT OR CREATE QUIZ</div>
           <h1 style={{ fontFamily: 'Space Grotesk', fontSize: 36, fontWeight: 900, marginBottom: 6 }}>
-            Pick Your Quiz
+            Host a Live Game
           </h1>
           <p style={{ color: '#555', fontSize: 15, fontFamily: 'Inter' }}>
-            Choose a preset quiz, pick from your saved teacher drafts, or create a brand new one with AI.
+            Choose how you want to create your quiz, or pick from ready-to-play decks below.
           </p>
+        </div>
+
+        {/* TOP SECTION: CHOOSE HOW TO CREATE QUIZ */}
+        <div style={{ marginBottom: 40 }}>
+          <div style={{ textAlign: 'center', marginBottom: 18 }}>
+            <span className="badge badge-sun" style={{ fontSize: 11, marginBottom: 8, display: 'inline-block' }}>
+              ⚡ CHOOSE CREATION METHOD
+            </span>
+            <h2 style={{ fontFamily: 'Space Grotesk', fontSize: 24, fontWeight: 900, color: 'var(--ink)' }}>
+              How would you like to create your quiz?
+            </h2>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 20 }}>
+            
+            {/* OPTION 1: CREATE WITH AI */}
+            <Link href="/quizflow/studio" style={{ textDecoration: 'none' }}>
+              <div
+                className="btn-press card"
+                style={{
+                  padding: 24,
+                  border: '3px solid var(--ink)',
+                  borderRadius: 18,
+                  background: 'var(--sun)',
+                  boxShadow: '5px 5px 0px #10100F',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'space-between',
+                  height: '100%',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                    <span className="badge badge-ink" style={{ fontSize: 11 }}>🤖 10-SEC GENERATOR</span>
+                    <span style={{ fontSize: 28 }}>✨</span>
+                  </div>
+                  <div style={{ fontFamily: 'Space Grotesk', fontSize: 22, fontWeight: 900, color: 'var(--ink)', marginBottom: 8 }}>
+                    Create with AI
+                  </div>
+                  <p style={{ fontFamily: 'Inter', fontSize: 13.5, color: 'var(--ink)', opacity: 0.85, lineHeight: 1.5, marginBottom: 18 }}>
+                    Enter any topic, paste textbook notes, documents, or YouTube URLs. QuizFlow AI instantly generates questions with Bloom's levels and explanations.
+                  </p>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '2px solid var(--ink)', paddingTop: 14 }}>
+                  <span style={{ fontFamily: 'Space Grotesk', fontWeight: 800, fontSize: 14, color: 'var(--ink)' }}>
+                    Launch AI Studio
+                  </span>
+                  <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'white', border: '2px solid var(--ink)', display: 'grid', placeItems: 'center', fontWeight: 900 }}>
+                    →
+                  </div>
+                </div>
+              </div>
+            </Link>
+
+            {/* OPTION 2: CREATE MANUALLY */}
+            <Link href="/quizflow/studio?mode=manual" style={{ textDecoration: 'none' }}>
+              <div
+                className="btn-press card"
+                style={{
+                  padding: 24,
+                  border: '3px solid var(--ink)',
+                  borderRadius: 18,
+                  background: 'var(--mint)',
+                  boxShadow: '5px 5px 0px #10100F',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'space-between',
+                  height: '100%',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                    <span className="badge badge-ink" style={{ fontSize: 11 }}>✍️ CUSTOM BUILDER</span>
+                    <span style={{ fontSize: 28 }}>📝</span>
+                  </div>
+                  <div style={{ fontFamily: 'Space Grotesk', fontSize: 22, fontWeight: 900, color: 'var(--ink)', marginBottom: 8 }}>
+                    Create Manually
+                  </div>
+                  <p style={{ fontFamily: 'Inter', fontSize: 13.5, color: 'var(--ink)', opacity: 0.85, lineHeight: 1.5, marginBottom: 18 }}>
+                    Type your own custom questions, answer choices (A, B, C, D), mark correct answers, customize timers, and add your own teaching explanations.
+                  </p>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '2px solid var(--ink)', paddingTop: 14 }}>
+                  <span style={{ fontFamily: 'Space Grotesk', fontWeight: 800, fontSize: 14, color: 'var(--ink)' }}>
+                    Start Manual Quiz Builder
+                  </span>
+                  <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'white', border: '2px solid var(--ink)', display: 'grid', placeItems: 'center', fontWeight: 900 }}>
+                    →
+                  </div>
+                </div>
+              </div>
+            </Link>
+
+          </div>
         </div>
 
         {/* SECTION 1: YOUR SAVED & CREATED QUIZZES */}

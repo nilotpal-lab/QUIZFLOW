@@ -81,6 +81,32 @@ export default function AIQuizStudio() {
   const [rightTab, setRightTab] = useState<'adapt' | 'translate' | 'settings'>('adapt')
 
   useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search)
+      if (params.get('mode') === 'manual') {
+        if (quiz.questions.length === 0) {
+          setQuiz({
+            title: 'My Custom Quiz',
+            description: 'Custom teacher questions',
+            language: 'English',
+            bloomLevel: 'Recall',
+            questions: [
+              {
+                prompt: 'Enter your question prompt here...',
+                choices: ['Choice A', 'Choice B', 'Choice C', 'Choice D'],
+                correct_index: 0,
+                difficulty: 'medium',
+                explanation: 'Explanation for the correct choice...',
+                misconceptions: ['', '', '', ''],
+                time_limit_ms: 20000
+              }
+            ]
+          })
+        }
+        setViewMode('editor')
+        return
+      }
+    }
     if (quiz.questions && quiz.questions.length > 0) {
       setViewMode('editor')
     }
@@ -388,6 +414,12 @@ export default function AIQuizStudio() {
               >
                 💾 Save Draft
               </button>
+              <button
+                onClick={() => setViewMode('generate')}
+                className="hidden lg:flex h-10 px-3.5 bg-white border-[3px] border-[#10100F] rounded-[12px] text-[12px] font-bold items-center gap-1.5 hard-white btn-press-white text-[#10100F] animate-scale-in"
+              >
+                <span>✨</span> AI Generator
+              </button>
             </>
           )}
           <button
@@ -632,6 +664,39 @@ export default function AIQuizStudio() {
             >
               {generating ? '🤖 Generating...' : `✨ Generate ${questionCount} Qs (${bloomLevel})`}
             </button>
+
+            {/* Manual Creator Switcher */}
+            <div className="mt-4 pt-4 border-t-[2px] border-[#10100F]/15 flex flex-col sm:flex-row items-center justify-between gap-2 text-[13px]">
+              <span className="text-black/60 font-medium">Prefer to build your quiz manually?</span>
+              <button
+                type="button"
+                onClick={() => {
+                  if (quiz.questions.length === 0) {
+                    setQuiz({
+                      title: topicInput.trim() || 'My Custom Quiz',
+                      description: 'Custom teacher questions',
+                      language: selectedLang,
+                      bloomLevel,
+                      questions: [
+                        {
+                          prompt: 'Enter your question prompt here...',
+                          choices: ['Choice A', 'Choice B', 'Choice C', 'Choice D'],
+                          correct_index: 0,
+                          difficulty: 'medium',
+                          explanation: 'Explanation for the correct choice...',
+                          misconceptions: ['', '', '', ''],
+                          time_limit_ms: 20000
+                        }
+                      ]
+                    })
+                  }
+                  setViewMode('editor')
+                }}
+                className="sg font-extrabold text-[var(--violet)] hover:underline flex items-center gap-1.5 cursor-pointer bg-white px-3 py-1.5 rounded-full border-[2px] border-[var(--ink)] shadow-[2px_2px_0px_#10100F] btn-press"
+              >
+                <span>✍️</span> Create Manually →
+              </button>
+            </div>
 
           </div>
         </div>

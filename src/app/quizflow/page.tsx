@@ -132,15 +132,15 @@ export default function MarketingHomepage() {
             {/* CTA 2: Practice Playing Area & Library */}
             <Link href="/quizflow/practice" className="group">
               <div className="w-full h-20 hard bg-[#FFE0B2] hover:bg-[#FFCC80] text-[var(--ink)] rounded-[var(--radius-card)] px-5 flex items-center justify-between btn-press shadow-[4px_4px_0px_#10100F] transition-all hover:shadow-[6px_6px_0px_#10100F] cursor-pointer">
-                <span className="font-display font-[900] text-[20px] uppercase tracking-tight">Play Quizzes</span>
+                <span className="font-display font-[900] text-[20px] uppercase tracking-tight">Quiz Library</span>
                 <div className="w-9 h-9 rounded-full bg-white text-[var(--ink)] flex items-center justify-center font-display font-black text-[16px] hard border-[2px] border-[var(--ink)] shrink-0">→</div>
               </div>
             </Link>
 
-            {/* CTA 3: AI Quiz Studio */}
-            <Link href="/quizflow/studio" className="group">
+            {/* CTA 3: Host Game (AI or Manual) */}
+            <Link href="/quizflow/host/new" className="group">
               <div className="w-full h-20 hard bg-[var(--sun)] hover:bg-[#ffe799] text-[var(--ink)] rounded-[var(--radius-card)] px-5 flex items-center justify-between btn-press shadow-[4px_4px_0px_#10100F] transition-all hover:shadow-[6px_6px_0px_#10100F] cursor-pointer">
-                <span className="font-display font-[900] text-[20px] uppercase tracking-tight">AI Studio</span>
+                <span className="font-display font-[900] text-[20px] uppercase tracking-tight">Host Game</span>
                 <div className="w-9 h-9 rounded-full bg-white text-[var(--ink)] flex items-center justify-center font-display font-black text-[16px] hard border-[2px] border-[var(--ink)] shrink-0">→</div>
               </div>
             </Link>
