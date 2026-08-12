@@ -717,6 +717,69 @@ export function eliminateRoundLosers(pin: string, roundNumber: number, rule: str
   return eliminated
 }
 
+/**
+ * Advance tournament to the next round:
+ * 1. Run elimination rules for current round
+ * 2. Load next round's quiz
+ * 3. Reset per-question state for surviving players
+ * 4. Transition status to 'lobby' or 'question_active'
+ */
+export function advanceTournamentRound(pin: string) {
+  const state = loadState(pin)
+  if (!state || !state.tournamentConfig) return
+
+  const tc = state.tournamentConfig
+  const currentRoundIdx = tc.currentRoundIndex ?? 0
+  const nextRoundIdx = currentRoundIdx + 1
+
+  // Run eliminations for current round
+  const currentRoundConfig = tc.rounds[currentRoundIdx]
+  if (currentRoundConfig) {
+    eliminateRoundLosers(pin, currentRoundConfig.roundNumber, currentRoundConfig.eliminationRule)
+  }
+
+  // Refresh state after eliminations
+  const freshState = loadState(pin) || state
+
+  if (nextRoundIdx >= tc.rounds.length) {
+    endGame(pin)
+    return
+  }
+
+  const nextRoundConfig = tc.rounds[nextRoundIdx]
+  const shuffledQuiz = shuffleQuizChoices(nextRoundConfig.quiz)
+
+  const updatedTc = {
+    ...tc,
+    currentRoundIndex: nextRoundIdx
+  }
+
+  const resetPlayers = Object.fromEntries(
+    Object.entries(freshState.players || {}).map(([id, p]) => [id, {
+      ...p,
+      hasAnswered: false,
+      selectedIndex: null,
+      lastAnswerCorrect: null,
+      lastPointsEarned: 0
+    }])
+  )
+
+  saveState({
+    ...freshState,
+    status: 'lobby',
+    quiz: shuffledQuiz,
+    currentQuestionIndex: 0,
+    questionStartedAt: 0,
+    questionEndsAt: 0,
+    revealCorrectIndex: null,
+    currentRound: nextRoundConfig.roundNumber,
+    tournamentRoundLabel: `Round ${nextRoundConfig.roundNumber} of ${tc.rounds.length}`,
+    tournamentConfig: updatedTc,
+    players: resetPlayers
+  })
+}
+
+
 export function togglePauseTimer(pin: string) {
   const state = loadState(pin)
   if (!state || state.status !== 'question_active') return

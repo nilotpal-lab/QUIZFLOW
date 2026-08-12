@@ -7,7 +7,8 @@ import {
   subscribeToSession, startGame, revealAnswer,
   showLeaderboard, nextQuestion, endGame, kickPlayer, setGameMode,
   getTacticsRankings, getMasteryRankings,
-  togglePauseTimer, extendTimer, skipQuestion, toggleAliasMode
+  togglePauseTimer, extendTimer, skipQuestion, toggleAliasMode,
+  advanceTournamentRound
 } from '@/quizflow/sessionStore'
 import type { GameState } from '@/quizflow/sessionStore'
 import { buildAvatarUrl } from '@/quizflow/utils'
@@ -358,15 +359,75 @@ function TeacherHostDashboard() {
             </button>
           )}
           {gameState.status === 'leaderboard' && qIdx + 1 >= totalQ && (
-            <button className="btn btn-primary" style={{ padding: '8px 18px', fontWeight: 700 }} onClick={() => endGame(pin)}>
-              🏁 End Game &amp; Show Results
-            </button>
+            gameState.tournamentConfig && (gameState.tournamentConfig.currentRoundIndex ?? 0) + 1 < (gameState.tournamentConfig.rounds?.length ?? 0) ? (
+              <button
+                className="btn btn-mint"
+                style={{ padding: '8px 18px', fontWeight: 800, background: 'var(--mint)', color: 'var(--ink)' }}
+                onClick={() => advanceTournamentRound(pin)}
+              >
+                ⚔️ Start Round {(gameState.tournamentConfig.currentRoundIndex ?? 0) + 2}: {gameState.tournamentConfig.rounds[(gameState.tournamentConfig.currentRoundIndex ?? 0) + 1]?.quizTitle || 'Next Quiz'} →
+              </button>
+            ) : (
+              <button className="btn btn-primary" style={{ padding: '8px 18px', fontWeight: 700 }} onClick={() => endGame(pin)}>
+                🏁 End Game &amp; Show Results
+              </button>
+            )
           )}
           <button onClick={copyPin} className="btn btn-sm" style={{ background: 'var(--paper)', color: 'var(--ink)', border: 'var(--line)', boxShadow: 'var(--shadow-hard)', padding: '8px 12px', fontSize: 12 }}>
             {copiedPin ? '✓' : '📋'} {pin}
           </button>
         </div>
       </header>
+
+      {/* TOURNAMENT ROUND BANNER (When multi-round tournament active) */}
+      {gameState.tournamentConfig && (
+        <div className="anim-fade-up" style={{
+          background: 'linear-gradient(135deg, #a78bfa 0%, #f472b6 100%)',
+          color: 'white',
+          padding: '10px 20px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 12,
+          borderBottom: '2px solid var(--ink)',
+          boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontSize: 20 }}>🏆</span>
+            <div>
+              <div style={{ fontFamily: 'Space Grotesk', fontWeight: 900, fontSize: 14 }}>
+                TOURNAMENT MODE — {gameState.tournamentRoundLabel || `Round ${(gameState.tournamentConfig.currentRoundIndex ?? 0) + 1} of ${gameState.tournamentConfig.rounds.length}`}
+              </div>
+              <div style={{ fontFamily: 'Inter', fontSize: 12, opacity: 0.9 }}>
+                Rule: {gameState.tournamentConfig.rounds[gameState.tournamentConfig.currentRoundIndex ?? 0]?.eliminationRule || 'Elimination active'}
+                {gameState.eliminatedPlayers && gameState.eliminatedPlayers.length > 0 && (
+                  <span> • 💀 {gameState.eliminatedPlayers.length} Eliminated</span>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {gameState.status === 'leaderboard' && (gameState.tournamentConfig.currentRoundIndex ?? 0) + 1 < gameState.tournamentConfig.rounds.length && (
+            <button
+              onClick={() => advanceTournamentRound(pin)}
+              style={{
+                padding: '6px 16px',
+                background: 'var(--sun)',
+                color: 'var(--ink)',
+                border: '2px solid var(--ink)',
+                borderRadius: 8,
+                fontFamily: 'Space Grotesk',
+                fontWeight: 800,
+                fontSize: 13,
+                cursor: 'pointer',
+                boxShadow: '2px 2px 0 var(--ink)'
+              }}
+            >
+              ⚔️ Advance to Next Round →
+            </button>
+          )}
+        </div>
+      )}
 
       {/* TEACHER LIVE CONTROL PANEL TOOLBAR */}
       <div className="anim-fade-up" style={{
