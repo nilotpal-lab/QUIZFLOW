@@ -1,5 +1,1 @@
-import { redirect } from 'next/navigation'
-
-export default function JoinRedirect() {
-  redirect('/quizflow/join')
-}
+export { default } from '../quizflow/join/page'
