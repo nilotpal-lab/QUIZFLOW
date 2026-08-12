@@ -1,6 +1,6 @@
 'use client'
-import { useState, useRef } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useRef, useEffect, Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 
 const RANDOM_NICKNAMES = [
@@ -28,9 +28,26 @@ const ALL_AVATARS = [
   { id: 'retro_4', name: 'Jungle Explorer', src: '/avatars/retro_4.svg', tag: 'Retro', emoji: '🛸' },
 ]
 
-export default function JoinPage() {
+function JoinInner() {
   const router = useRouter()
-  const [pin, setPin] = useState(['', '', '', '', '', ''])
+  const searchParams = useSearchParams()
+  const pinFromUrl = searchParams.get('pin') || ''
+
+  const [pin, setPin] = useState<string[]>(() => {
+    const clean = pinFromUrl.replace(/[^0-9A-Za-z]/g, '').toUpperCase().slice(0, 6)
+    const arr = ['', '', '', '', '', '']
+    clean.split('').forEach((char, idx) => { arr[idx] = char })
+    return arr
+  })
+
+  useEffect(() => {
+    if (pinFromUrl) {
+      const clean = pinFromUrl.replace(/[^0-9A-Za-z]/g, '').toUpperCase().slice(0, 6)
+      const arr = ['', '', '', '', '', '']
+      clean.split('').forEach((char, idx) => { arr[idx] = char })
+      setPin(arr)
+    }
+  }, [pinFromUrl])
   const [nickname, setNickname] = useState('')
   const [selectedAvatarIdx, setSelectedAvatarIdx] = useState<number>(0)
   
@@ -331,5 +348,17 @@ export default function JoinPage() {
         </div>
       </main>
     </div>
+  )
+}
+
+export default function JoinPage() {
+  return (
+    <Suspense fallback={
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--paper)', fontFamily: 'Space Grotesk', color: 'var(--ink)', fontSize: 20, fontWeight: 700 }}>
+        Loading Join Arena…
+      </div>
+    }>
+      <JoinInner />
+    </Suspense>
   )
 }
