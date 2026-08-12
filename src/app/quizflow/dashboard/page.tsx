@@ -38,7 +38,7 @@ function formatDuration(startedAt?: number, completedAt?: number, durationMs?: n
 export default function TeacherDashboard() {
   const router = useRouter()
   const [user, setUser] = useState<HostUser | null>(null)
-  const [activeTab, setActiveTab] = useState<'drafts' | 'history' | 'profile'>('drafts')
+  const [activeTab, setActiveTab] = useState<'quizzes' | 'history' | 'profile'>('quizzes')
 
   // Quizzes & History state
   const [allQuizzes, setAllQuizzes] = useState<SavedQuizItem[]>([])
@@ -79,6 +79,7 @@ export default function TeacherDashboard() {
   }, [router])
 
   const draftQuizzes = allQuizzes.filter(q => q.isDraft)
+  const libraryReadyQuizzes = allQuizzes.filter(q => !q.isDraft)
 
   const handleLogout = async () => {
     await logoutHostAsync()
@@ -136,7 +137,7 @@ export default function TeacherDashboard() {
         {/* Tab Buttons */}
         <div style={{ display: 'flex', gap: 8 }}>
           {[
-            { id: 'drafts', label: `📝 Draft Quizzes (${draftQuizzes.length})` },
+            { id: 'quizzes', label: `📝 My Quizzes (${allQuizzes.length})` },
             { id: 'history', label: `📊 Hosted Sessions (${history.length})` },
             { id: 'profile', label: `👤 Profile` }
           ].map(tab => (
@@ -167,72 +168,109 @@ export default function TeacherDashboard() {
       {/* MAIN CONTAINER */}
       <div style={{ flex: 1, padding: 24, maxWidth: 1280, width: '100%', margin: '0 auto' }}>
 
-        {/* TAB 1: DRAFT QUIZZES (isDraft ONLY) */}
-        {activeTab === 'drafts' && (
+        {/* TAB 1: ALL QUIZZES (drafts + library-ready) */}
+        {activeTab === 'quizzes' && (
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
               <div>
                 <h2 style={{ fontFamily: 'Space Grotesk', fontSize: 24, fontWeight: 900, color: 'var(--ink)' }}>
-                  📝 Draft Quizzes
+                  📝 My Quizzes
                 </h2>
                 <div style={{ fontSize: 13, color: '#555', fontFamily: 'Inter' }}>
-                  All unhosted quizzes saved in Studio. Edit, print, or launch them into live game rooms anytime.
+                  All quizzes saved in Studio. Draft quizzes are editing-in-progress; Library-ready quizzes are published to the community.
                 </div>
               </div>
-              <Link href="/quizflow/studio"><button className="btn btn-sun btn-lg">✨ Create Draft in Studio →</button></Link>
+              <Link href="/quizflow/studio"><button className="btn btn-sun btn-lg">✨ Create in Studio →</button></Link>
             </div>
 
-            {draftQuizzes.length === 0 ? (
+            {allQuizzes.length === 0 ? (
               <div className="card" style={{ padding: 40, textAlign: 'center' }}>
                 <div style={{ fontSize: 36, marginBottom: 10 }}>📝</div>
-                <h3 style={{ fontFamily: 'Space Grotesk', fontSize: 18, fontWeight: 800 }}>No Draft Quizzes Found</h3>
-                <p style={{ fontSize: 14, color: '#666', marginBottom: 16 }}>Drafts you save in AI Studio will appear here automatically.</p>
+                <h3 style={{ fontFamily: 'Space Grotesk', fontSize: 18, fontWeight: 800 }}>No Quizzes Found</h3>
+                <p style={{ fontSize: 14, color: '#666', marginBottom: 16 }}>Quizzes you save in AI Studio will appear here automatically.</p>
                 <Link href="/quizflow/studio"><button className="btn btn-violet">✨ Open AI Studio</button></Link>
               </div>
             ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: 20 }}>
-                {draftQuizzes.map(item => (
-                  <div key={item.id} className="card" style={{ padding: 20, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-                    <div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                        <span className="badge badge-cherry">
-                          📝 Draft
-                        </span>
-                        <span style={{ fontSize: 11, color: '#666', fontFamily: 'Inter' }}>
-                          Updated {formatExactTime(item.updatedAt)}
-                        </span>
-                      </div>
-
-                      <h3 style={{ fontFamily: 'Space Grotesk', fontSize: 18, fontWeight: 800, color: 'var(--ink)', marginBottom: 6 }}>
-                        {item.title}
-                      </h3>
-                      <p style={{ fontSize: 13, color: '#555', fontFamily: 'Inter', marginBottom: 14, lineHeight: 1.4 }}>
-                        {item.description}
-                      </p>
-
-                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 16 }}>
-                        <span className="badge badge-ink">{item.questionCount} Questions</span>
-                        <span className="badge badge-sky">{item.language}</span>
-                        <span className="badge badge-violet">{item.bloomLevel}</span>
-                      </div>
+              <div>
+                {/* Draft Quizzes section */}
+                {draftQuizzes.length > 0 && (
+                  <div style={{ marginBottom: 28 }}>
+                    <div style={{ fontFamily: 'Space Grotesk', fontSize: 13, fontWeight: 800, color: '#888', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12 }}>
+                      📝 DRAFT QUIZZES ({draftQuizzes.length}) — In progress, not yet published
                     </div>
-
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, borderTop: '2px solid var(--ink)', paddingTop: 14 }}>
-                      <button className="btn btn-sun btn-sm" style={{ fontWeight: 800 }} onClick={() => handleHostSavedQuiz(item)}>
-                        🚀 Host Game
-                      </button>
-                      <button className="btn btn-sm" style={{ background: 'var(--paper-2)', color: 'var(--ink)' }} onClick={() => handleEditQuizInStudio(item)}>
-                        ✏️ Edit Studio
-                      </button>
-                      <button className="btn btn-sm" style={{ background: 'var(--mint)', color: 'var(--ink)' }} onClick={() => generatePrintableWorksheet(item.quiz, 'A', true)}>
-                        🖨️ Print PDF
-                      </button>
-                      <button className="btn btn-sm" style={{ background: 'var(--paper)', color: 'var(--cherry)', border: '1.5px solid var(--cherry)' }} onClick={() => handleDeleteQuiz(item.id)}>
-                        🗑️ Delete
-                      </button>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: 20 }}>
+                      {draftQuizzes.map(item => (
+                        <div key={item.id} className="card" style={{ padding: 20, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                          <div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                              <span className="badge badge-cherry">📝 Draft</span>
+                              <span style={{ fontSize: 11, color: '#666', fontFamily: 'Inter' }}>
+                                Updated {formatExactTime(item.updatedAt)}
+                              </span>
+                            </div>
+                            <h3 style={{ fontFamily: 'Space Grotesk', fontSize: 18, fontWeight: 800, color: 'var(--ink)', marginBottom: 6 }}>
+                              {item.title}
+                            </h3>
+                            <p style={{ fontSize: 13, color: '#555', fontFamily: 'Inter', marginBottom: 14, lineHeight: 1.4 }}>
+                              {item.description}
+                            </p>
+                            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 16 }}>
+                              <span className="badge badge-ink">{item.quiz.questions?.length || item.questionCount} Questions</span>
+                              <span className="badge badge-sky">{item.language}</span>
+                              <span className="badge badge-violet">{item.bloomLevel}</span>
+                            </div>
+                          </div>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, borderTop: '2px solid var(--ink)', paddingTop: 14 }}>
+                            <button className="btn btn-sun btn-sm" style={{ fontWeight: 800 }} onClick={() => handleHostSavedQuiz(item)}>🚀 Host Game</button>
+                            <button className="btn btn-sm" style={{ background: 'var(--paper-2)', color: 'var(--ink)' }} onClick={() => handleEditQuizInStudio(item)}>✏️ Edit Studio</button>
+                            <button className="btn btn-sm" style={{ background: 'var(--mint)', color: 'var(--ink)' }} onClick={() => generatePrintableWorksheet(item.quiz, 'A', true)}>🖨️ Print PDF</button>
+                            <button className="btn btn-sm" style={{ background: 'var(--paper)', color: 'var(--cherry)', border: '1.5px solid var(--cherry)' }} onClick={() => handleDeleteQuiz(item.id)}>🗑️ Delete</button>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
-                ))}
+                )}
+
+                {/* Library-ready / Preset Quizzes section */}
+                {libraryReadyQuizzes.length > 0 && (
+                  <div>
+                    <div style={{ fontFamily: 'Space Grotesk', fontSize: 13, fontWeight: 800, color: '#888', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12 }}>
+                      ✅ LIBRARY-READY QUIZZES ({libraryReadyQuizzes.length}) — Published or preset, ready to host
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: 20 }}>
+                      {libraryReadyQuizzes.map(item => (
+                        <div key={item.id} className="card" style={{ padding: 20, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                          <div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                              <span className="badge badge-mint">✅ Ready</span>
+                              <span style={{ fontSize: 11, color: '#666', fontFamily: 'Inter' }}>
+                                Updated {formatExactTime(item.updatedAt)}
+                              </span>
+                            </div>
+                            <h3 style={{ fontFamily: 'Space Grotesk', fontSize: 18, fontWeight: 800, color: 'var(--ink)', marginBottom: 6 }}>
+                              {item.title}
+                            </h3>
+                            <p style={{ fontSize: 13, color: '#555', fontFamily: 'Inter', marginBottom: 14, lineHeight: 1.4 }}>
+                              {item.description}
+                            </p>
+                            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 16 }}>
+                              <span className="badge badge-ink">{item.quiz.questions?.length || item.questionCount} Questions</span>
+                              <span className="badge badge-sky">{item.language}</span>
+                              <span className="badge badge-violet">{item.bloomLevel}</span>
+                            </div>
+                          </div>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, borderTop: '2px solid var(--ink)', paddingTop: 14 }}>
+                            <button className="btn btn-sun btn-sm" style={{ fontWeight: 800 }} onClick={() => handleHostSavedQuiz(item)}>🚀 Host Game</button>
+                            <button className="btn btn-sm" style={{ background: 'var(--paper-2)', color: 'var(--ink)' }} onClick={() => handleEditQuizInStudio(item)}>✏️ Edit</button>
+                            <button className="btn btn-sm" style={{ background: 'var(--mint)', color: 'var(--ink)' }} onClick={() => generatePrintableWorksheet(item.quiz, 'A', true)}>🖨️ Print PDF</button>
+                            <button className="btn btn-sm" style={{ background: 'var(--paper)', color: 'var(--cherry)', border: '1.5px solid var(--cherry)' }} onClick={() => handleDeleteQuiz(item.id)}>🗑️ Delete</button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>

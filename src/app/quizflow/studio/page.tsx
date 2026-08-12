@@ -811,6 +811,33 @@ export default function AIQuizStudio() {
                       </div>
                     ) : (
                       <div className="flex items-center gap-2 flex-wrap">
+                        {/* Device Upload Button */}
+                        <label className="h-8 px-3 bg-[#00E676] hover:bg-[#00C853] border-[2px] border-[#10100F] rounded-[8px] text-[12px] font-extrabold flex items-center gap-1.5 btn-press cursor-pointer text-[#10100F] soft">
+                          <span>📁</span> Upload from Device
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0]
+                              if (!file) return
+                              if (file.size > 8 * 1024 * 1024) {
+                                alert('Image size must be under 8MB.')
+                                return
+                              }
+                              const reader = new FileReader()
+                              reader.onload = (ev) => {
+                                const result = ev.target?.result as string
+                                if (result) {
+                                  updateQuestion(qIdx, { imageUrl: result, media_url: result })
+                                }
+                              }
+                              reader.readAsDataURL(file)
+                            }}
+                          />
+                        </label>
+
+                        {/* Auto-Fetch AI Image */}
                         <button
                           type="button"
                           onClick={() => {
@@ -821,15 +848,16 @@ export default function AIQuizStudio() {
                           }}
                           className="h-8 px-3 bg-[#FFE57F] hover:bg-[#FFD54F] border-[2px] border-[#10100F] rounded-[8px] text-[12px] font-extrabold flex items-center gap-1.5 btn-press"
                         >
-                          <span>🖼️</span> ✨ Auto-Fetch AI Image
+                          <span>🖼️</span> ✨ AI Image
                         </button>
 
+                        {/* URL Paste */}
                         <input
                           type="url"
                           placeholder="Or paste image URL (https://...)"
                           value={q.imageUrl || q.media_url || ''}
                           onChange={e => updateQuestion(qIdx, { imageUrl: e.target.value, media_url: e.target.value })}
-                          className="flex-1 min-w-[200px] h-8 px-3 bg-[#FFF8EB] border-[2px] border-[#10100F]/20 focus:border-[#10100F] rounded-[8px] text-[12px] font-semibold outline-none"
+                          className="flex-1 min-w-[180px] h-8 px-3 bg-[#FFF8EB] border-[2px] border-[#10100F]/20 focus:border-[#10100F] rounded-[8px] text-[12px] font-semibold outline-none"
                         />
                       </div>
                     )}
