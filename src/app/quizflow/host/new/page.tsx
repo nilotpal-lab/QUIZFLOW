@@ -26,6 +26,10 @@ export default function HostNewPage() {
   }, [])
 
   const launchQuiz = (quiz: AIGeneratedQuiz) => {
+    if (!quiz || !quiz.questions || quiz.questions.length === 0) {
+      alert('Cannot host a quiz with 0 questions. Please add questions first.')
+      return
+    }
     setCreating(true)
     const state = createSession(quiz, 'host-' + Date.now(), gameMode)
     const hostPath = '/quizflow/host'

@@ -168,8 +168,11 @@ export default function CommunityPracticeHub() {
   // Answer selection in practice
   const handleSelectPracticeOption = (optIdx: number) => {
     if (selectedOption !== null || !practicingQuiz) return
+    const questions = practicingQuiz.quiz?.questions || []
+    const currentQ = questions[currentQIdx]
+    if (!currentQ) return
+
     setSelectedOption(optIdx)
-    const currentQ = practicingQuiz.quiz.questions[currentQIdx]
     const isCorrect = optIdx === currentQ.correct_index
     if (isCorrect) {
       playCorrectChime()
@@ -809,7 +812,10 @@ export default function CommunityPracticeHub() {
                   <span>Question {currentQIdx + 1} of {practicingQuiz.quiz.questions.length}</span>
                   <div className="flex items-center gap-2">
                     <button
-                      onClick={() => handleToggleTTS(practicingQuiz.quiz.questions[currentQIdx].prompt)}
+                      onClick={() => {
+                        const promptText = practicingQuiz.quiz?.questions?.[currentQIdx]?.prompt || ''
+                        if (promptText) handleToggleTTS(promptText)
+                      }}
                       className={`px-3 py-1 rounded-[8px] border-[2px] border-[#10100F] text-[11px] font-extrabold flex items-center gap-1.5 btn-press ${
                         isTTSActive ? 'bg-[#FFE57F]' : 'bg-white'
                       }`}

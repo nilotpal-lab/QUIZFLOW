@@ -406,6 +406,11 @@ export default function AIQuizStudio() {
               </button>
               <button
                 onClick={() => {
+                  if (!quiz.questions || quiz.questions.length === 0) {
+                    setToastMsg('⚠️ Please add at least 1 question before saving draft!')
+                    setTimeout(() => setToastMsg(null), 3000)
+                    return
+                  }
                   saveQuizDraft(quiz, true)
                   setToastMsg('✅ Quiz saved to Teacher Dashboard!')
                   setTimeout(() => setToastMsg(null), 3000)

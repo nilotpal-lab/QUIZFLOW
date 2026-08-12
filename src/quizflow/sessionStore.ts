@@ -520,27 +520,29 @@ export function setGameMode(pin: string, gameMode: GameMode) {
 
 export function startGame(pin: string) {
   const state = loadState(pin)
-  if (!state) return
+  if (!state || !state.quiz?.questions?.length) return
   const q = state.quiz.questions[0]
+  const timeLimit = q?.time_limit_ms || 20000
   const now = Date.now()
   saveState({
     ...state,
     status: 'question_active',
     currentQuestionIndex: 0,
     questionStartedAt: now,
-    questionEndsAt: now + q.time_limit_ms,
+    questionEndsAt: now + timeLimit,
     revealCorrectIndex: null,
     players: Object.fromEntries(
-      Object.entries(state.players).map(([id, p]) => [id, { ...p, hasAnswered: false, selectedIndex: null, lastAnswerCorrect: null, lastPointsEarned: 0 }])
+      Object.entries(state.players || {}).map(([id, p]) => [id, { ...p, hasAnswered: false, selectedIndex: null, lastAnswerCorrect: null, lastPointsEarned: 0 }])
     )
   })
 }
 
 export function revealAnswer(pin: string) {
   const state = loadState(pin)
-  if (!state) return
+  if (!state || !state.quiz?.questions?.length) return
   const q = state.quiz.questions[state.currentQuestionIndex]
-  saveState({ ...state, status: 'question_reveal', revealCorrectIndex: q.correct_index })
+  const correctIdx = q?.correct_index ?? 0
+  saveState({ ...state, status: 'question_reveal', revealCorrectIndex: correctIdx })
 }
 
 export function showLeaderboard(pin: string) {
@@ -573,16 +575,17 @@ export function showLeaderboard(pin: string) {
 
 export function nextQuestion(pin: string) {
   const state = loadState(pin)
-  if (!state) return
+  if (!state || !state.quiz?.questions?.length) return
   const nextIdx = state.currentQuestionIndex + 1
   if (nextIdx >= state.quiz.questions.length) {
     endGame(pin)
     return
   }
   const q = state.quiz.questions[nextIdx]
+  const timeLimit = q?.time_limit_ms || 20000
   const now = Date.now()
   const resetPlayers = Object.fromEntries(
-    Object.entries(state.players).map(([id, p]) => [id, {
+    Object.entries(state.players || {}).map(([id, p]) => [id, {
       ...p, hasAnswered: false, selectedIndex: null,
       lastAnswerCorrect: null, lastPointsEarned: 0
     }])
@@ -592,7 +595,7 @@ export function nextQuestion(pin: string) {
     status: 'question_active',
     currentQuestionIndex: nextIdx,
     questionStartedAt: now,
-    questionEndsAt: now + q.time_limit_ms,
+    questionEndsAt: now + timeLimit,
     revealCorrectIndex: null,
     players: resetPlayers,
   })
@@ -834,16 +837,18 @@ export function sendReaction(pin: string, emoji: string, senderName?: string) {
 export function submitAnswer(pin: string, playerId: string, selectedIndex: number, powerUpActive = false) {
   const state = loadState(pin)
   if (!state || state.status !== 'question_active') return
-  const player = state.players[playerId]
+  const player = state.players?.[playerId]
   if (!player || player.hasAnswered) return
 
-  const q = state.quiz.questions[state.currentQuestionIndex]
+  const q = state.quiz?.questions?.[state.currentQuestionIndex]
+  if (!q) return
+
   const isCorrect = selectedIndex === q.correct_index
   const now = Date.now()
   const timeRemainingMs = state.isPaused
     ? Math.max(0, state.pausedTimeRemainingMs || 0)
     : Math.max(0, state.questionEndsAt - now)
-  const totalTimeMs = q.time_limit_ms
+  const totalTimeMs = q.time_limit_ms || 20000
   const responseTimeMs = Math.max(0, now - state.questionStartedAt)
 
   // SECURITY: Prevent sub-100ms automated script answers

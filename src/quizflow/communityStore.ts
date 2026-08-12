@@ -639,7 +639,8 @@ export function incrementQuizPlays(quizId: string): void {
 
 export function publishQuizToCommunity(quiz: AIGeneratedQuiz, authorName?: string): CommunityQuiz {
   const list = getCommunityQuizzes()
-  const { category, tags } = autoCategorizeQuiz(quiz.title, quiz.description, quiz.questions)
+  const questions = quiz.questions || []
+  const { category, tags } = autoCategorizeQuiz(quiz.title, quiz.description, questions)
 
   const newCommunityQuiz: CommunityQuiz = {
     id: 'comm_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
@@ -649,9 +650,9 @@ export function publishQuizToCommunity(quiz: AIGeneratedQuiz, authorName?: strin
     tags,
     isFounder: false,
     authorName: authorName || 'Teacher Community Creator',
-    difficulty: quiz.questions[0]?.difficulty || 'medium',
+    difficulty: questions[0]?.difficulty || 'medium',
     bloomLevel: (quiz.bloomLevel as BloomLevel) || 'Comprehension',
-    questionCount: quiz.questions.length,
+    questionCount: questions.length,
     playsCount: 0,
     rating: 0,
     reviewCount: 0,
