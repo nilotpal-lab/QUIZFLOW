@@ -7,6 +7,7 @@ import { createSession } from '@/quizflow/sessionStore'
 import { generatePrintableWorksheet, type WorksheetVersion } from '@/quizflow/pdfGenerator'
 import { ingestYouTubeUrl, ingestWebpageUrl, parseUploadedFile, type IngestedContent } from '@/quizflow/ingestion'
 import { saveQuizDraft } from '@/quizflow/quizStore'
+import { publishQuizToCommunity } from '@/quizflow/communityStore'
 
 const LANGUAGES = [
   { code: 'Hindi', flag: '🇮🇳', label: 'Hindi (हिंदी)' },
@@ -403,6 +404,21 @@ export default function AIQuizStudio() {
                 className="hidden md:flex h-10 px-3.5 bg-[#00E676] border-[3px] border-[#10100F] rounded-[12px] text-[12px] font-bold items-center gap-1.5 hard-white btn-press-white text-[#10100F] animate-scale-in"
               >
                 <span>⎙</span> Print PDF
+              </button>
+              <button
+                onClick={() => {
+                  if (!quiz.questions || quiz.questions.length === 0) {
+                    setToastMsg('⚠️ Please add at least 1 question before publishing to community!')
+                    setTimeout(() => setToastMsg(null), 3000)
+                    return
+                  }
+                  publishQuizToCommunity(quiz)
+                  setToastMsg('🌐 Published globally to Community Quiz Library!')
+                  setTimeout(() => setToastMsg(null), 3500)
+                }}
+                className="h-10 px-3.5 bg-[#7C4DFF] text-white border-[3px] border-white/20 rounded-[12px] text-[12px] font-bold hard-white btn-press-white animate-scale-in"
+              >
+                🌐 Publish Global
               </button>
               <button
                 onClick={() => {

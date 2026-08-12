@@ -586,6 +586,41 @@ export function getCommunityQuizzes(): CommunityQuiz[] {
   return FOUNDER_QUIZZES
 }
 
+/**
+ * Fetches globally published community quizzes from server API / Supabase.
+ * Merges them into localStorage cache so any user sees quizzes globally in real time.
+ */
+export async function fetchRemoteCommunityQuizzes(): Promise<CommunityQuiz[]> {
+  if (typeof window === 'undefined') return getCommunityQuizzes()
+  try {
+    const res = await fetch(`/api/community?_t=${Date.now()}`, {
+      cache: 'no-store',
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache'
+      }
+    })
+    if (res.ok) {
+      const data = await res.json()
+      if (data?.quizzes && Array.isArray(data.quizzes)) {
+        const local = getCommunityQuizzes()
+        const localMap = new Map(local.map(q => [q.id, q]))
+        
+        for (const remoteQuiz of data.quizzes) {
+          localMap.set(remoteQuiz.id, remoteQuiz)
+        }
+
+        const merged = Array.from(localMap.values())
+        saveCommunityQuizzes(merged)
+        return merged
+      }
+    }
+  } catch (e) {
+    console.warn('[fetchRemoteCommunityQuizzes Error]', e)
+  }
+  return getCommunityQuizzes()
+}
+
 export function saveCommunityQuizzes(quizzes: CommunityQuiz[]): void {
   if (typeof window === 'undefined') return
   try {
@@ -614,26 +649,46 @@ export function addQuizComment(quizId: string, authorName: string, rating: numbe
   const totalRating = updatedComments.reduce((acc, c) => acc + c.rating, 0)
   const newAvgRating = Number((totalRating / updatedComments.length).toFixed(1))
 
-  list[idx] = {
+  const updatedQuiz = {
     ...list[idx],
     comments: updatedComments,
     rating: newAvgRating,
     reviewCount: updatedComments.length
   }
 
+  list[idx] = updatedQuiz
   saveCommunityQuizzes(list)
-  return list[idx]
+
+  // Sync comment update to server API
+  if (typeof window !== 'undefined') {
+    fetch('/api/community', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ quiz: updatedQuiz })
+    }).catch(() => {})
+  }
+
+  return updatedQuiz
 }
 
 export function incrementQuizPlays(quizId: string): void {
   const list = getCommunityQuizzes()
   const idx = list.findIndex(q => q.id === quizId)
   if (idx !== -1) {
-    list[idx] = {
+    const updated = {
       ...list[idx],
       playsCount: (list[idx].playsCount || 0) + 1
     }
+    list[idx] = updated
     saveCommunityQuizzes(list)
+
+    if (typeof window !== 'undefined') {
+      fetch('/api/community', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ quiz: updated })
+      }).catch(() => {})
+    }
   }
 }
 
@@ -663,5 +718,16 @@ export function publishQuizToCommunity(quiz: AIGeneratedQuiz, authorName?: strin
 
   const updatedList = [newCommunityQuiz, ...list]
   saveCommunityQuizzes(updatedList)
+
+  // Sync published quiz globally via server API
+  if (typeof window !== 'undefined') {
+    fetch('/api/community', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ quiz: newCommunityQuiz })
+    }).catch(() => {})
+  }
+
   return newCommunityQuiz
 }
+

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
   getCommunityQuizzes,
+  fetchRemoteCommunityQuizzes,
   addQuizComment,
   incrementQuizPlays,
   publishQuizToCommunity,
@@ -71,9 +72,24 @@ export default function CommunityPracticeHub() {
   const [reviewComment, setReviewComment] = useState('')
   const [toastMsg, setToastMsg] = useState<string | null>(null)
 
+  const syncRemoteQuizzes = () => {
+    fetchRemoteCommunityQuizzes().then(remote => {
+      if (remote && Array.isArray(remote) && remote.length > 0) {
+        setQuizzes(remote)
+      }
+    })
+  }
+
   useEffect(() => {
     setQuizzes(getCommunityQuizzes())
     setSavedQuizzes(getSavedQuizzes())
+    
+    // Initial fetch from cloud/server API
+    syncRemoteQuizzes()
+
+    // Real-time polling every 4 seconds so new global posts appear live
+    const interval = setInterval(syncRemoteQuizzes, 4000)
+    return () => clearInterval(interval)
   }, [])
 
   const showToast = (msg: string) => {
