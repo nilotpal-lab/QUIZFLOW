@@ -8,13 +8,12 @@ import { createClient } from '@supabase/supabase-js'
    to join live games via 6-digit PIN with zero latency.
    ================================================================ */
 
-const DEFAULT_SUPABASE_URL = 'https://ogciyskjrefwmazzckfg.supabase.co'
-const DEFAULT_SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9nY2l5c2tqcmVmd21henpja2ZnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYwMjgxMTgsImV4cCI6MjEwMTYwNDExOH0.JwBvcMMESPGo_4qcFHcreuUVVmdSk8RRq9jtGPIjm7I'
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || DEFAULT_SUPABASE_URL
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || DEFAULT_SUPABASE_ANON
-
-const supabase = createClient(supabaseUrl, supabaseAnonKey)
+const supabase = (supabaseUrl && supabaseAnonKey)
+  ? createClient(supabaseUrl, supabaseAnonKey)
+  : null
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -60,27 +59,29 @@ export async function GET(
   }
 
   // 2. Fallback to Supabase Cloud Database if serverless lambda was cold
-  try {
-    const { data, error } = await supabase
-      .from('quizzes')
-      .select('quiz_data, updated_at')
-      .eq('id', 'room_' + pin)
-      .maybeSingle()
+  if (supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('quizzes')
+        .select('quiz_data, updated_at')
+        .eq('id', 'room_' + pin)
+        .maybeSingle()
 
-    if (data?.quiz_data) {
-      rooms.set(pin, {
-        state: data.quiz_data,
-        updatedAt: data.updated_at ? new Date(data.updated_at).getTime() : Date.now()
-      })
-      return NextResponse.json({
-        success: true,
-        pin,
-        state: data.quiz_data,
-        updatedAt: Date.now()
-      }, { headers: noCacheHeaders })
+      if (data?.quiz_data) {
+        rooms.set(pin, {
+          state: data.quiz_data,
+          updatedAt: data.updated_at ? new Date(data.updated_at).getTime() : Date.now()
+        })
+        return NextResponse.json({
+          success: true,
+          pin,
+          state: data.quiz_data,
+          updatedAt: Date.now()
+        }, { headers: noCacheHeaders })
+      }
+    } catch (err) {
+      // Graceful fallback
     }
-  } catch (err) {
-    // Graceful fallback
   }
 
   return NextResponse.json({ error: 'Room not found', pin }, { status: 404, headers: noCacheHeaders })
@@ -97,7 +98,7 @@ export async function POST(
 
   const noCacheHeaders = {
     'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
-    'CDN-Cache-Control': 'no-store',
+    'CDN-Control': 'no-store',
     'Vercel-CDN-Cache-Control': 'no-store',
     'Pragma': 'no-cache',
     'Expires': '0'
@@ -110,7 +111,7 @@ export async function POST(
     let current = rooms.get(pin)?.state
 
     // If memory is empty, attempt to restore from Supabase
-    if (!current) {
+    if (!current && supabase) {
       try {
         const { data } = await supabase
           .from('quizzes')
@@ -210,18 +211,20 @@ export async function POST(
     })
 
     // 2. Persist to Supabase Cloud Database (so all Vercel lambdas share it)
-    try {
-      await supabase.from('quizzes').upsert({
-        id: 'room_' + pin,
-        host_id: current.hostId || 'host_live',
-        title: current.quiz?.title || 'Live Room ' + pin,
-        description: 'Live active game session',
-        question_count: current.quiz?.questions?.length || 0,
-        quiz_data: current,
-        is_draft: false,
-        updated_at: new Date().toISOString()
-      })
-    } catch {}
+    if (supabase) {
+      try {
+        await supabase.from('quizzes').upsert({
+          id: 'room_' + pin,
+          host_id: current.hostId || 'host_live',
+          title: current.quiz?.title || 'Live Room ' + pin,
+          description: 'Live active game session',
+          question_count: current.quiz?.questions?.length || 0,
+          quiz_data: current,
+          is_draft: false,
+          updated_at: new Date().toISOString()
+        })
+      } catch {}
+    }
 
     return NextResponse.json({
       success: true,
