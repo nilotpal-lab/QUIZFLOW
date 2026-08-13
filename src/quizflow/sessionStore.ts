@@ -1057,4 +1057,20 @@ export function submitAnswer(pin: string, playerId: string, selectedIndex: numbe
     tacticsRankings: tactics,
     masteryRankings: mastery,
   })
+
+  // Direct cloud API sync for cross-device answer submission guarantee
+  if (typeof window !== 'undefined') {
+    fetch(`/api/room/${pin}?_t=${Date.now()}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'submit_answer',
+        playerId,
+        selectedIndex,
+        powerUpActive,
+        timeRemainingMs,
+        responseTimeMs
+      })
+    }).catch(() => {})
+  }
 }
