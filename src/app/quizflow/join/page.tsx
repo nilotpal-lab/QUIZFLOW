@@ -138,22 +138,7 @@ function JoinInner() {
     setIsJoining(true)
     setJoinBtnText('⏳ Connecting to Room...')
 
-    try {
-      // Optional check if room is active on cloud relay
-      const res = await fetch(`/api/room/${fullPin}`).catch(() => null)
-      if (res && res.status === 404) {
-        // Double check local storage
-        if (typeof window !== 'undefined' && !localStorage.getItem(`qf_session_${fullPin}`)) {
-          setError(`Session not found. Verify PIN ${fullPin} is active on the host board.`)
-          setIsJoining(false)
-          setJoinBtnText('🚀 Enter Arena →')
-          return
-        }
-      }
-    } catch {
-      // Offline/Local mode fallback
-    }
-
+    // Smooth navigation to room lobby
     const chosenAvatar = ALL_AVATARS[selectedAvatarIdx] || ALL_AVATARS[0]
     const playerId = 'player_' + Date.now() + '_' + Math.random().toString(36).slice(2)
     

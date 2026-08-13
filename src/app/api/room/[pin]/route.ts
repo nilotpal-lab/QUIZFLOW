@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import fs from 'fs'
+import path from 'path'
+import os from 'os'
 
 /* ================================================================
    QuizFlow — Cloud Room Relay Server
@@ -30,11 +33,34 @@ if (!global.__qf_rooms) {
 
 const rooms = global.__qf_rooms
 
+function getTmpPath(pin: string) {
+  return path.join(os.tmpdir(), `qf_room_${pin}.json`)
+}
+
+function readTmpRoom(pin: string) {
+  try {
+    const file = getTmpPath(pin)
+    if (fs.existsSync(file)) {
+      const raw = fs.readFileSync(file, 'utf8')
+      const parsed = JSON.parse(raw)
+      if (parsed?.state) return parsed
+    }
+  } catch {}
+  return null
+}
+
+function writeTmpRoom(pin: string, data: { state: any; updatedAt: number }) {
+  try {
+    const file = getTmpPath(pin)
+    fs.writeFileSync(file, JSON.stringify(data), 'utf8')
+  } catch {}
+}
+
 export async function GET(
   req: Request,
   { params }: { params: { pin: string } }
 ) {
-  const pin = params?.pin
+  const pin = params?.pin?.trim().toUpperCase()
   if (!pin) {
     return NextResponse.json({ error: 'PIN required' }, { status: 400 })
   }
@@ -58,25 +84,39 @@ export async function GET(
     }, { headers: noCacheHeaders })
   }
 
-  // 2. Fallback to Supabase Cloud Database if serverless lambda was cold
+  // 2. Check disk /tmp cache fallback
+  const tmp = readTmpRoom(pin)
+  if (tmp?.state) {
+    rooms.set(pin, tmp)
+    return NextResponse.json({
+      success: true,
+      pin,
+      state: tmp.state,
+      updatedAt: tmp.updatedAt
+    }, { headers: noCacheHeaders })
+  }
+
+  // 3. Fallback to Supabase Cloud Database if serverless lambda was cold
   if (supabase) {
     try {
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from('quizzes')
         .select('quiz_data, updated_at')
         .eq('id', 'room_' + pin)
         .maybeSingle()
 
       if (data?.quiz_data) {
-        rooms.set(pin, {
+        const item = {
           state: data.quiz_data,
           updatedAt: data.updated_at ? new Date(data.updated_at).getTime() : Date.now()
-        })
+        }
+        rooms.set(pin, item)
+        writeTmpRoom(pin, item)
         return NextResponse.json({
           success: true,
           pin,
           state: data.quiz_data,
-          updatedAt: Date.now()
+          updatedAt: item.updatedAt
         }, { headers: noCacheHeaders })
       }
     } catch (err) {
@@ -204,11 +244,10 @@ export async function POST(
       return NextResponse.json({ error: 'Cannot update non-existent room' }, { status: 404 })
     }
 
-    // 1. Update in-memory Map
-    rooms.set(pin, {
-      state: current,
-      updatedAt: Date.now()
-    })
+    // 1. Update in-memory Map & disk tmp cache
+    const item = { state: current, updatedAt: Date.now() }
+    rooms.set(pin, item)
+    writeTmpRoom(pin, item)
 
     // 2. Persist to Supabase Cloud Database (so all Vercel lambdas share it)
     if (supabase) {

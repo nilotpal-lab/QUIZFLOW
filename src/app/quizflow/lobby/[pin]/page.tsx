@@ -73,26 +73,36 @@ function LobbyInner() {
     return () => clearInterval(t)
   }, [])
 
-  // Join room once across any device / laptop / phone
+  // Join room with auto-retry across any device / laptop / phone
   useEffect(() => {
     if (joined) return
     let isMounted = true
-    joinSessionAsync(pin, { id: playerId, nickname, avatarSeed, avatarStyle }).then((result) => {
-      if (!isMounted) return
-      if (result === 'not_found') {
-        setError('Room not found. Check your PIN.')
-        return
-      }
-      if (result === 'duplicate') {
-        setError('Nickname already taken! Go back and pick another.')
-        return
-      }
-      if (result === 'locked') {
-        setError('This room is locked. Ask your teacher to unlock it.')
-        return
-      }
-      setJoined(true)
-    })
+    let attempt = 0
+    const maxAttempts = 6
+
+    const tryJoin = () => {
+      joinSessionAsync(pin, { id: playerId, nickname, avatarSeed, avatarStyle }).then((result) => {
+        if (!isMounted) return
+        if (result === 'ok') {
+          setError('')
+          setJoined(true)
+        } else if (result === 'not_found') {
+          attempt++
+          if (attempt < maxAttempts) {
+            setTimeout(tryJoin, 400)
+          } else {
+            setError(`Room PIN ${pin} not found or has ended. Please check with host.`)
+          }
+        } else if (result === 'duplicate') {
+          setError('Nickname already taken! Go back and pick another.')
+        } else if (result === 'locked') {
+          setError('This room is locked. Ask your teacher to unlock it.')
+        }
+      })
+    }
+
+    tryJoin()
+
     return () => {
       isMounted = false
     }

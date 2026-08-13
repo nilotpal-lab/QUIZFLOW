@@ -293,30 +293,36 @@ export function loadState(pin: string): GameState | null {
   return _memState[pin] || null
 }
 
-export async function fetchRemoteState(pin: string): Promise<GameState | null> {
+export async function fetchRemoteState(pin: string, maxRetries = 3): Promise<GameState | null> {
   if (typeof window === 'undefined') return null
-  try {
-    const res = await fetch(`/api/room/${pin}?_t=${Date.now()}`, {
-      cache: 'no-store',
-      headers: {
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
-        'Pragma': 'no-cache'
+  const cleanPin = pin.trim().toUpperCase()
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const res = await fetch(`/api/room/${cleanPin}?_t=${Date.now()}`, {
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache'
+        }
+      })
+      if (res.ok) {
+        const data = await res.json()
+        if (data?.state) {
+          const local = loadState(cleanPin)
+          const merged = mergeGameStates(local, data.state as GameState) || data.state
+          _memState[cleanPin] = merged
+          try {
+            localStorage.setItem(key(cleanPin), JSON.stringify(merged))
+          } catch {}
+          return merged as GameState
+        }
       }
-    })
-    if (res.ok) {
-      const data = await res.json()
-      if (data?.state) {
-        const local = loadState(pin)
-        const merged = mergeGameStates(local, data.state as GameState) || data.state
-        _memState[pin] = merged
-        try {
-          localStorage.setItem(key(pin), JSON.stringify(merged))
-        } catch {}
-        return merged as GameState
-      }
+    } catch {}
+    if (attempt < maxRetries) {
+      await new Promise(r => setTimeout(r, 250 * (attempt + 1)))
     }
-  } catch {}
-  return _memState[pin] || null
+  }
+  return _memState[cleanPin] || null
 }
 
 export function deleteState(pin: string) {
@@ -850,9 +856,10 @@ export async function joinSessionAsync(
   pin: string,
   player: Omit<Player, 'score' | 'streak' | 'rank' | 'lastAnswerCorrect' | 'lastPointsEarned' | 'hasAnswered' | 'selectedIndex' | 'joinedAt' | 'connected'>
 ): Promise<'ok' | 'not_found' | 'locked' | 'duplicate'> {
-  let state = loadState(pin)
+  const cleanPin = pin.trim().toUpperCase()
+  let state = loadState(cleanPin)
   if (!state) {
-    state = await fetchRemoteState(pin)
+    state = await fetchRemoteState(cleanPin, 4)
   }
   if (!state) return 'not_found'
   if (state.status === 'ended') return 'not_found'
@@ -895,7 +902,19 @@ export async function joinSessionAsync(
     joinedAt: Date.now(),
     connected: true,
   }
-  saveState({ ...state, players: { ...(state.players || {}), [player.id]: newPlayer } })
+
+  const updatedState = { ...state, players: { ...(state.players || {}), [player.id]: newPlayer } }
+  saveState(updatedState)
+
+  // Direct cloud API sync for cross-device join guarantee
+  if (typeof window !== 'undefined') {
+    fetch(`/api/room/${cleanPin}?_t=${Date.now()}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'join', player: newPlayer })
+    }).catch(() => {})
+  }
+
   return 'ok'
 }
 
