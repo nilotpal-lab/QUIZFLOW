@@ -605,7 +605,7 @@ function StudentPlayScreen() {
 
         {/* Timer countdown in center */}
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-          <div style={{
+          <div className="play-timer-digit" style={{
             fontFamily: 'Space Grotesk', fontSize: 44, fontWeight: 900, lineHeight: 1,
             color: timePct > 0.5 ? 'var(--mint)' : timePct > 0.25 ? 'var(--sun)' : 'var(--cherry)',
             transition: 'color 0.5s',
@@ -668,7 +668,7 @@ function StudentPlayScreen() {
         </div>
       </div>
 
-      <div style={{ padding: '16px 20px', flex: 1, display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div className="play-content-area" style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 14 }}>
         {/* Question Card with Dominant Hero Typography & TTS */}
         {q && (
           <div className={`card anim-scale-in ${doubleActive ? 'star-aura' : ''}`} style={{ padding: '24px 22px', background: 'var(--surface-1)' }}>

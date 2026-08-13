@@ -734,43 +734,235 @@ hr.ink { border: none; border-top: 2px solid var(--ink); margin: 20px 0; }
 .backface { backface-visibility: hidden; }
 
 /* ============================================================
-   RESPONSIVE & MOBILE OVERHAUL
+   RESPONSIVE & MOBILE OVERHAUL — COMPREHENSIVE
    ============================================================ */
+
+/* ---- Answer Grid: 2 cols desktop, 1 col mobile ---- */
 .quiz-answer-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 12px;
 }
 
+/* ---- Play page wrapper ---- */
+.play-page-root {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  overflow-x: hidden;
+}
+
+/* ---- Play page top HUD bar ---- */
+.play-hud-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  gap: 10px;
+  flex-wrap: nowrap;
+}
+
+/* ---- Play page central content area ---- */
+.play-content-area {
+  padding: 14px 16px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* ---- Power-up toolbar ---- */
+.play-power-bar {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+/* ============================================================
+   ≤ 640px — PHONES
+   ============================================================ */
 @media (max-width: 640px) {
-  .pin-code { font-size: 28px !important; letter-spacing: 0.1em !important; }
-  .answer-btn { padding: 16px 14px !important; font-size: 14px !important; min-height: 56px !important; }
-  .card { border-radius: 14px !important; padding: 16px !important; }
-  
-  /* Stack 2x2 Answer Grid to 1-Column on Mobile Phones */
+
+  /* Body overflow safety */
+  body, html { overflow-x: hidden !important; }
+
+  /* Answer Grid: 1 column on phones */
   .quiz-answer-grid {
+    grid-template-columns: 1fr !important;
+    gap: 9px !important;
+  }
+
+  /* Answer buttons: larger touch target, smaller font */
+  .answer-btn {
+    min-height: 58px !important;
+    padding: 13px 14px !important;
+    font-size: 14px !important;
+    line-height: 1.3 !important;
+  }
+
+  /* Cards: tighter padding, smaller radius */
+  .card {
+    border-radius: 12px !important;
+    padding: 14px !important;
+  }
+
+  /* Host 3-col grid → 1 col */
+  .host-main-grid {
+    grid-template-columns: 1fr !important;
+    padding: 10px 12px !important;
+    gap: 10px !important;
+  }
+
+  /* Hide decorative shapes that cause overflow */
+  .interactive-shape { display: none !important; }
+  .streak-flame { display: none !important; }
+
+  /* Buttons: minimum touch target */
+  .btn { min-height: 44px; padding: 10px 16px; }
+
+  /* ---- PLAY PAGE HUD: shrink timer, wrap cleanly ---- */
+  .top-bar {
+    padding: 8px 12px !important;
+    gap: 8px !important;
+    flex-wrap: wrap !important;
+  }
+
+  /* Force timer digit smaller on phone */
+  .play-timer-digit {
+    font-size: 32px !important;
+  }
+
+  /* Play content area tighter padding */
+  .play-content-area {
+    padding: 10px 12px !important;
+    gap: 10px !important;
+  }
+
+  /* Question card padding */
+  .play-content-area .card {
+    padding: 16px 14px !important;
+  }
+
+  /* Question text: fluid size */
+  .play-content-area h2 {
+    font-size: clamp(16px, 4.5vw, 22px) !important;
+    line-height: 1.35 !important;
+  }
+
+  /* Power-up bar compact */
+  .play-power-bar {
+    gap: 6px !important;
+    justify-content: center !important;
+  }
+
+  .play-power-bar button {
+    min-width: 60px !important;
+    font-size: 11px !important;
+    padding: 6px 10px !important;
+  }
+
+  /* PIN inputs on Join page — smaller on tiny phones */
+  input[id^="pin-input-"] {
+    font-size: 20px !important;
+    border-radius: 10px !important;
+  }
+
+  /* PIN code display badge */
+  .pin-code {
+    font-size: 24px !important;
+    letter-spacing: 0.08em !important;
+    word-break: break-all !important;
+  }
+
+  /* Nav bar: tighter horizontal padding */
+  nav .max-w-\[1280px\] {
+    padding-left: 12px !important;
+    padding-right: 12px !important;
+  }
+
+  /* Landing hero heading: fluid clamp */
+  .hero-title {
+    font-size: clamp(34px, 10vw, 52px) !important;
+    line-height: 1 !important;
+    letter-spacing: -0.02em !important;
+  }
+
+  /* Feature section heading */
+  .section-heading {
+    font-size: clamp(28px, 8vw, 42px) !important;
+  }
+
+  /* Landing CTA grid: single column always on phones */
+  .landing-cta-grid {
     grid-template-columns: 1fr !important;
     gap: 10px !important;
   }
 
-  /* Host Main View 1-Column on Mobile */
-  .host-main-grid {
-    grid-template-columns: 1fr !important;
+  /* Lobby: player grid tighter */
+  .lobby-player-grid {
+    grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)) !important;
+    gap: 8px !important;
   }
 
-  /* Hide decorative floating background elements on mobile to prevent overflow */
-  .interactive-shape {
-    display: none !important;
+  /* Tournament round cards: single col */
+  .tournament-round-card {
+    padding: 14px !important;
   }
 
-  /* Touch-friendly buttons */
-  .btn {
-    min-height: 44px;
-    padding: 10px 18px;
+  /* Leaderboard modal: tighter */
+  .leaderboard-modal-inner {
+    padding: 16px 12px !important;
   }
 
-  .streak-flame {
-    display: none !important;
+  /* Leaderboard podium: smaller avatars */
+  .podium-card {
+    min-width: 80px !important;
+    padding: 10px 8px !important;
   }
 }
+
+/* ============================================================
+   ≤ 400px — TINY PHONES (iPhone SE, old Androids)
+   ============================================================ */
+@media (max-width: 400px) {
+
+  /* Ultra-compact top bar */
+  .top-bar {
+    padding: 6px 10px !important;
+    gap: 6px !important;
+  }
+
+  .top-bar .avatar-ring {
+    width: 32px !important;
+    height: 32px !important;
+  }
+
+  /* Timer digit: even smaller */
+  .play-timer-digit { font-size: 26px !important; }
+
+  /* Answer button text */
+  .answer-btn {
+    font-size: 13px !important;
+    min-height: 52px !important;
+    padding: 11px 12px !important;
+  }
+
+  /* PIN input boxes on join page */
+  input[id^="pin-input-"] {
+    font-size: 16px !important;
+    border-radius: 8px !important;
+  }
+
+  /* Hero title */
+  .hero-title {
+    font-size: clamp(28px, 9vw, 38px) !important;
+  }
+
+  /* Shrink hard shadow to 2px on tiny screens (shadow causes overflow) */
+  .hard {
+    box-shadow: 2px 2px 0px #10100F !important;
+  }
+}
+
 

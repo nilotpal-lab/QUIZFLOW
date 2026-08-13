@@ -106,7 +106,7 @@ export default function MarketingHomepage() {
             <span>⚡</span> Classroom Engagement Redefined
           </div>
           
-          <h1 className="font-display font-[900] text-[36px] xs:text-[42px] sm:text-[52px] md:text-[84px] lg:text-[105px] leading-[0.98] sm:leading-[0.88] tracking-[-0.03em] uppercase max-w-[1050px] px-2">
+          <h1 className="hero-title font-display font-[900] text-[36px] xs:text-[42px] sm:text-[52px] md:text-[84px] lg:text-[105px] leading-[0.98] sm:leading-[0.88] tracking-[-0.03em] uppercase max-w-[1050px] px-2">
             The Classroom <br />
             <span className="text-[var(--violet)] relative inline-block mt-2 sm:mt-0">
               Battle Arena
@@ -119,7 +119,7 @@ export default function MarketingHomepage() {
           </p>
 
           {/* Action Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-12 w-full max-w-[1140px] relative z-20">
+          <div className="landing-cta-grid grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-12 w-full max-w-[1140px] relative z-20">
             
             {/* CTA 1: Join Live Game */}
             <Link href="/quizflow/join" className="group">
