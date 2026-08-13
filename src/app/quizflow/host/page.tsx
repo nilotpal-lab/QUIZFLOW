@@ -13,6 +13,7 @@ import {
 import type { GameState } from '@/quizflow/sessionStore'
 import { buildAvatarUrl } from '@/quizflow/utils'
 import { FloatingReactions } from '@/quizflow/FloatingReactions'
+import { RealtimeLeaderboardModal } from '@/quizflow/RealtimeLeaderboardModal'
 
 const ANONYMOUS_ALIASES = [
   '🕵️ Agent Falcon', '🥷 Stealth Ninja', '🦊 Clever Fox', '🚀 Cosmic Rover',
@@ -37,6 +38,7 @@ function TeacherHostDashboard() {
   const [copiedPin, setCopiedPin]           = useState(false)
   const [timeLeft, setTimeLeft]             = useState(0)
   const [activeBoard, setActiveBoard]       = useState<'tactics' | 'mastery'>('tactics')
+  const [showLeaderboardModal, setShowLeaderboardModal] = useState(false)
   const timerRef = useRef<NodeJS.Timeout | null>(null)
 
   // Redirect if no PIN
@@ -222,6 +224,14 @@ function TeacherHostDashboard() {
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <button
+              onClick={() => setShowLeaderboardModal(true)}
+              className="btn btn-sm btn-sun"
+              style={{ padding: '8px 14px', fontSize: 12, fontWeight: 800, border: '2px solid var(--paper)', boxShadow: '2px 2px 0 var(--ink)' }}
+              title="Show Real-Time Leaderboard on Projector Screen"
+            >
+              🏆 Real-Time Leaderboard
+            </button>
+            <button
               onClick={() => toggleAliasMode(pin)}
               className={`btn btn-sm ${gameState?.aliasMode ? 'btn-violet' : ''}`}
               style={{ padding: '6px 12px', fontSize: 12, fontWeight: 700, border: '2px solid var(--paper)' }}
@@ -294,6 +304,18 @@ function TeacherHostDashboard() {
             </div>
           )}
         </div>
+
+        <RealtimeLeaderboardModal
+          isOpen={showLeaderboardModal}
+          onClose={() => setShowLeaderboardModal(false)}
+          players={players}
+          activeBoard={activeBoard}
+          setActiveBoard={setActiveBoard}
+          isAliasMode={gameState?.aliasMode || false}
+          toggleAliasMode={() => toggleAliasMode(pin)}
+          pin={pin}
+          quizTitle={gameState.quiz.title}
+        />
       </div>
     )
   }
@@ -526,6 +548,24 @@ function TeacherHostDashboard() {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {/* 🏆 Real-Time Leaderboard Modal Toggle */}
+          <button
+            onClick={() => setShowLeaderboardModal(true)}
+            className="btn btn-sm btn-sun"
+            style={{
+              padding: '6px 14px',
+              fontSize: 12,
+              fontWeight: 800,
+              border: '2px solid var(--ink)',
+              boxShadow: '2px 2px 0 var(--ink)',
+              background: '#FFE57F',
+              color: 'var(--ink)'
+            }}
+            title="Open Real-Time Full-Screen Leaderboard View"
+          >
+            🏆 Real-Time Leaderboard
+          </button>
+
           {/* 📺 Projector Mode Toggle */}
           <button
             onClick={() => setIsProjectorMode(!isProjectorMode)}
@@ -850,6 +890,18 @@ function TeacherHostDashboard() {
           </div>
         </div>
       </div>
+
+      <RealtimeLeaderboardModal
+        isOpen={showLeaderboardModal}
+        onClose={() => setShowLeaderboardModal(false)}
+        players={players}
+        activeBoard={activeBoard}
+        setActiveBoard={setActiveBoard}
+        isAliasMode={gameState?.aliasMode || false}
+        toggleAliasMode={() => toggleAliasMode(pin)}
+        pin={pin}
+        quizTitle={gameState.quiz.title}
+      />
     </div>
   )
 }
