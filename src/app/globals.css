@@ -734,10 +734,43 @@ hr.ink { border: none; border-top: 2px solid var(--ink); margin: 20px 0; }
 .backface { backface-visibility: hidden; }
 
 /* ============================================================
-   RESPONSIVE
+   RESPONSIVE & MOBILE OVERHAUL
    ============================================================ */
-@media (max-width: 640px) {
-  .pin-code { font-size: 32px; letter-spacing: 0.12em; }
-  .answer-btn { padding: 14px 14px; font-size: 13px; }
-  .card { border-radius: 12px; }
+.quiz-answer-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
 }
+
+@media (max-width: 640px) {
+  .pin-code { font-size: 28px !important; letter-spacing: 0.1em !important; }
+  .answer-btn { padding: 16px 14px !important; font-size: 14px !important; min-height: 56px !important; }
+  .card { border-radius: 14px !important; padding: 16px !important; }
+  
+  /* Stack 2x2 Answer Grid to 1-Column on Mobile Phones */
+  .quiz-answer-grid {
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+  }
+
+  /* Host Main View 1-Column on Mobile */
+  .host-main-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Hide decorative floating background elements on mobile to prevent overflow */
+  .interactive-shape {
+    display: none !important;
+  }
+
+  /* Touch-friendly buttons */
+  .btn {
+    min-height: 44px;
+    padding: 10px 18px;
+  }
+
+  .streak-flame {
+    display: none !important;
+  }
+}
+

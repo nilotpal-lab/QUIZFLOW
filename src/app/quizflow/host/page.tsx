@@ -647,7 +647,7 @@ function TeacherHostDashboard() {
       </div>
 
       {/* MAIN THREE-COLUMN OR PROJECTOR FULL-SCREEN */}
-      <div style={{
+      <div className="host-main-grid" style={{
         flex: 1,
         padding: isProjectorMode ? '24px 32px' : '16px 20px',
         display: 'grid',

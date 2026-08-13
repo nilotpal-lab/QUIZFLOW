@@ -731,9 +731,9 @@ function StudentPlayScreen() {
           </div>
         )}
 
-        {/* Answer Grid 2×2 */}
+        {/* Answer Grid (2×2 on Desktop, 1-Column Stacked on Mobile) */}
         {q && (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, flex: 1 }}>
+          <div className="quiz-answer-grid" style={{ flex: 1 }}>
             {q.choices.map((choice, idx) => {
               const colors   = answerBgColors[idx]
               const isHidden = hiddenChoices.has(idx)
