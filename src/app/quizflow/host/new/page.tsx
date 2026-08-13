@@ -12,7 +12,7 @@ export default function HostNewPage() {
   const [savedQuizzes, setSavedQuizzes] = useState<SavedQuizItem[]>([])
   const [selectedQuiz, setSelectedQuiz] = useState<AIGeneratedQuiz | null>(null)
   const [selectedKey, setSelectedKey] = useState<string>('')
-  const [gameMode, setGameModeState] = useState<'classic' | 'boss_raid'>('classic')
+  const [gameMode, setGameModeState] = useState<'classic' | 'boss_raid' | 'tournament'>('classic')
   const [creating, setCreating] = useState(false)
 
   useEffect(() => {
@@ -293,80 +293,135 @@ export default function HostNewPage() {
           </div>
         )}
 
-        {/* TOURNAMENT MODE CARD */}
-        <div style={{ marginBottom: 24 }}>
-          <Link href="/quizflow/host/tournament" style={{ textDecoration: 'none' }}>
-            <div
-              className="btn-press"
-              style={{
-                padding: '20px 24px',
-                border: '3px solid var(--ink)',
-                borderRadius: 18,
-                background: 'linear-gradient(135deg, #a78bfa 0%, #f472b6 100%)',
-                boxShadow: '5px 5px 0 var(--ink)',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: 16,
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                <div style={{ fontSize: 36 }}>🏆</div>
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                    <span style={{ fontFamily: 'Space Grotesk', fontSize: 20, fontWeight: 900, color: 'white' }}>
-                      Multi-Round Tournament
-                    </span>
-                    <span className="badge badge-sun" style={{ fontSize: 10 }}>NEW</span>
-                  </div>
-                  <p style={{ fontFamily: 'Inter', fontSize: 13, color: 'rgba(255,255,255,0.9)', margin: 0, lineHeight: 1.4 }}>
-                    Create elimination rounds with custom rules. AI parses your rules and shows exactly who survives each round.
-                  </p>
-                </div>
-              </div>
-              <div style={{ flexShrink: 0, width: 40, height: 40, borderRadius: '50%', background: 'white', border: '2px solid var(--ink)', display: 'grid', placeItems: 'center', fontWeight: 900, fontSize: 18 }}>
-                →
-              </div>
-            </div>
-          </Link>
-        </div>
-
         {/* SECTION 3: GAME MODE SELECTOR & LAUNCH */}
-        <div className="card" style={{ padding: 24, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap', justifyContent: 'center' }}>
-            <span style={{ fontFamily: 'Space Grotesk', fontSize: 13, fontWeight: 800, color: 'var(--ink)', textTransform: 'uppercase' }}>
-              ROOM GAME MODE:
-            </span>
-            <button
-              onClick={() => setGameModeState('classic')}
-              className={`btn btn-sm ${gameMode === 'classic' ? 'btn-sun' : ''}`}
-              style={{ padding: '8px 18px', background: gameMode === 'classic' ? undefined : 'var(--paper-2)', color: 'var(--ink)', fontWeight: 800 }}
-            >
-              🎯 Classic Mode (Leaderboard)
-            </button>
-            <button
-              onClick={() => setGameModeState('boss_raid')}
-              className={`btn btn-sm ${gameMode === 'boss_raid' ? 'btn-cherry' : ''}`}
-              style={{ padding: '8px 18px', background: gameMode === 'boss_raid' ? undefined : 'var(--paper-2)', color: 'var(--ink)', fontWeight: 800 }}
-            >
-              🐉 Boss Raid Mode (Co-Op Battle)
-            </button>
+        <div className="card" style={{ padding: 28, border: '3px solid var(--ink)', boxShadow: '5px 5px 0 var(--ink)' }}>
+          <div style={{ textAlign: 'center', marginBottom: 20 }}>
+            <span className="badge badge-sun" style={{ marginBottom: 8, fontSize: 11 }}>🎮 SELECT GAME MODE</span>
+            <h2 style={{ fontFamily: 'Space Grotesk', fontSize: 24, fontWeight: 900, color: 'var(--ink)', margin: 0 }}>
+              How do you want to play?
+            </h2>
           </div>
 
-          {/* Launch Room Button */}
-          <button
-            className="btn btn-primary btn-lg"
-            onClick={handleStart}
-            disabled={!selectedQuiz || creating}
-            style={{ width: '100%', maxWidth: 450, fontSize: 18, padding: '16px' }}
-          >
-            {creating
-              ? '🚀 Creating Room...'
-              : selectedQuiz
-                ? `🚀 Launch Room: ${selectedQuiz.title.slice(0, 26)}...`
-                : '← Select a Quiz Above'}
-          </button>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 16, marginBottom: 24 }}>
+            {/* MODE 1: CLASSIC */}
+            <div
+              onClick={() => setGameModeState('classic')}
+              style={{
+                padding: 20,
+                border: '3px solid var(--ink)',
+                borderRadius: 16,
+                background: gameMode === 'classic' ? 'var(--sun)' : 'var(--paper)',
+                boxShadow: gameMode === 'classic' ? '5px 5px 0 var(--ink)' : '2px 2px 0 var(--ink)',
+                transform: gameMode === 'classic' ? 'translate(-2px,-2px)' : 'none',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+                position: 'relative'
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                <span style={{ fontSize: 32 }}>🎯</span>
+                {gameMode === 'classic' && <span className="badge badge-mint" style={{ fontSize: 10 }}>ACTIVE</span>}
+              </div>
+              <div style={{ fontFamily: 'Space Grotesk', fontSize: 18, fontWeight: 900, color: 'var(--ink)', marginBottom: 4 }}>
+                Classic Mode
+              </div>
+              <div style={{ fontFamily: 'Inter', fontSize: 12.5, color: '#555', lineHeight: 1.4 }}>
+                Speed &amp; accuracy leaderboard battle. Perfect for live classroom competition.
+              </div>
+            </div>
+
+            {/* MODE 2: BOSS RAID */}
+            <div
+              onClick={() => setGameModeState('boss_raid')}
+              style={{
+                padding: 20,
+                border: '3px solid var(--ink)',
+                borderRadius: 16,
+                background: gameMode === 'boss_raid' ? 'var(--cherry)' : 'var(--paper)',
+                color: gameMode === 'boss_raid' ? 'white' : 'var(--ink)',
+                boxShadow: gameMode === 'boss_raid' ? '5px 5px 0 var(--ink)' : '2px 2px 0 var(--ink)',
+                transform: gameMode === 'boss_raid' ? 'translate(-2px,-2px)' : 'none',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+                position: 'relative'
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                <span style={{ fontSize: 32 }}>🐉</span>
+                {gameMode === 'boss_raid' && <span className="badge badge-sun" style={{ fontSize: 10 }}>ACTIVE</span>}
+              </div>
+              <div style={{ fontFamily: 'Space Grotesk', fontSize: 18, fontWeight: 900, color: gameMode === 'boss_raid' ? 'white' : 'var(--ink)', marginBottom: 4 }}>
+                Boss Raid Mode
+              </div>
+              <div style={{ fontFamily: 'Inter', fontSize: 12.5, color: gameMode === 'boss_raid' ? 'rgba(255,255,255,0.9)' : '#555', lineHeight: 1.4 }}>
+                Co-Op class battle! Students unite to damage the Boss HP with correct answers.
+              </div>
+            </div>
+
+            {/* MODE 3: MULTI-ROUND TOURNAMENT */}
+            <div
+              onClick={() => setGameModeState('tournament')}
+              style={{
+                padding: 20,
+                border: '3px solid var(--ink)',
+                borderRadius: 16,
+                background: gameMode === 'tournament' ? 'linear-gradient(135deg, #a78bfa 0%, #f472b6 100%)' : 'var(--paper)',
+                color: gameMode === 'tournament' ? 'white' : 'var(--ink)',
+                boxShadow: gameMode === 'tournament' ? '5px 5px 0 var(--ink)' : '2px 2px 0 var(--ink)',
+                transform: gameMode === 'tournament' ? 'translate(-2px,-2px)' : 'none',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+                position: 'relative'
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                <span style={{ fontSize: 32 }}>🏆</span>
+                {gameMode === 'tournament' ? (
+                  <span className="badge badge-sun" style={{ fontSize: 10 }}>ACTIVE</span>
+                ) : (
+                  <span className="badge badge-mint" style={{ fontSize: 10 }}>NEW</span>
+                )}
+              </div>
+              <div style={{ fontFamily: 'Space Grotesk', fontSize: 18, fontWeight: 900, color: gameMode === 'tournament' ? 'white' : 'var(--ink)', marginBottom: 4 }}>
+                Multi-Round Tournament
+              </div>
+              <div style={{ fontFamily: 'Inter', fontSize: 12.5, color: gameMode === 'tournament' ? 'rgba(255,255,255,0.9)' : '#555', lineHeight: 1.4 }}>
+                Multi-round elimination! Set AI rules (bottom 30%, top 5) for multi-quiz rounds.
+              </div>
+            </div>
+          </div>
+
+          {/* LAUNCH / CONFIGURE BUTTON */}
+          {gameMode === 'tournament' ? (
+            <Link href="/quizflow/host/tournament" style={{ width: '100%', textDecoration: 'none', display: 'flex', justifyContent: 'center' }}>
+              <button
+                className="btn btn-primary btn-lg"
+                style={{
+                  width: '100%', maxWidth: 520, fontSize: 18, padding: '16px 24px',
+                  background: 'linear-gradient(135deg, #a78bfa 0%, #7C4DFF 100%)',
+                  color: 'white', border: '3px solid var(--ink)', boxShadow: '4px 4px 0 var(--ink)',
+                  fontFamily: 'Space Grotesk', fontWeight: 900, cursor: 'pointer'
+                }}
+              >
+                🏆 Configure Multi-Round Tournament →
+              </button>
+            </Link>
+          ) : (
+            <div style={{ display: 'flex', justifyContent: 'center', width: '100%' }}>
+              <button
+                className="btn btn-primary btn-lg"
+                onClick={handleStart}
+                disabled={!selectedQuiz || creating}
+                style={{ width: '100%', maxWidth: 520, fontSize: 18, padding: '16px 24px' }}
+              >
+                {creating
+                  ? '🚀 Creating Room...'
+                  : selectedQuiz
+                    ? `🚀 Launch ${gameMode === 'boss_raid' ? 'Boss Raid' : 'Classic'} Room: ${selectedQuiz.title.slice(0, 24)}...`
+                    : '← Select a Quiz Above'}
+              </button>
+            </div>
+          )}
         </div>
 
       </div>

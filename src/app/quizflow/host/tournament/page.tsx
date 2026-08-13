@@ -676,58 +676,71 @@ export default function TournamentPage() {
               + Add Another Round
             </button>
 
-            <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
-              <Link href="/quizflow/host/new">
-                <button className="btn btn-sm" style={{ background: 'var(--paper)', color: 'var(--ink)' }}>Cancel</button>
-              </Link>
-              <button
-                className="btn"
-                onClick={handlePreview}
-                disabled={!canPreview || parsing}
-                style={{
-                  background: canPreview ? 'var(--ink)' : 'var(--paper-2)', color: canPreview ? 'var(--paper)' : '#aaa',
-                  border: '2px solid var(--ink)', padding: '12px 28px', fontFamily: 'Space Grotesk',
-                  fontWeight: 800, fontSize: 15, cursor: canPreview ? 'pointer' : 'not-allowed',
-                  boxShadow: canPreview ? '3px 3px 0 var(--cherry)' : 'none'
-                }}
-              >
-                {parsing ? '🤖 AI Parsing Rules…' : '🤖 Review Rules & Preview Tournament →'}
-              </button>
-            </div>
-            {!canPreview && (
-              <div style={{ textAlign: 'right', fontFamily: 'Inter', fontSize: 12, color: '#888', marginTop: 8 }}>
-                Attach a quiz and elimination rule for every round to continue.
+            {/* Sticky Floating Bottom Action Bar */}
+            <div style={{
+              position: 'sticky', bottom: 20, zIndex: 90, marginTop: 32,
+              background: 'var(--paper)', border: '3px solid var(--ink)', borderRadius: 16,
+              boxShadow: '6px 6px 0 var(--ink)', padding: '16px 24px',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap'
+            }}>
+              <div>
+                <div style={{ fontFamily: 'Space Grotesk', fontSize: 15, fontWeight: 900, color: 'var(--ink)' }}>
+                  Tournament Setup: {rounds.length} Rounds Configured
+                </div>
+                <div style={{ fontFamily: 'Inter', fontSize: 12, color: canPreview ? 'var(--mint)' : '#777', fontWeight: 600 }}>
+                  {canPreview ? '✅ All rounds have quizzes & rules attached' : '⚠️ Please attach a quiz & rule to all rounds to continue'}
+                </div>
               </div>
-            )}
+
+              <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                <Link href="/quizflow/host/new">
+                  <button className="btn btn-sm" style={{ background: 'var(--paper-2)', color: 'var(--ink)', border: '2px solid var(--ink)', padding: '10px 18px' }}>Cancel</button>
+                </Link>
+                <button
+                  className="btn"
+                  onClick={handlePreview}
+                  disabled={!canPreview || parsing}
+                  style={{
+                    background: canPreview ? 'linear-gradient(135deg, #a78bfa 0%, #7C4DFF 100%)' : 'var(--paper-2)',
+                    color: canPreview ? 'white' : '#aaa',
+                    border: '2.5px solid var(--ink)', padding: '12px 28px', fontFamily: 'Space Grotesk',
+                    fontWeight: 900, fontSize: 15, cursor: canPreview ? 'pointer' : 'not-allowed',
+                    boxShadow: canPreview ? '4px 4px 0 var(--ink)' : 'none'
+                  }}
+                >
+                  {parsing ? '🤖 AI Parsing Rules…' : '🤖 Review Rules & Preview Tournament →'}
+                </button>
+              </div>
+            </div>
           </div>
         )}
 
         {/* ── STEP 2: AI PREVIEW ── */}
         {step === 'preview' && (
           <div>
-            <div className="card anim-scale-in" style={{ padding: '28px 24px', border: '2.5px solid var(--ink)', boxShadow: '5px 5px 0 var(--ink)', marginBottom: 24 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
-                <div style={{ fontSize: 36 }}>🤖</div>
+            <div className="card anim-scale-in" style={{ padding: '28px 24px', border: '3px solid var(--ink)', boxShadow: '6px 6px 0 var(--ink)', marginBottom: 24 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+                <div style={{ fontSize: 40 }}>🤖</div>
                 <div>
-                  <div style={{ fontFamily: 'Space Grotesk', fontSize: 20, fontWeight: 900, color: 'var(--ink)' }}>
-                    Here&apos;s what the AI understood:
+                  <div style={{ fontFamily: 'Space Grotesk', fontSize: 22, fontWeight: 900, color: 'var(--ink)' }}>
+                    AI Tournament Rule Engine
                   </div>
-                  <div style={{ fontFamily: 'Inter', fontSize: 13, color: '#555', marginTop: 2 }}>
-                    Review these rules before launching. Edit if anything looks wrong.
+                  <div style={{ fontFamily: 'Inter', fontSize: 13.5, color: '#555', marginTop: 2 }}>
+                    Review the simplified elimination rules generated for your tournament rounds before starting.
                   </div>
                 </div>
               </div>
 
               <div style={{
-                padding: '18px 20px', background: '#F8F7FF', border: '2px solid var(--violet)',
-                borderRadius: 14, boxShadow: '3px 3px 0 var(--violet)',
+                padding: '20px 22px', background: '#F8F7FF', border: '2.5px solid var(--violet)',
+                borderRadius: 14, boxShadow: '4px 4px 0 var(--violet)',
                 fontFamily: 'Inter', fontSize: 15, lineHeight: 1.7, color: 'var(--ink)'
               }}>
                 {parsedRules.split('\n').map((line, i) => (
-                  <div key={i} style={{ marginBottom: 4 }}>
+                  <div key={i} style={{ marginBottom: 6 }}>
                     {line.startsWith('-') ? (
-                      <div style={{ display: 'flex', gap: 8 }}>
-                        <span style={{ color: 'var(--violet)', fontWeight: 800, flexShrink: 0 }}>•</span>
+                      <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                        <span style={{ color: 'var(--violet)', fontWeight: 900, fontSize: 18, lineHeight: 1 }}>•</span>
                         <span dangerouslySetInnerHTML={{ __html: line.slice(1).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>') }} />
                       </div>
                     ) : (
@@ -738,36 +751,43 @@ export default function TournamentPage() {
               </div>
 
               {/* Round summary chips */}
-              <div style={{ marginTop: 20, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              <div style={{ marginTop: 20, display: 'flex', flexWrap: 'wrap', gap: 10 }}>
                 {rounds.map(r => (
                   <div key={r.id} style={{
-                    padding: '6px 12px', background: 'var(--sun)', border: '1.5px solid var(--ink)',
-                    borderRadius: 20, fontFamily: 'Space Grotesk', fontSize: 12, fontWeight: 700
+                    padding: '8px 14px', background: 'var(--sun)', border: '2px solid var(--ink)',
+                    borderRadius: 20, fontFamily: 'Space Grotesk', fontSize: 13, fontWeight: 800,
+                    boxShadow: '2px 2px 0 var(--ink)'
                   }}>
-                    Round {r.roundNumber}: {r.quizTitle} • {r.quiz?.questions?.length || 0}Q
+                    Round {r.roundNumber}: {r.quizTitle} • {r.quiz?.questions?.length || 0} Questions
                   </div>
                 ))}
               </div>
             </div>
 
-            <div style={{ display: 'flex', gap: 12, justifyContent: 'space-between' }}>
+            {/* Sticky Floating Launch Bar */}
+            <div style={{
+              position: 'sticky', bottom: 20, zIndex: 90,
+              background: 'var(--paper)', border: '3px solid var(--ink)', borderRadius: 16,
+              boxShadow: '6px 6px 0 var(--ink)', padding: '16px 24px',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16
+            }}>
               <button
                 className="btn btn-sm"
                 onClick={() => setStep('build')}
-                style={{ background: 'var(--paper)', color: 'var(--ink)', border: '2px solid var(--ink)' }}
+                style={{ background: 'var(--paper-2)', color: 'var(--ink)', border: '2px solid var(--ink)', padding: '10px 18px', fontWeight: 800 }}
               >
-                ✏️ Edit Rules
+                ✏️ Edit Round Rules
               </button>
               <button
                 className="btn"
                 onClick={handleLaunch}
                 style={{
-                  background: 'var(--mint)', color: 'var(--ink)', border: '2px solid var(--ink)',
-                  padding: '12px 32px', fontFamily: 'Space Grotesk', fontWeight: 900, fontSize: 16,
+                  background: 'var(--mint)', color: 'var(--ink)', border: '3px solid var(--ink)',
+                  padding: '14px 36px', fontFamily: 'Space Grotesk', fontWeight: 900, fontSize: 17,
                   boxShadow: '4px 4px 0 var(--ink)', cursor: 'pointer'
                 }}
               >
-                ✅ Looks Good — Launch Tournament! 🏆
+                ✅ Looks Good — Launch Tournament Now! 🏆
               </button>
             </div>
           </div>

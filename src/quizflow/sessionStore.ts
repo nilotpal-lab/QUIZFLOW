@@ -14,7 +14,7 @@ export type GameStatus =
   | 'leaderboard'     // Between-question leaderboard
   | 'ended'           // Game over, final results
 
-export type GameMode = 'classic' | 'boss_raid'
+export type GameMode = 'classic' | 'boss_raid' | 'tournament'
 
 export interface Reaction {
   id: string
