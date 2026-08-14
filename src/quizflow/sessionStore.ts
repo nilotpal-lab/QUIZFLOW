@@ -12,6 +12,7 @@ export type GameStatus =
   | 'question_active' // Question is live, timer running
   | 'question_reveal' // Answer revealed, waiting for next
   | 'leaderboard'     // Between-question leaderboard
+  | 'boss_frenzy'     // Final rapid-fire 10Q 60s mode
   | 'ended'           // Game over, final results
 
 export type GameMode = 'classic' | 'boss_raid' | 'tournament'
@@ -43,6 +44,16 @@ export interface Player {
   selectedIndex: number | null
   joinedAt: number
   connected: boolean
+  // Coin economy
+  coins: number
+  coinPowerUps?: import('./types').ActiveCoinPowerUp[]  // active coin power-ups
+  bidMultiplier?: number  // active bid multiplier (2x/3x/4x) for next question
+  frozenUntil?: number    // ms timestamp — player answers blocked until then
+  // Anti-cheat
+  violations?: number
+  flagged?: boolean
+  // Boss frenzy
+  frenzyScore?: number  // correct answers in boss frenzy
 }
 
 export interface GameState {
@@ -70,6 +81,8 @@ export interface GameState {
   currentRound?: number
   eliminatedPlayers?: string[]  // player IDs eliminated from tournament
   tournamentRoundLabel?: string // e.g. "Round 2 of 3"
+  // Boss Frenzy finale
+  bossFrenzy?: import('./types').BossFrenzyState
 }
 
 const CHANNEL_NAME = 'quizflow_session'
@@ -119,13 +132,14 @@ export function mergeGameStates(current: GameState | null, incoming: GameState |
   } else if (isQuestionRegression) {
     base = current
   } else {
-    // Same question: prioritize 'ended' > 'leaderboard' > 'question_reveal' > 'question_active' > 'lobby'
+    // Same question: prioritize 'ended' > 'boss_frenzy' > 'leaderboard' > 'question_reveal' > 'question_active' > 'lobby'
     const statusWeight: Record<GameStatus, number> = {
       lobby: 0,
       question_active: 1,
       question_reveal: 2,
       leaderboard: 3,
-      ended: 4,
+      boss_frenzy: 4,
+      ended: 5,
     }
     const inWeight = statusWeight[incoming.status] ?? 0
     const curWeight = statusWeight[current.status] ?? 0
@@ -153,6 +167,9 @@ export function mergeGameStates(current: GameState | null, incoming: GameState |
       const totalCorrect = Math.max(p1.totalCorrect || 0, p2.totalCorrect || 0)
       const totalAnswered = Math.max(p1.totalAnswered || 0, p2.totalAnswered || 0)
       const totalResponseTimeMs = Math.max(p1.totalResponseTimeMs || 0, p2.totalResponseTimeMs || 0)
+      const coins = Math.max(p1.coins || 0, p2.coins || 0)
+      const violations = Math.max(p1.violations || 0, p2.violations || 0)
+      const flagged = p1.flagged || p2.flagged
 
       if (isQuestionAdvancement) {
         // Advanced to new question -> reset per-question answer flags from incoming (Host)
@@ -164,6 +181,9 @@ export function mergeGameStates(current: GameState | null, incoming: GameState |
           totalCorrect,
           totalAnswered,
           totalResponseTimeMs,
+          coins,
+          violations,
+          flagged,
           hasAnswered: p2.hasAnswered || false,
           selectedIndex: p2.selectedIndex ?? null,
           lastAnswerCorrect: p2.lastAnswerCorrect ?? null,
@@ -178,7 +198,10 @@ export function mergeGameStates(current: GameState | null, incoming: GameState |
           maxStreak,
           totalCorrect,
           totalAnswered,
-          totalResponseTimeMs
+          totalResponseTimeMs,
+          coins,
+          violations,
+          flagged
         }
       } else {
         // Same question: if either answered on THIS question, preserve the answer
@@ -195,6 +218,9 @@ export function mergeGameStates(current: GameState | null, incoming: GameState |
           totalCorrect,
           totalAnswered,
           totalResponseTimeMs,
+          coins,
+          violations,
+          flagged,
           hasAnswered,
           selectedIndex,
           lastAnswerCorrect,
@@ -854,7 +880,7 @@ export function toggleAliasMode(pin: string) {
 
 export async function joinSessionAsync(
   pin: string,
-  player: Omit<Player, 'score' | 'streak' | 'rank' | 'lastAnswerCorrect' | 'lastPointsEarned' | 'hasAnswered' | 'selectedIndex' | 'joinedAt' | 'connected'>
+  player: Omit<Player, 'score' | 'streak' | 'rank' | 'lastAnswerCorrect' | 'lastPointsEarned' | 'hasAnswered' | 'selectedIndex' | 'joinedAt' | 'connected' | 'coins' | 'violations' | 'flagged' | 'frenzyScore'>
 ): Promise<'ok' | 'not_found' | 'locked' | 'duplicate'> {
   const cleanPin = pin.trim().toUpperCase()
   let state = loadState(cleanPin)
@@ -901,6 +927,10 @@ export async function joinSessionAsync(
     selectedIndex: null,
     joinedAt: Date.now(),
     connected: true,
+    coins: 0,
+    violations: 0,
+    flagged: false,
+    frenzyScore: 0,
   }
 
   const updatedState = { ...state, players: { ...(state.players || {}), [player.id]: newPlayer } }
@@ -920,7 +950,7 @@ export async function joinSessionAsync(
 
 export function joinSession(
   pin: string,
-  player: Omit<Player, 'score' | 'streak' | 'rank' | 'lastAnswerCorrect' | 'lastPointsEarned' | 'hasAnswered' | 'selectedIndex' | 'joinedAt' | 'connected'>
+  player: Omit<Player, 'score' | 'streak' | 'rank' | 'lastAnswerCorrect' | 'lastPointsEarned' | 'hasAnswered' | 'selectedIndex' | 'joinedAt' | 'connected' | 'coins' | 'violations' | 'flagged' | 'frenzyScore'>
 ): 'ok' | 'not_found' | 'locked' | 'duplicate' {
   const state = loadState(pin)
   if (!state) {
@@ -969,6 +999,10 @@ export function joinSession(
     selectedIndex: null,
     joinedAt: Date.now(),
     connected: true,
+    coins: 0,
+    violations: 0,
+    flagged: false,
+    frenzyScore: 0,
   }
   saveState({ ...state, players: { ...(state.players || {}), [player.id]: newPlayer } })
   return 'ok'
@@ -1074,3 +1108,232 @@ export function submitAnswer(pin: string, playerId: string, selectedIndex: numbe
     }).catch(() => {})
   }
 }
+
+// ── Boss Frenzy ───────────────────────────────────────────────────
+
+/**
+ * Host triggers Boss Frenzy on the last question.
+ * Picks up to 10 questions (cycling if quiz has fewer), starts 60s countdown.
+ */
+export function startBossFrenzy(pin: string) {
+  const state = loadState(pin)
+  if (!state || !state.quiz?.questions?.length) return
+
+  const totalQ = state.quiz.questions.length
+  const frenzyCount = 10
+  const indices: number[] = []
+  for (let i = 0; i < frenzyCount; i++) {
+    indices.push(i % totalQ)
+  }
+
+  const now = Date.now()
+  const bossFrenzy: import('./types').BossFrenzyState = {
+    active: true,
+    endsAt: now + 60000,
+    questionIndices: indices,
+    currentFrenzyIndex: 0,
+    questionStartedAt: now,
+    frenzyScores: Object.fromEntries(Object.keys(state.players).map(id => [id, 0]))
+  }
+
+  saveState({ ...state, status: 'boss_frenzy', bossFrenzy })
+}
+
+/**
+ * Player submits an answer in boss frenzy mode.
+ * Increments frenzyScore if correct; does NOT modify main score.
+ * Advances to next rapid-fire question or ends frenzy if all 10 done.
+ */
+export function submitFrenzyAnswer(pin: string, playerId: string, selectedIndex: number) {
+  const state = loadState(pin)
+  if (!state || state.status !== 'boss_frenzy' || !state.bossFrenzy?.active) return
+
+  const frenzy = state.bossFrenzy
+  if (Date.now() > frenzy.endsAt) {
+    endBossFrenzy(pin)
+    return
+  }
+
+  const qIdx = frenzy.questionIndices[frenzy.currentFrenzyIndex]
+  const q = state.quiz.questions[qIdx]
+  if (!q) return
+
+  const isCorrect = selectedIndex === q.correct_index
+  const newFrenzyScores = { ...frenzy.frenzyScores }
+  if (isCorrect) {
+    newFrenzyScores[playerId] = (newFrenzyScores[playerId] || 0) + 1
+  }
+
+  const nextFrenzyIndex = frenzy.currentFrenzyIndex + 1
+  const isLastQ = nextFrenzyIndex >= frenzy.questionIndices.length
+
+  // Award bonus score from frenzy at the end
+  let updatedPlayers = { ...state.players }
+  if (isLastQ) {
+    // Award 200pts per correct frenzy answer
+    Object.entries(newFrenzyScores).forEach(([pid, correct]) => {
+      if (updatedPlayers[pid]) {
+        updatedPlayers[pid] = {
+          ...updatedPlayers[pid],
+          score: updatedPlayers[pid].score + correct * 200,
+          frenzyScore: correct
+        }
+      }
+    })
+  }
+
+  const updatedFrenzy: import('./types').BossFrenzyState = {
+    ...frenzy,
+    currentFrenzyIndex: isLastQ ? frenzy.currentFrenzyIndex : nextFrenzyIndex,
+    questionStartedAt: Date.now(),
+    frenzyScores: newFrenzyScores,
+    active: !isLastQ
+  }
+
+  saveState({
+    ...state,
+    players: updatedPlayers,
+    bossFrenzy: updatedFrenzy,
+    status: isLastQ ? 'ended' : 'boss_frenzy'
+  })
+
+  if (typeof window !== 'undefined') {
+    fetch(`/api/room/${pin}?_t=${Date.now()}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'frenzy_answer',
+        playerId,
+        selectedIndex,
+        frenzyIndex: frenzy.currentFrenzyIndex
+      })
+    }).catch(() => {})
+  }
+}
+
+/** Host manually ends boss frenzy early */
+export function endBossFrenzy(pin: string) {
+  const state = loadState(pin)
+  if (!state || !state.bossFrenzy) return
+
+  // Award 200pts per correct frenzy answer to all players
+  const updatedPlayers = { ...state.players }
+  const scores = state.bossFrenzy.frenzyScores || {}
+  Object.entries(scores).forEach(([pid, correct]) => {
+    if (updatedPlayers[pid]) {
+      updatedPlayers[pid] = {
+        ...updatedPlayers[pid],
+        score: updatedPlayers[pid].score + correct * 200,
+        frenzyScore: correct
+      }
+    }
+  })
+
+  saveState({
+    ...state,
+    players: updatedPlayers,
+    status: 'ended',
+    bossFrenzy: { ...state.bossFrenzy, active: false }
+  })
+}
+
+// ── Anti-Cheat Violation Reporting ───────────────────────────────
+
+export function reportViolation(pin: string, playerId: string, reason: string) {
+  if (typeof window === 'undefined') return
+  fetch(`/api/room/${pin}?_t=${Date.now()}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'report_violation', playerId, reason })
+  }).catch(() => {})
+}
+
+// ── Coin Economy ─────────────────────────────────────────────────
+
+/**
+ * Award coins to a player (called after server confirms correct answer).
+ * difficulty → coin award: easy=5, medium=8, hard=12; fast (<5s) → +3 bonus
+ */
+export function awardCoins(pin: string, playerId: string, difficulty: 'easy' | 'medium' | 'hard', responseTimeMs: number) {
+  const state = loadState(pin)
+  if (!state) return
+  const player = state.players[playerId]
+  if (!player) return
+
+  const base = difficulty === 'easy' ? 5 : difficulty === 'medium' ? 8 : 12
+  const bonus = responseTimeMs < 5000 ? 3 : 0
+  const earned = base + bonus
+
+  saveState({
+    ...state,
+    players: {
+      ...state.players,
+      [playerId]: { ...player, coins: (player.coins || 0) + earned }
+    }
+  })
+}
+
+/**
+ * Spend coins to buy a power-up (client-side optimistic, server validates).
+ * Returns true if purchase succeeded.
+ */
+export function buyPowerUp(
+  pin: string,
+  playerId: string,
+  powerUpType: import('./types').CoinPowerUpType,
+  targetId?: string
+): boolean {
+  const state = loadState(pin)
+  if (!state) return false
+  const player = state.players[playerId]
+  if (!player) return false
+
+  // Cost map
+  const COSTS: Record<string, number> = {
+    freeze_player: 15,
+    freeze_all: 25,
+    bid_2x: 10,
+    bid_3x: 20,
+    bid_4x: 35
+  }
+  const cost = COSTS[powerUpType] ?? 999
+  if ((player.coins || 0) < cost) return false
+
+  // Deduct coins
+  const updatedPlayers = { ...state.players }
+  updatedPlayers[playerId] = { ...player, coins: player.coins - cost }
+
+  // Apply effect
+  if (powerUpType === 'bid_2x' || powerUpType === 'bid_3x' || powerUpType === 'bid_4x') {
+    const mult = powerUpType === 'bid_2x' ? 2 : powerUpType === 'bid_3x' ? 3 : 4
+    updatedPlayers[playerId] = { ...updatedPlayers[playerId], bidMultiplier: mult }
+  } else if (powerUpType === 'freeze_player' && targetId && updatedPlayers[targetId]) {
+    updatedPlayers[targetId] = { ...updatedPlayers[targetId], frozenUntil: Date.now() + 6000 }
+  } else if (powerUpType === 'freeze_all') {
+    const freezeEnd = Date.now() + 4000
+    Object.keys(updatedPlayers).forEach(pid => {
+      if (pid !== playerId) {
+        updatedPlayers[pid] = { ...updatedPlayers[pid], frozenUntil: freezeEnd }
+      }
+    })
+  }
+
+  saveState({ ...state, players: updatedPlayers })
+
+  // Sync to server
+  if (typeof window !== 'undefined') {
+    fetch(`/api/room/${pin}?_t=${Date.now()}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'buy_powerup',
+        playerId,
+        powerUpType,
+        targetId
+      })
+    }).catch(() => {})
+  }
+
+  return true
+}
+

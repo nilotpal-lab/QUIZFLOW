@@ -80,7 +80,7 @@ export interface Submission {
   submitted_at: string
 }
 
-/* ---------- Power-Ups ---------------------------------------- */
+/* ---------- Power-Ups (Legacy — free per-game) ---------------- */
 export type PowerUpType = 'fifty_fifty' | 'time_freeze' | 'double_points'
 
 export interface PowerUp {
@@ -88,6 +88,31 @@ export interface PowerUp {
   emoji: string
   label: string
   used: boolean
+}
+
+/* ---------- Coin Shop Power-Ups ------------------------------- */
+export type CoinPowerUpType =
+  | 'freeze_player'   // freeze a specific player for 6s
+  | 'freeze_all'      // freeze all players for 4s
+  | 'bid_2x'          // 2× points on next question
+  | 'bid_3x'          // 3× points on next question
+  | 'bid_4x'          // 4× points on next question
+
+export interface CoinShopItem {
+  type: CoinPowerUpType
+  label: string
+  emoji: string
+  description: string
+  cost: number
+  requiresTarget: boolean  // true = freeze_player needs a targetId
+}
+
+export interface ActiveCoinPowerUp {
+  type: CoinPowerUpType
+  activatedAt: number
+  expiresAt?: number
+  targetId?: string   // for freeze_player
+  multiplier?: number // for bid_*
 }
 
 /* ---------- Leaderboard --------------------------------------- */
@@ -152,4 +177,14 @@ export interface TournamentConfig {
   parsedRules: string        // AI-simplified markdown bullet list
   currentRoundIndex: number
   eliminations: Record<number, string[]>  // roundNumber -> eliminated player IDs
+}
+
+/* ---------- Boss Frenzy --------------------------------------- */
+export interface BossFrenzyState {
+  active: boolean
+  endsAt: number               // absolute ms timestamp when 60s is up
+  questionIndices: number[]    // indices into quiz.questions for the 10 rapid-fire Qs
+  currentFrenzyIndex: number   // which rapid-fire Q we're on (0-9)
+  questionStartedAt: number    // when current frenzy Q started
+  frenzyScores: Record<string, number>  // playerId -> correct answers in frenzy
 }

@@ -8,7 +8,7 @@ import {
   showLeaderboard, nextQuestion, endGame, kickPlayer, setGameMode,
   getTacticsRankings, getMasteryRankings,
   togglePauseTimer, extendTimer, skipQuestion, toggleAliasMode,
-  advanceTournamentRound
+  advanceTournamentRound, startBossFrenzy, endBossFrenzy
 } from '@/quizflow/sessionStore'
 import type { GameState } from '@/quizflow/sessionStore'
 import { buildAvatarUrl } from '@/quizflow/utils'
@@ -290,13 +290,14 @@ function TeacherHostDashboard() {
               </div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
                 {players.map((p, idx) => (
-                  <div key={p.id} className="lb-row" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 12px 6px 8px', borderRadius: 99 }}>
+                  <div key={p.id} className="lb-row" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 12px 6px 8px', borderRadius: 99, background: p.flagged ? '#FFE4E7' : undefined, border: p.flagged ? '1.5px solid var(--cherry)' : undefined }}>
                     <div className="avatar-ring" style={{ width: 32, height: 32 }}>
                       <img src={buildAvatarUrl(p.avatarSeed, p.avatarStyle as any, 32)} alt="" width={32} height={32} />
                     </div>
                     <span style={{ fontFamily: 'Space Grotesk', fontSize: 13, fontWeight: 600, color: 'var(--ink)' }}>
                       {getDisplayName(p, idx, gameState?.aliasMode || false)}
                     </span>
+                    {p.flagged && <span title={`${p.violations} violations`} style={{ fontSize: 12, color: 'var(--cherry)', fontWeight: 800 }}>⚑</span>}
                     <button onClick={() => kickPlayer(pin, p.id)} title="Kick" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--cherry)', fontSize: 14, padding: '0 2px', fontWeight: 800 }}>✕</button>
                   </div>
                 ))}
@@ -390,10 +391,28 @@ function TeacherHostDashboard() {
                 ⚔️ Start Round {(gameState.tournamentConfig.currentRoundIndex ?? 0) + 2}: {gameState.tournamentConfig.rounds[(gameState.tournamentConfig.currentRoundIndex ?? 0) + 1]?.quizTitle || 'Next Quiz'} →
               </button>
             ) : (
-              <button className="btn btn-primary" style={{ padding: '8px 18px', fontWeight: 700 }} onClick={() => endGame(pin)}>
-                🏁 End Game &amp; Show Results
-              </button>
+              <>
+                <button
+                  className="btn"
+                  style={{ padding: '8px 18px', fontWeight: 800, background: '#FF4444', color: '#fff', border: '2px solid #111', boxShadow: '2px 2px 0 #111' }}
+                  onClick={() => startBossFrenzy(pin)}
+                >
+                  💥 Boss Frenzy!
+                </button>
+                <button className="btn btn-primary" style={{ padding: '8px 18px', fontWeight: 700 }} onClick={() => endGame(pin)}>
+                  🏁 End Game &amp; Show Results
+                </button>
+              </>
             )
+          )}
+          {(gameState.status === 'boss_frenzy') && (
+            <button
+              className="btn"
+              style={{ padding: '8px 18px', fontWeight: 800, background: '#111', color: '#FF4444', border: '2px solid #FF4444' }}
+              onClick={() => endBossFrenzy(pin)}
+            >
+              ⏹ End Frenzy
+            </button>
           )}
           <button onClick={copyPin} className="btn btn-sm" style={{ background: 'var(--paper)', color: 'var(--ink)', border: 'var(--line)', boxShadow: 'var(--shadow-hard)', padding: '8px 12px', fontSize: 12 }}>
             {copiedPin ? '✓' : '📋'} {pin}

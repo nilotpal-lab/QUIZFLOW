@@ -4,18 +4,19 @@ import { Suspense } from 'react'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import {
-  subscribeToSession, submitAnswer
+  subscribeToSession, submitAnswer, submitFrenzyAnswer, reportViolation, buyPowerUp
 } from '@/quizflow/sessionStore'
 import type { GameState } from '@/quizflow/sessionStore'
 import { buildAvatarUrl, POWER_UPS, calculatePoints, formatPoints, safeGetSessionStorage, safeSetSessionStorage } from '@/quizflow/utils'
-import type { PowerUpType } from '@/quizflow/types'
+import type { PowerUpType, CoinPowerUpType } from '@/quizflow/types'
+import { SHOP_ITEMS } from '@/quizflow/coinShop'
 import {
   playClickSound, playLockInSound, playCountdownTick,
   playCorrectSound, playWrongSound, playPowerUpSound, playStreakSound,
   playWrongBuzzer
 } from '@/quizflow/sound'
 import { speakText, stopSpeech, toggleSpeech, isSpeaking } from '@/quizflow/speech'
-import { useAntiCheat } from '@/quizflow/antiCheat'
+import { useAntiCheat, requestFullscreen } from '@/quizflow/antiCheat'
 import ParticleField from '@/quizflow/ParticleField'
 import { useScreenShake, DamageParticles, BossHealthBar } from '@/quizflow/BossVFX'
 import StreakBadge from '@/quizflow/StreakBadge'
@@ -74,6 +75,15 @@ function StudentPlayScreen() {
   const [sessionTimeout, setSessionTimeout] = useState(false)
   const intervalRef = useRef<NodeJS.Timeout | null>(null)
 
+  // Coin shop state
+  const [showCoinShop, setShowCoinShop] = useState(false)
+  const [shopTarget, setShopTarget]     = useState<string | null>(null)
+
+  // Boss frenzy timer
+  const [frenzyTimeLeft, setFrenzyTimeLeft] = useState(60)
+  const [frenzyAnswered, setFrenzyAnswered] = useState(false)
+  const frenzyIntervalRef = useRef<NodeJS.Timeout | null>(null)
+
   // VFX state
   const { shakeStyle, triggerShake } = useScreenShake()
   const [particleTrigger, setParticleTrigger] = useState<'correct'|'wrong'|'streak'|null>(null)
@@ -83,13 +93,17 @@ function StudentPlayScreen() {
   const [responseStartMs] = useState(() => Date.now())
   const [answerResponseMs, setAnswerResponseMs] = useState<number|undefined>(undefined)
 
-  // Anti-cheat shield integration
-  const { violationCount, showWarning, dismissWarning, lastReason } = useAntiCheat({
-    enabled: gameState?.status === 'question_active' || gameState?.status === 'question_reveal',
+  // Anti-cheat shield integration with fullscreen enforcement + violation reporting
+  const { violationCount, showWarning, dismissWarning, lastReason, fullscreenActive, enterFullscreen } = useAntiCheat({
+    enabled: gameState?.status === 'question_active' || gameState?.status === 'question_reveal' || gameState?.status === 'boss_frenzy',
     blockCopyPaste: true,
     blockContextMenu: true,
+    enforceFullscreen: true,
     onViolation: () => {
       playWrongBuzzer()
+    },
+    onViolationReport: (reason) => {
+      if (pin && playerId) reportViolation(pin, playerId, reason)
     }
   })
 
@@ -223,6 +237,27 @@ function StudentPlayScreen() {
   const totalTime = q?.time_limit_ms ?? 20000
   const timePct   = totalTime > 0 ? timeMs / totalTime : 0
   const seconds   = Math.ceil(timeMs / 1000)
+
+  // ── Boss Frenzy countdown timer ──
+  useEffect(() => {
+    if (gameState?.status !== 'boss_frenzy' || !gameState.bossFrenzy?.active) {
+      if (frenzyIntervalRef.current) clearInterval(frenzyIntervalRef.current)
+      return
+    }
+    const endsAt = gameState.bossFrenzy.endsAt
+    const tick = () => {
+      const left = Math.max(0, Math.ceil((endsAt - Date.now()) / 1000))
+      setFrenzyTimeLeft(left)
+    }
+    tick()
+    frenzyIntervalRef.current = setInterval(tick, 500)
+    return () => { if (frenzyIntervalRef.current) clearInterval(frenzyIntervalRef.current) }
+  }, [gameState?.status, gameState?.bossFrenzy?.endsAt, gameState?.bossFrenzy?.active])
+
+  // Reset frenzy answered flag on frenzy question change
+  useEffect(() => {
+    setFrenzyAnswered(false)
+  }, [gameState?.bossFrenzy?.currentFrenzyIndex])
 
   // ── ELIMINATED STATE ──
   const isEliminated = gameState?.eliminatedPlayers?.includes(playerId)
@@ -431,6 +466,111 @@ function StudentPlayScreen() {
     )
   }
 
+  // ── BOSS FRENZY STATE ──
+  if (gameState.status === 'boss_frenzy' && gameState.bossFrenzy) {
+    const frenzy = gameState.bossFrenzy
+    const frenzyQIdx = frenzy.questionIndices[frenzy.currentFrenzyIndex] ?? 0
+    const frenzyQ = gameState.quiz.questions[frenzyQIdx]
+    const frenzyColors = ['#FFE4E7', '#E0F5FF', '#FFF8D6', '#D6FFF4']
+    const frenzyBorders = ['var(--cherry)', 'var(--sky)', 'var(--sun)', 'var(--mint)']
+    const myFrenzyScore = frenzy.frenzyScores[playerId] ?? 0
+    const isMeFrozen = me?.frozenUntil ? me.frozenUntil > Date.now() : false
+
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: '#0A0A0B', color: '#fff', position: 'relative', overflow: 'hidden' }}>
+        {/* Animated red glow background */}
+        <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(ellipse at 50% 20%, rgba(220,38,38,0.25) 0%, transparent 70%)', pointerEvents: 'none' }} />
+
+        {/* Top bar */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 20px', background: 'rgba(0,0,0,0.4)', borderBottom: '2px solid rgba(220,38,38,0.4)' }}>
+          <div style={{ fontFamily: 'Space Grotesk', fontSize: 14, fontWeight: 800, color: '#FF4444' }}>💥 BOSS FRENZY</div>
+          <div style={{ fontFamily: 'Space Grotesk', fontSize: 28, fontWeight: 900, color: frenzyTimeLeft <= 10 ? '#FF4444' : '#fff', animation: frenzyTimeLeft <= 10 ? 'pulse-dot 0.6s infinite' : 'none' }}>
+            {frenzyTimeLeft}s
+          </div>
+          <div style={{ fontFamily: 'Space Grotesk', fontSize: 14, fontWeight: 700, color: '#FFD700' }}>
+            ✅ {myFrenzyScore} correct
+          </div>
+        </div>
+
+        {/* Progress bar */}
+        <div style={{ height: 6, background: 'rgba(255,255,255,0.1)' }}>
+          <div style={{ height: '100%', background: 'linear-gradient(90deg, #FF4444, #FF8C00)', width: `${(frenzyTimeLeft / 60) * 100}%`, transition: 'width 0.5s linear' }} />
+        </div>
+
+        {/* Question counter */}
+        <div style={{ textAlign: 'center', padding: '8px 0', fontFamily: 'Space Grotesk', fontSize: 12, fontWeight: 700, color: 'rgba(255,255,255,0.5)', letterSpacing: 2 }}>
+          QUESTION {frenzy.currentFrenzyIndex + 1} / {frenzy.questionIndices.length}
+        </div>
+
+        {/* Question text */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '20px 20px 0' }}>
+          <div style={{ fontFamily: 'Space Grotesk', fontSize: 'clamp(18px, 4vw, 26px)', fontWeight: 800, textAlign: 'center', marginBottom: 24, lineHeight: 1.3, color: '#fff', textShadow: '0 0 20px rgba(255,68,68,0.4)' }}>
+            {frenzyQ?.prompt ?? 'Loading…'}
+          </div>
+
+          {/* Frozen overlay for frenzy */}
+          {isMeFrozen && (
+            <div style={{ textAlign: 'center', padding: '16px', background: 'rgba(100,200,255,0.1)', border: '2px solid #60CFFF', borderRadius: 12, marginBottom: 16 }}>
+              <div style={{ fontSize: 32, marginBottom: 4 }}>❄️</div>
+              <div style={{ fontFamily: 'Space Grotesk', fontSize: 16, fontWeight: 800, color: '#60CFFF' }}>FROZEN!</div>
+            </div>
+          )}
+
+          {/* Answer buttons */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            {(frenzyQ?.choices ?? []).map((choice, idx) => (
+              <button
+                key={idx}
+                disabled={frenzyAnswered || isMeFrozen}
+                onClick={() => {
+                  if (frenzyAnswered || isMeFrozen) return
+                  setFrenzyAnswered(true)
+                  playLockInSound()
+                  submitFrenzyAnswer(pin, playerId, idx)
+                }}
+                style={{
+                  padding: '14px 12px',
+                  background: frenzyColors[idx % 4],
+                  color: '#111',
+                  border: `2px solid ${frenzyBorders[idx % 4]}`,
+                  borderRadius: 12,
+                  fontFamily: 'Space Grotesk',
+                  fontSize: 'clamp(13px, 2.5vw, 16px)',
+                  fontWeight: 700,
+                  cursor: frenzyAnswered || isMeFrozen ? 'not-allowed' : 'pointer',
+                  opacity: frenzyAnswered ? 0.5 : 1,
+                  transition: 'transform 0.1s',
+                  boxShadow: '0 2px 0 rgba(0,0,0,0.3)'
+                }}
+              >
+                {choice}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Frenzy scores sidebar */}
+        <div style={{ padding: '12px 20px 24px', background: 'rgba(0,0,0,0.4)', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+          <div style={{ fontFamily: 'Space Grotesk', fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.4)', letterSpacing: 2, marginBottom: 8 }}>FRENZY SCORES</div>
+          <div style={{ display: 'flex', gap: 8, overflowX: 'auto' }}>
+            {Object.entries(frenzy.frenzyScores)
+              .sort(([,a],[,b]) => (b as number) - (a as number))
+              .slice(0, 5)
+              .map(([pid, score]) => {
+                const p = gameState.players[pid]
+                return p ? (
+                  <div key={pid} style={{ textAlign: 'center', minWidth: 60, padding: '6px 8px', background: pid === playerId ? 'rgba(255,215,0,0.2)' : 'rgba(255,255,255,0.05)', borderRadius: 8, border: pid === playerId ? '1px solid gold' : '1px solid rgba(255,255,255,0.1)' }}>
+                    <div style={{ fontFamily: 'Space Grotesk', fontSize: 16, fontWeight: 900, color: '#FFD700' }}>{score as number}</div>
+                    <div style={{ fontFamily: 'Inter', fontSize: 10, color: 'rgba(255,255,255,0.6)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 56 }}>{p.nickname}</div>
+                  </div>
+                ) : null
+              })}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   // ── QUESTION ACTIVE or REVEAL STATE ──
   const hasAnswered = me?.hasAnswered ?? false
   const isRevealed  = gameState.status === 'question_reveal'
@@ -461,6 +601,122 @@ function StudentPlayScreen() {
       />
 
       {showPopup && <ScorePopup points={popupPoints} onDone={() => setShowPopup(false)} />}
+
+      {/* FULLSCREEN PROMPT — shown when not fullscreen during active question */}
+      {!fullscreenActive && (gameState.status === 'question_active' || gameState.status === 'question_reveal') && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 200,
+          background: 'rgba(10,10,11,0.92)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          backdropFilter: 'blur(8px)'
+        }}>
+          <div className="card anim-scale-in" style={{ maxWidth: 380, padding: '36px 28px', textAlign: 'center' }}>
+            <div style={{ fontSize: 48, marginBottom: 12 }}>⛶</div>
+            <h3 style={{ fontFamily: 'Space Grotesk', fontSize: 22, fontWeight: 800, color: 'var(--ink)', marginBottom: 8 }}>Fullscreen Required</h3>
+            <p style={{ fontFamily: 'Inter', fontSize: 14, color: '#666', marginBottom: 20, lineHeight: 1.5 }}>
+              This quiz must be played in fullscreen to prevent cheating. Your quiz session is paused until you enter fullscreen.
+            </p>
+            <button
+              onClick={() => enterFullscreen()}
+              className="btn btn-primary"
+              style={{ width: '100%', fontSize: 16, padding: '14px 20px' }}
+            >
+              Enter Fullscreen 🚀
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* COIN SHOP OVERLAY */}
+      {showCoinShop && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 150,
+          background: 'rgba(0,0,0,0.7)',
+          display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+          backdropFilter: 'blur(4px)'
+        }} onClick={() => setShowCoinShop(false)}>
+          <div
+            className="anim-scale-in"
+            style={{ width: '100%', maxWidth: 500, background: 'var(--paper)', borderRadius: '20px 20px 0 0', padding: '24px 20px', border: '2px solid var(--ink)', borderBottom: 'none' }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <div style={{ fontFamily: 'Space Grotesk', fontSize: 20, fontWeight: 800, color: 'var(--ink)' }}>🪙 Coin Shop</div>
+              <div style={{ fontFamily: 'Space Grotesk', fontSize: 16, fontWeight: 700, color: '#DAA520' }}>🪙 {me?.coins ?? 0} coins</div>
+              <button onClick={() => setShowCoinShop(false)} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--ink)' }}>✕</button>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {SHOP_ITEMS.map(item => {
+                const canAfford = (me?.coins ?? 0) >= item.cost
+                return (
+                  <div key={item.type} style={{
+                    display: 'flex', alignItems: 'center', gap: 12,
+                    padding: '12px 14px', background: canAfford ? 'var(--paper-2)' : '#f5f5f5',
+                    border: '1.5px solid var(--ink)', borderRadius: 12,
+                    opacity: canAfford ? 1 : 0.5
+                  }}>
+                    <span style={{ fontSize: 28 }}>{item.emoji}</span>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontFamily: 'Space Grotesk', fontSize: 14, fontWeight: 700, color: 'var(--ink)' }}>{item.label}</div>
+                      <div style={{ fontFamily: 'Inter', fontSize: 12, color: '#666' }}>{item.description}</div>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                      <div style={{ fontFamily: 'Space Grotesk', fontSize: 13, fontWeight: 800, color: '#DAA520' }}>🪙 {item.cost}</div>
+                      {item.requiresTarget ? (
+                        <select
+                          style={{ fontSize: 11, border: '1px solid var(--ink)', borderRadius: 4, padding: '2px 4px', maxWidth: 80, fontFamily: 'Inter' }}
+                          onChange={e => setShopTarget(e.target.value)}
+                          defaultValue=""
+                        >
+                          <option value="" disabled>Pick player</option>
+                          {Object.values(gameState.players)
+                            .filter(p => p.id !== playerId)
+                            .map(p => <option key={p.id} value={p.id}>{p.nickname}</option>)
+                          }
+                        </select>
+                      ) : null}
+                      <button
+                        disabled={!canAfford}
+                        onClick={() => {
+                          const target = item.requiresTarget ? shopTarget ?? undefined : undefined
+                          if (item.requiresTarget && !target) return
+                          const ok = buyPowerUp(pin, playerId, item.type as CoinPowerUpType, target)
+                          if (ok) {
+                            playPowerUpSound('double')
+                            setShowCoinShop(false)
+                          }
+                        }}
+                        style={{
+                          padding: '6px 12px', fontFamily: 'Space Grotesk', fontSize: 12, fontWeight: 700,
+                          background: canAfford ? 'var(--sun)' : '#ddd', color: 'var(--ink)',
+                          border: '1.5px solid var(--ink)', borderRadius: 8,
+                          cursor: canAfford ? 'pointer' : 'not-allowed',
+                          boxShadow: canAfford ? '2px 2px 0 var(--ink)' : 'none'
+                        }}
+                      >Buy</button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SERVER-FROZEN OVERLAY — another player froze you via coin shop */}
+      {me?.frozenUntil && me.frozenUntil > Date.now() && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 120,
+          background: 'rgba(100,200,255,0.15)',
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+          backdropFilter: 'blur(6px) brightness(0.8)',
+          pointerEvents: 'all'
+        }}>
+          <div style={{ fontSize: 72, marginBottom: 8, animation: 'pulse-dot 1s infinite' }}>❄️</div>
+          <div style={{ fontFamily: 'Space Grotesk', fontSize: 28, fontWeight: 900, color: '#60CFFF' }}>FROZEN!</div>
+          <div style={{ fontFamily: 'Inter', fontSize: 15, color: '#aaa', marginTop: 8 }}>Someone used a power-up on you!</div>
+        </div>
+      )}
 
       {/* FOCUS SHIELD WARNING POPUP MODAL */}
       {showWarning && (
@@ -620,6 +876,23 @@ function StudentPlayScreen() {
         <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
           <div style={{ fontFamily: 'Space Grotesk', fontSize: 10, color: 'var(--paper)', lineHeight: 1, opacity: 0.7, textTransform: 'uppercase' }}>SCORE</div>
           <div style={{ fontFamily: 'Space Grotesk', fontSize: 16, fontWeight: 800, color: 'var(--mint)' }}>⚡ {(me?.score ?? 0).toLocaleString()}</div>
+          {/* Coin balance + shop button */}
+          <button
+            onClick={() => { playClickSound(); setShowCoinShop(true) }}
+            style={{
+              marginTop: 4, display: 'flex', alignItems: 'center', gap: 4,
+              background: 'rgba(218,165,32,0.15)', border: '1.5px solid #DAA520',
+              borderRadius: 20, padding: '3px 10px', cursor: 'pointer',
+              fontFamily: 'Space Grotesk', fontSize: 11, fontWeight: 800, color: '#DAA520'
+            }}
+          >
+            🪙 {me?.coins ?? 0}
+          </button>
+          {me?.bidMultiplier && me.bidMultiplier > 1 && (
+            <div className="badge badge-sun anim-stamp-in" style={{ marginTop: 4, fontSize: 10, padding: '2px 8px', background: '#FFD700', color: 'var(--ink)', border: '1.5px solid var(--ink)' }}>
+              {me.bidMultiplier}× NEXT Q 🎯
+            </div>
+          )}
           {streakCount >= 5 ? (
             <div className="badge badge-sun anim-stamp-in" style={{ marginTop: 4, fontSize: 10, padding: '2px 8px', background: 'var(--sun)', color: 'var(--ink)', border: '1.5px solid var(--ink)' }}>
               SUPERCHARGED! ⚡
@@ -629,6 +902,7 @@ function StudentPlayScreen() {
           ) : null}
         </div>
       </div>
+
 
       {/* BOSS RAID HEALTH BAR IN HUD (When gameMode === 'boss_raid') */}
       {gameState.gameMode === 'boss_raid' && (
