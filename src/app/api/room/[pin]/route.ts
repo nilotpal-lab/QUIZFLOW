@@ -54,10 +54,28 @@ function readTmpRoom(pin: string) {
   return null
 }
 
+// Debounced tmp-disk persistence. A busy game can POST dozens of times per
+// second; writing synchronously on every POST blocks the event loop and can
+// make the relay stall under a full classroom. At most one write per pin per
+// 300ms window, always with the latest state.
+const _pendingWrites = new Map<string, { data: { state: any; updatedAt: number }; timer: ReturnType<typeof setTimeout> }>()
+
 function writeTmpRoom(pin: string, data: { state: any; updatedAt: number }) {
-  try {
-    fs.writeFileSync(getTmpPath(pin), JSON.stringify(data), 'utf8')
-  } catch {}
+  const existing = _pendingWrites.get(pin)
+  if (existing) {
+    existing.data = data
+    return
+  }
+  const entry: { data: { state: any; updatedAt: number }; timer: ReturnType<typeof setTimeout> } = {
+    data,
+    timer: setTimeout(() => {
+      _pendingWrites.delete(pin)
+      try {
+        fs.writeFileSync(getTmpPath(pin), JSON.stringify(entry.data), 'utf8')
+      } catch {}
+    }, 300)
+  }
+  _pendingWrites.set(pin, entry)
 }
 
 function loadAnswerKeys(pin: string): number[] {

@@ -230,11 +230,30 @@ export function mergeGameStates(current: GameState | null, incoming: GameState |
     }
   }
 
+  // Preserve answer keys the server stripped for anti-cheat.
+  // The server omits correct_index while a question is active; if we let that
+  // overwrite the client's quiz, local scoring breaks (answers look wrong even
+  // when the server scores them correctly). Keep the client's key whenever the
+  // incoming question doesn't carry one.
+  const baseQuiz = base.quiz && current.quiz && base.quiz.questions && current.quiz.questions
+    ? {
+        ...base.quiz,
+        questions: base.quiz.questions.map((bq, i) => {
+          const lq = current.quiz.questions[i]
+          if (bq && lq && (bq.correct_index === undefined || bq.correct_index === null) && lq.correct_index !== undefined) {
+            return { ...bq, correct_index: lq.correct_index }
+          }
+          return bq
+        })
+      }
+    : base.quiz
+
   const tactics = getTacticsRankings(mergedPlayers)
   const mastery = getMasteryRankings(mergedPlayers)
 
   return {
     ...base,
+    quiz: baseQuiz,
     bossHealth: Math.min(current.bossHealth ?? 100, incoming.bossHealth ?? 100),
     players: mergedPlayers,
     tacticsRankings: tactics.map((p, i) => ({ ...p, rank: i + 1, tacticsRank: i + 1 })),
@@ -253,14 +272,18 @@ function getChannel(): BroadcastChannel | null {
   return _channel
 }
 
-function broadcast(pin: string, state?: GameState) {
-  const ch = getChannel()
-  if (ch) ch.postMessage({ pin, ts: Date.now() })
-
-  const payload = state || loadState(pin)
-
-  // 1. Cloud Room Relay Sync (Works across all laptops, phones, and tablets over the internet)
-  if (typeof window !== 'undefined' && payload) {
+function postRelay(pin: string, payload: GameState) {
+  const status = payload?.status
+  // Flush immediately on status transitions (host-driven) — everything else can
+  // tolerate a 200ms coalescing window since clients poll the relay anyway.
+  const flushNow = Boolean(status) && _lastPostedStatus[pin] !== status
+  if (_relayTimers[pin]) {
+    clearTimeout(_relayTimers[pin])
+    delete _relayTimers[pin]
+  }
+  const doPost = () => {
+    delete _relayTimers[pin]
+    if (status) _lastPostedStatus[pin] = status
     fetch(`/api/room/${pin}?_t=${Date.now()}`, {
       method: 'POST',
       headers: {
@@ -272,12 +295,25 @@ function broadcast(pin: string, state?: GameState) {
       body: JSON.stringify({ state: payload }),
     }).catch(() => {})
   }
+  if (flushNow) doPost()
+  else _relayTimers[pin] = setTimeout(doPost, 200)
+}
 
-  // 2. Supabase Realtime WebSocket Sync (if configured)
-  if (supabase && payload) {
+function broadcast(pin: string, state?: GameState, relay = true) {
+  const ch = getChannel()
+  if (ch) ch.postMessage({ pin, ts: Date.now() })
+
+  const payload = state || loadState(pin)
+  if (typeof window === 'undefined' || !payload) return
+
+  // 1. Cloud Room Relay Sync (Works across all laptops, phones, and tablets over the internet)
+  if (relay) postRelay(pin, payload)
+
+  // 2. Supabase Realtime WebSocket Sync (if configured) — reuse the cached channel
+  if (supabase) {
     try {
-      const roomChannel = supabase.channel(`qf_room_${pin}`)
-      roomChannel.send({
+      if (!_relayChannels[pin]) _relayChannels[pin] = supabase.channel(`qf_room_${pin}`)
+      _relayChannels[pin].send({
         type: 'broadcast',
         event: 'state_sync',
         payload
@@ -291,19 +327,49 @@ function broadcast(pin: string, state?: GameState) {
 // ── In-Memory & Storage helpers ──────────────────────────────────
 const _memState: Record<string, GameState> = {}
 
+// Change detection: fingerprint of the last state we served/wrote per pin.
+// When a polled/merged state is byte-identical we skip localStorage writes AND
+// return the same object reference, so React bails out of re-renders and the
+// play/lobby effects that depend on the state object stop re-firing at 2.5Hz.
+const _sigByPin: Record<string, string> = {}
+const _servedByPin: Record<string, GameState> = {}
+
+// Relay POST throttling: at most one POST per pin per 200ms window, flushed
+// immediately when the session status changes so host transitions stay snappy.
+const _relayTimers: Record<string, ReturnType<typeof setTimeout>> = {}
+const _lastPostedStatus: Record<string, string> = {}
+
+// Cached Supabase broadcast channels per pin — creating a channel on every
+// broadcast leaked sockets during busy games.
+const _relayChannels: Record<string, any> = {}
+
 function key(pin: string) { return STORE_PREFIX + pin }
 
-export function saveState(state: GameState) {
+export function saveState(state: GameState, opts?: { relay?: boolean }) {
   _memState[state.pin] = state
+  const skipRelay = opts?.relay === false
   if (typeof window !== 'undefined') {
     try {
       const current = loadState(state.pin)
       const merged = mergeGameStates(current, state) || state
       _memState[state.pin] = merged
+      // No observable change → skip the localStorage write and relay round-trip.
+      // Polling/merging an identical state is the common case, so this removes
+      // the 2.5Hz full-state writes and redundant POSTs during idle polling.
+      const sig = JSON.stringify(merged)
+      if (sig === _sigByPin[state.pin]) {
+        _memState[state.pin] = _servedByPin[state.pin] || merged
+        return _memState[state.pin]
+      }
+      _sigByPin[state.pin] = sig
+      _servedByPin[state.pin] = merged
       localStorage.setItem(key(state.pin), JSON.stringify(merged))
+      broadcast(state.pin, _memState[state.pin], !skipRelay)
     } catch {}
+  } else {
+    broadcast(state.pin, _memState[state.pin], !skipRelay)
   }
-  broadcast(state.pin, _memState[state.pin])
+  return _memState[state.pin]
 }
 
 export function loadState(pin: string): GameState | null {
@@ -336,7 +402,15 @@ export async function fetchRemoteState(pin: string, maxRetries = 3): Promise<Gam
         if (data?.state) {
           const local = loadState(cleanPin)
           const merged = mergeGameStates(local, data.state as GameState) || data.state
+          // Identical to what we last served → return the SAME object reference.
+          // React's Object.is bailout then skips the re-render entirely.
+          const sig = JSON.stringify(merged)
+          if (sig === _sigByPin[cleanPin]) {
+            return _servedByPin[cleanPin] || (merged as GameState)
+          }
           _memState[cleanPin] = merged
+          _sigByPin[cleanPin] = sig
+          _servedByPin[cleanPin] = merged
           try {
             localStorage.setItem(key(cleanPin), JSON.stringify(merged))
           } catch {}
@@ -353,6 +427,13 @@ export async function fetchRemoteState(pin: string, maxRetries = 3): Promise<Gam
 
 export function deleteState(pin: string) {
   delete _memState[pin]
+  delete _sigByPin[pin]
+  delete _servedByPin[pin]
+  delete _lastPostedStatus[pin]
+  if (_relayTimers[pin]) {
+    clearTimeout(_relayTimers[pin])
+    delete _relayTimers[pin]
+  }
   if (typeof window !== 'undefined') {
     try {
       localStorage.removeItem(key(pin))
@@ -370,11 +451,19 @@ export function subscribeToSession(
 
   // 1. Immediate read from local cache
   const local = loadState(pin)
-  if (local) callback(local)
+
+  // Track the latest known status so polling can adapt its cadence.
+  let knownStatus: GameStatus | '' = local?.status || ''
+  const notify = (state: GameState | null) => {
+    if (state) knownStatus = state.status
+    callback(state)
+  }
+
+  if (local) notify(local)
 
   // 2. Fetch from Cloud Room Relay (for other devices on the internet)
   fetchRemoteState(pin).then(remote => {
-    if (remote) callback(remote)
+    if (remote) notify(remote)
   })
 
   // 3. BroadcastChannel (instant 0ms cross-tab same browser)
@@ -383,23 +472,37 @@ export function subscribeToSession(
   if (typeof BroadcastChannel !== 'undefined') {
     ch = new BroadcastChannel(CHANNEL_NAME)
     onMsg = (e: MessageEvent) => {
-      if (e.data?.pin === pin) callback(loadState(pin))
+      if (e.data?.pin === pin) notify(loadState(pin))
     }
     ch.addEventListener('message', onMsg)
   }
 
   // 4. StorageEvent (same-tab fallback)
   const onStorage = (e: StorageEvent) => {
-    if (e.key === key(pin)) callback(loadState(pin))
+    if (e.key === key(pin)) notify(loadState(pin))
   }
   window.addEventListener('storage', onStorage)
 
-  // 5. Cloud Room Relay Polling for cross-device internet sync (every 400ms)
-  const pollInterval = setInterval(() => {
+  // 5. Cloud Room Relay Polling for cross-device internet sync.
+  //    Adaptive cadence: fast during live questions, slower otherwise, and
+  //    paused entirely while the tab is hidden (a big battery/network win when
+  //    a classroom has many background tabs open).
+  let lastPollAt = 0
+  const poll = () => {
+    if (typeof document !== 'undefined' && document.hidden) return
+    const now = Date.now()
+    const minInterval =
+      knownStatus === 'question_active' || knownStatus === 'boss_frenzy' ? 400 :
+      knownStatus === 'question_reveal' || knownStatus === 'leaderboard' ? 800 : 2000
+    if (now - lastPollAt < minInterval) return
+    lastPollAt = now
     fetchRemoteState(pin).then(remote => {
-      if (remote) callback(remote)
+      if (remote) notify(remote)
     })
-  }, 400)
+  }
+  const pollInterval = setInterval(poll, 400)
+  const onVisible = () => { if (!document.hidden) poll() }
+  document.addEventListener('visibilitychange', onVisible)
 
   // 6. Supabase Realtime WebSocket subscription (zero-latency internet sync)
   let sbSub: any = null
@@ -417,7 +520,7 @@ export function subscribeToSession(
             try {
               localStorage.setItem(key(pin), JSON.stringify(merged))
             } catch {}
-            callback(merged)
+            notify(merged)
           }
         })
         .on('broadcast', { event: 'player_join' }, (res: any) => {
@@ -477,6 +580,7 @@ export function subscribeToSession(
 
   return () => {
     clearInterval(pollInterval)
+    document.removeEventListener('visibilitychange', onVisible)
     if (ch && onMsg) {
       ch.removeEventListener('message', onMsg)
       ch.close()
@@ -1084,13 +1188,15 @@ export function submitAnswer(pin: string, playerId: string, selectedIndex: numbe
   const tactics = getTacticsRankings(updatedPlayers)
   const mastery = getMasteryRankings(updatedPlayers)
 
+  // Skip the redundant full-state relay POST — the action POST below already
+  // carries this answer to the server, which re-scores it authoritatively.
   saveState({
     ...state,
     bossHealth: currentBossHp,
     players: updatedPlayers,
     tacticsRankings: tactics,
     masteryRankings: mastery,
-  })
+  }, { relay: false })
 
   // Direct cloud API sync for cross-device answer submission guarantee
   if (typeof window !== 'undefined') {
@@ -1195,7 +1301,7 @@ export function submitFrenzyAnswer(pin: string, playerId: string, selectedIndex:
     players: updatedPlayers,
     bossFrenzy: updatedFrenzy,
     status: isLastQ ? 'ended' : 'boss_frenzy'
-  })
+  }, { relay: false })
 
   if (typeof window !== 'undefined') {
     fetch(`/api/room/${pin}?_t=${Date.now()}`, {
@@ -1318,7 +1424,9 @@ export function buyPowerUp(
     })
   }
 
-  saveState({ ...state, players: updatedPlayers })
+  // Skip the redundant full-state relay POST — the action POST below applies
+  // the purchase server-side for all other devices.
+  saveState({ ...state, players: updatedPlayers }, { relay: false })
 
   // Sync to server
   if (typeof window !== 'undefined') {
