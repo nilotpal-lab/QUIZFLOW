@@ -5,6 +5,7 @@
    ================================================================ */
 
 import type { AIGeneratedQuiz, Difficulty, BloomLevel } from './types'
+import { syncCommunityQuizToSupabase } from './supabaseClient'
 
 export type QuizCategory =
   | 'All'
@@ -719,13 +720,16 @@ export function publishQuizToCommunity(quiz: AIGeneratedQuiz, authorName?: strin
   const updatedList = [newCommunityQuiz, ...list]
   saveCommunityQuizzes(updatedList)
 
-  // Sync published quiz globally via server API
+  // Sync published quiz globally via server API + direct Supabase client fallback
   if (typeof window !== 'undefined') {
     fetch('/api/community', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ quiz: newCommunityQuiz })
     }).catch(() => {})
+
+    // Direct Supabase sync guarantees cloud persistence even if API route is cold
+    syncCommunityQuizToSupabase(newCommunityQuiz)
   }
 
   return newCommunityQuiz

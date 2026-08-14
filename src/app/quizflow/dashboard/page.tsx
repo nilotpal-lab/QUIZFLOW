@@ -4,10 +4,11 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { getHostUser, logoutHostAsync, updateHostProfile, initAuthSync, type HostUser } from '@/quizflow/authStore'
-import { getSavedQuizzes, deleteSavedQuiz, type SavedQuizItem } from '@/quizflow/quizStore'
+import { getSavedQuizzes, deleteSavedQuiz, saveQuizDraft, type SavedQuizItem } from '@/quizflow/quizStore'
 import { getSessionHistory, type SessionHistoryRecord } from '@/quizflow/historyStore'
 import { createSession } from '@/quizflow/sessionStore'
 import { generatePrintableWorksheet } from '@/quizflow/pdfGenerator'
+import { publishQuizToCommunity } from '@/quizflow/communityStore'
 
 function formatExactTime(ts?: number) {
   if (!ts) return 'N/A'
@@ -105,6 +106,16 @@ export default function TeacherDashboard() {
 
   const draftQuizzes = allQuizzes.filter(q => q.isDraft)
   const libraryReadyQuizzes = allQuizzes.filter(q => !q.isDraft)
+
+  const [toastMsg, setToastMsg] = useState<string | null>(null)
+
+  const handlePublishGlobal = (item: SavedQuizItem) => {
+    publishQuizToCommunity(item.quiz, user?.name)
+    saveQuizDraft(item.quiz, false, item.id)
+    setAllQuizzes(getSavedQuizzes())
+    setToastMsg('🌐 Published to Global Community Library! Visible to all users.')
+    setTimeout(() => setToastMsg(null), 4000)
+  }
 
   const handleLogout = async () => {
     await logoutHostAsync()
@@ -226,6 +237,18 @@ export default function TeacherDashboard() {
         </div>
       </div>
 
+      {/* TOAST NOTIFICATION */}
+      {toastMsg && (
+        <div style={{
+          position: 'fixed', bottom: 24, right: 24, zIndex: 100,
+          background: 'var(--ink)', color: '#fff',
+          padding: '12px 20px', borderRadius: 12, border: '2px solid var(--sun)',
+          boxShadow: 'var(--shadow-hard-lg)', fontFamily: 'Space Grotesk', fontWeight: 800, fontSize: 14
+        }}>
+          {toastMsg}
+        </div>
+      )}
+
       {/* MAIN CONTAINER */}
       <div style={{ flex: 1, padding: 24, maxWidth: 1280, width: '100%', margin: '0 auto' }}>
 
@@ -238,10 +261,13 @@ export default function TeacherDashboard() {
                   📝 My Quizzes
                 </h2>
                 <div style={{ fontSize: 13, color: '#555', fontFamily: 'Inter' }}>
-                  All quizzes saved in Studio. Draft quizzes are editing-in-progress; Library-ready quizzes are published to the community.
+                  All quizzes saved in Studio. Click 🌐 Publish Global to share any quiz to the global library.
                 </div>
               </div>
-              <Link href="/quizflow/studio"><button className="btn btn-sun btn-lg">✨ Create in Studio →</button></Link>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <Link href="/quizflow/practice"><button className="btn btn-violet btn-md">🌐 Browse Community Library</button></Link>
+                <Link href="/quizflow/studio"><button className="btn btn-sun btn-md">✨ Create in Studio →</button></Link>
+              </div>
             </div>
 
             {allQuizzes.length === 0 ? (
@@ -283,8 +309,8 @@ export default function TeacherDashboard() {
                           </div>
                           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, borderTop: '2px solid var(--ink)', paddingTop: 14 }}>
                             <button className="btn btn-sun btn-sm" style={{ fontWeight: 800 }} onClick={() => handleHostSavedQuiz(item)}>🚀 Host Game</button>
+                            <button className="btn btn-violet btn-sm" style={{ fontWeight: 800, color: '#fff' }} onClick={() => handlePublishGlobal(item)}>🌐 Publish Global</button>
                             <button className="btn btn-sm" style={{ background: 'var(--paper-2)', color: 'var(--ink)' }} onClick={() => handleEditQuizInStudio(item)}>✏️ Edit Studio</button>
-                            <button className="btn btn-sm" style={{ background: 'var(--mint)', color: 'var(--ink)' }} onClick={() => generatePrintableWorksheet(item.quiz, 'A', true)}>🖨️ Print PDF</button>
                             <button className="btn btn-sm" style={{ background: 'var(--paper)', color: 'var(--cherry)', border: '1.5px solid var(--cherry)' }} onClick={() => handleDeleteQuiz(item.id)}>🗑️ Delete</button>
                           </div>
                         </div>
@@ -323,8 +349,8 @@ export default function TeacherDashboard() {
                           </div>
                           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, borderTop: '2px solid var(--ink)', paddingTop: 14 }}>
                             <button className="btn btn-sun btn-sm" style={{ fontWeight: 800 }} onClick={() => handleHostSavedQuiz(item)}>🚀 Host Game</button>
+                            <button className="btn btn-violet btn-sm" style={{ fontWeight: 800, color: '#fff' }} onClick={() => handlePublishGlobal(item)}>🌐 Publish Global</button>
                             <button className="btn btn-sm" style={{ background: 'var(--paper-2)', color: 'var(--ink)' }} onClick={() => handleEditQuizInStudio(item)}>✏️ Edit</button>
-                            <button className="btn btn-sm" style={{ background: 'var(--mint)', color: 'var(--ink)' }} onClick={() => generatePrintableWorksheet(item.quiz, 'A', true)}>🖨️ Print PDF</button>
                             <button className="btn btn-sm" style={{ background: 'var(--paper)', color: 'var(--cherry)', border: '1.5px solid var(--cherry)' }} onClick={() => handleDeleteQuiz(item.id)}>🗑️ Delete</button>
                           </div>
                         </div>

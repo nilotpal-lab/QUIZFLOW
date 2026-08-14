@@ -8,6 +8,7 @@ import { generatePrintableWorksheet, type WorksheetVersion } from '@/quizflow/pd
 import { ingestYouTubeUrl, ingestWebpageUrl, parseUploadedFile, type IngestedContent } from '@/quizflow/ingestion'
 import { saveQuizDraft } from '@/quizflow/quizStore'
 import { publishQuizToCommunity } from '@/quizflow/communityStore'
+import { getHostUser } from '@/quizflow/authStore'
 
 const LANGUAGES = [
   { code: 'Hindi', flag: '🇮🇳', label: 'Hindi (हिंदी)' },
@@ -412,7 +413,8 @@ export default function AIQuizStudio() {
                     setTimeout(() => setToastMsg(null), 3000)
                     return
                   }
-                  publishQuizToCommunity(quiz)
+                  const authorName = getHostUser()?.name || 'Teacher Creator'
+                  publishQuizToCommunity(quiz, authorName)
                   setToastMsg('🌐 Published globally to Community Quiz Library!')
                   setTimeout(() => setToastMsg(null), 3500)
                 }}

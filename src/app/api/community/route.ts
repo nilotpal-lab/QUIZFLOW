@@ -44,41 +44,74 @@ export async function GET() {
   let supabaseList: any[] = []
   if (supabase) {
     try {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('quizzes')
         .select('*')
         .eq('is_draft', false)
         .order('created_at', { ascending: false })
 
-      if (data && data.length > 0) {
-        supabaseList = data.map((item: any) => ({
-          id: item.id,
-          title: item.title,
-          description: item.description || '',
-          category: item.quiz_data?.category || 'General Knowledge',
-          tags: item.quiz_data?.tags || ['Community'],
-          isFounder: false,
-          authorName: item.quiz_data?.authorName || 'QuizFlow Creator',
-          difficulty: item.quiz_data?.difficulty || 'medium',
-          bloomLevel: item.bloom_level || 'Comprehension',
-          questionCount: item.question_count || item.quiz_data?.questions?.length || 0,
-          playsCount: item.quiz_data?.playsCount || 0,
-          rating: item.quiz_data?.rating || 0,
-          reviewCount: item.quiz_data?.reviewCount || 0,
-          quiz: item.quiz_data || item,
-          comments: item.quiz_data?.comments || [],
-          createdAt: new Date(item.created_at).getTime()
-        }))
+      if (error) {
+        console.warn('[Community API GET Supabase Warning]:', error.message)
+      } else if (data && data.length > 0) {
+        supabaseList = data
+          .filter((item: any) => {
+            // Filter out live active game rooms (id starts with room_)
+            if (!item.id || String(item.id).startsWith('room_')) return false
+            return true
+          })
+          .map((item: any) => {
+            const qd = item.quiz_data || {}
+            
+            // If item.quiz_data is already a full CommunityQuiz object:
+            if (qd.quiz && Array.isArray(qd.quiz.questions)) {
+              return {
+                ...qd,
+                id: item.id || qd.id,
+                title: item.title || qd.title,
+                description: item.description || qd.description || '',
+                createdAt: qd.createdAt || (item.created_at ? new Date(item.created_at).getTime() : Date.now())
+              }
+            }
+
+            // Otherwise reconstruct valid CommunityQuiz structure
+            const questions = qd.questions || (qd.quiz && qd.quiz.questions) || []
+            const embeddedQuiz = {
+              title: item.title,
+              description: item.description || '',
+              language: item.language || qd.language || 'English',
+              bloomLevel: item.bloom_level || qd.bloomLevel || 'Comprehension',
+              questions
+            }
+
+            return {
+              id: item.id,
+              title: item.title,
+              description: item.description || '',
+              category: qd.category || 'General Knowledge',
+              tags: qd.tags || ['Community'],
+              isFounder: false,
+              authorName: qd.authorName || 'QuizFlow Creator',
+              difficulty: qd.difficulty || 'medium',
+              bloomLevel: item.bloom_level || qd.bloomLevel || 'Comprehension',
+              questionCount: item.question_count || questions.length || 0,
+              playsCount: qd.playsCount || 0,
+              rating: qd.rating || 0,
+              reviewCount: qd.reviewCount || 0,
+              quiz: embeddedQuiz,
+              comments: qd.comments || [],
+              createdAt: item.created_at ? new Date(item.created_at).getTime() : Date.now()
+            }
+          })
       }
-    } catch {
-      // Graceful fallback to in-memory list
+    } catch (err) {
+      console.warn('[Community API GET Exception]:', err)
     }
   }
 
   // Merge in-memory and Supabase lists (unique by ID)
   const combinedMap = new Map<string, any>()
   for (const q of [...memoryList, ...supabaseList]) {
-    if (q && q.id) {
+    if (q && q.id && q.quiz && Array.isArray(q.quiz.questions) && q.quiz.questions.length > 0) {
       combinedMap.set(q.id, q)
     }
   }
@@ -103,20 +136,23 @@ export async function POST(req: Request) {
     // Also sync to Supabase if available
     if (supabase) {
       try {
-        await supabase.from('quizzes').upsert({
+        const { error } = await supabase.from('quizzes').upsert({
           id: quizItem.id,
           host_id: 'community_creator',
           title: quizItem.title,
-          description: quizItem.description,
+          description: quizItem.description || '',
           language: quizItem.quiz?.language || 'English',
           bloom_level: quizItem.bloomLevel || 'Comprehension',
           question_count: quizItem.questionCount || quizItem.quiz?.questions?.length || 0,
-          quiz_data: { ...quizItem.quiz, category: quizItem.category, tags: quizItem.tags, authorName: quizItem.authorName },
+          quiz_data: quizItem, // Store full CommunityQuiz object
           is_draft: false,
           updated_at: new Date().toISOString()
         })
-      } catch {
-        // Ignore Supabase errors
+        if (error) {
+          console.warn('[Community API POST Supabase Warning]:', error.message)
+        }
+      } catch (err) {
+        console.warn('[Community API POST Supabase Exception]:', err)
       }
     }
 

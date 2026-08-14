@@ -239,3 +239,28 @@ export async function syncSessionHistoryToSupabase(rec: SessionHistoryRecord) {
     return null
   }
 }
+
+export async function syncCommunityQuizToSupabase(quizItem: any) {
+  const client = getSupabaseClient()
+  if (!client || !quizItem || !quizItem.id) return null
+  try {
+    const { data, error } = await client.from('quizzes').upsert({
+      id: quizItem.id,
+      host_id: 'community_creator',
+      title: quizItem.title,
+      description: quizItem.description || '',
+      language: quizItem.quiz?.language || 'English',
+      bloom_level: quizItem.bloomLevel || 'Comprehension',
+      question_count: quizItem.questionCount || quizItem.quiz?.questions?.length || 0,
+      quiz_data: quizItem,
+      is_draft: false,
+      updated_at: new Date(quizItem.createdAt || Date.now()).toISOString()
+    })
+    if (error) console.warn('Supabase Community Quiz Sync Warning:', error.message)
+    return data
+  } catch (err) {
+    console.warn('Supabase Community Quiz Sync Exception:', err)
+    return null
+  }
+}
+
