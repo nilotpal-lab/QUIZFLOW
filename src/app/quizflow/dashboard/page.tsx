@@ -36,6 +36,9 @@ function formatDuration(startedAt?: number, completedAt?: number, durationMs?: n
   return `${mins}m ${secs}s`
 }
 
+// Feature Flag: Suspended for high-concurrency 150-200 student live event
+const ENABLE_GLOBAL_PUBLISH = false
+
 export default function TeacherDashboard() {
   const router = useRouter()
   const [user, setUser] = useState<HostUser | null>(null)
@@ -307,9 +310,11 @@ export default function TeacherDashboard() {
                               <span className="badge badge-violet">{item.bloomLevel}</span>
                             </div>
                           </div>
-                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, borderTop: '2px solid var(--ink)', paddingTop: 14 }}>
+                          <div style={{ display: 'grid', gridTemplateColumns: ENABLE_GLOBAL_PUBLISH ? '1fr 1fr' : '1fr', gap: 8, borderTop: '2px solid var(--ink)', paddingTop: 14 }}>
                             <button className="btn btn-sun btn-sm" style={{ fontWeight: 800 }} onClick={() => handleHostSavedQuiz(item)}>🚀 Host Game</button>
-                            <button className="btn btn-violet btn-sm" style={{ fontWeight: 800, color: '#fff' }} onClick={() => handlePublishGlobal(item)}>🌐 Publish Global</button>
+                            {ENABLE_GLOBAL_PUBLISH && (
+                              <button className="btn btn-violet btn-sm" style={{ fontWeight: 800, color: '#fff' }} onClick={() => handlePublishGlobal(item)}>🌐 Publish Global</button>
+                            )}
                             <button className="btn btn-sm" style={{ background: 'var(--paper-2)', color: 'var(--ink)' }} onClick={() => handleEditQuizInStudio(item)}>✏️ Edit Studio</button>
                             <button className="btn btn-sm" style={{ background: 'var(--paper)', color: 'var(--cherry)', border: '1.5px solid var(--cherry)' }} onClick={() => handleDeleteQuiz(item.id)}>🗑️ Delete</button>
                           </div>
@@ -347,9 +352,11 @@ export default function TeacherDashboard() {
                               <span className="badge badge-violet">{item.bloomLevel}</span>
                             </div>
                           </div>
-                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, borderTop: '2px solid var(--ink)', paddingTop: 14 }}>
+                          <div style={{ display: 'grid', gridTemplateColumns: ENABLE_GLOBAL_PUBLISH ? '1fr 1fr' : '1fr', gap: 8, borderTop: '2px solid var(--ink)', paddingTop: 14 }}>
                             <button className="btn btn-sun btn-sm" style={{ fontWeight: 800 }} onClick={() => handleHostSavedQuiz(item)}>🚀 Host Game</button>
-                            <button className="btn btn-violet btn-sm" style={{ fontWeight: 800, color: '#fff' }} onClick={() => handlePublishGlobal(item)}>🌐 Publish Global</button>
+                            {ENABLE_GLOBAL_PUBLISH && (
+                              <button className="btn btn-violet btn-sm" style={{ fontWeight: 800, color: '#fff' }} onClick={() => handlePublishGlobal(item)}>🌐 Publish Global</button>
+                            )}
                             <button className="btn btn-sm" style={{ background: 'var(--paper-2)', color: 'var(--ink)' }} onClick={() => handleEditQuizInStudio(item)}>✏️ Edit</button>
                             <button className="btn btn-sm" style={{ background: 'var(--paper)', color: 'var(--cherry)', border: '1.5px solid var(--cherry)' }} onClick={() => handleDeleteQuiz(item.id)}>🗑️ Delete</button>
                           </div>

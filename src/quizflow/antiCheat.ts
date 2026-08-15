@@ -87,6 +87,14 @@ export class AntiCheatShield {
     }
   }
 
+  private handleSelectStart = (e: Event) => {
+    if (this.options.blockCopyPaste !== false) {
+      e.preventDefault()
+      e.stopPropagation()
+      this.recordViolation('copy_paste_attempt')
+    }
+  }
+
   private handleContextMenu = (e: MouseEvent) => {
     if (this.options.blockContextMenu !== false) {
       e.preventDefault()
@@ -146,6 +154,7 @@ export class AntiCheatShield {
       document.addEventListener('copy', this.handleCopyPaste)
       document.addEventListener('paste', this.handleCopyPaste)
       document.addEventListener('cut', this.handleCopyPaste)
+      document.addEventListener('selectstart', this.handleSelectStart)
     }
 
     if (this.options.blockContextMenu !== false) {
@@ -182,6 +191,7 @@ export class AntiCheatShield {
     document.removeEventListener('copy', this.handleCopyPaste)
     document.removeEventListener('paste', this.handleCopyPaste)
     document.removeEventListener('cut', this.handleCopyPaste)
+    document.removeEventListener('selectstart', this.handleSelectStart)
     document.removeEventListener('contextmenu', this.handleContextMenu)
     document.removeEventListener('fullscreenchange', this.handleFullscreenChange)
     document.removeEventListener('webkitfullscreenchange', this.handleFullscreenChange)

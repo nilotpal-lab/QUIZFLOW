@@ -1031,7 +1031,7 @@ export async function joinSessionAsync(
     selectedIndex: null,
     joinedAt: Date.now(),
     connected: true,
-    coins: 0,
+    coins: 25, // Starting bonus coins for Freshers Event
     violations: 0,
     flagged: false,
     frenzyScore: 0,
@@ -1103,7 +1103,7 @@ export function joinSession(
     selectedIndex: null,
     joinedAt: Date.now(),
     connected: true,
-    coins: 0,
+    coins: 25, // Starting bonus coins for Freshers Event
     violations: 0,
     flagged: false,
     frenzyScore: 0,
@@ -1147,20 +1147,30 @@ export function submitAnswer(pin: string, playerId: string, selectedIndex: numbe
 
   let points = 0
   const newStreak = isCorrect ? player.streak + 1 : 0
+  const bidMultiplier = player.bidMultiplier ?? 1
+  const difficulty = q.difficulty || 'medium'
+  const diffMult = difficulty === 'hard' ? 1.5 : difficulty === 'medium' ? 1.25 : 1
+
   if (isCorrect && !isSuspiciousBot) {
     const ratio = Math.max(0, Math.min(1, timeRemainingMs / totalTimeMs))
     const speedFactor = 0.5 + 0.5 * ratio
     const streakMultiplier = 1 + Math.min(player.streak * 0.1, 0.5)
-    const multiplier = powerUpActive ? 2 : 1
+    const multiplier = (powerUpActive ? 2 : 1) * bidMultiplier * diffMult
     points = Math.round(Math.max(50, 1000 * speedFactor * streakMultiplier * multiplier))
     
     // SECURITY: Mathematically clamp maximum points to stop score injection cheats
-    points = Math.min(6000, points)
+    points = Math.min(12000, points)
   } else {
     if (state.gameMode === 'boss_raid') {
       points = -5 // Boss attacks (-5 class points)
     }
   }
+
+  // Coin award (generous for Freshers Event)
+  const baseCoins = isCorrect ? (difficulty === 'hard' ? 25 : difficulty === 'medium' ? 18 : 12) : 3
+  const speedCoinBonus = isCorrect && responseTimeMs < 5000 ? 8 : (isCorrect && responseTimeMs < 10000 ? 4 : 0)
+  const streakCoinBonus = isCorrect && player.streak >= 2 ? 5 : 0
+  const coinsEarned = baseCoins + speedCoinBonus + streakCoinBonus
 
   // Calculate Boss Health update for Boss Raid mode
   let currentBossHp = state.bossHealth ?? 100
@@ -1182,6 +1192,8 @@ export function submitAnswer(pin: string, playerId: string, selectedIndex: numbe
     totalCorrect: (player.totalCorrect || 0) + (isCorrect ? 1 : 0),
     totalAnswered: (player.totalAnswered || 0) + 1,
     totalResponseTimeMs: (player.totalResponseTimeMs || 0) + responseTimeMs,
+    coins: (player.coins || 0) + coinsEarned,
+    bidMultiplier: 1, // reset bid multiplier after question is answered
   }
 
   const updatedPlayers = { ...state.players, [playerId]: updatedPlayer }

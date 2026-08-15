@@ -122,11 +122,16 @@ function sanitizeStateForClient(state: any, pin: string): any {
   }
 }
 
-/** Compute coin award based on question difficulty and response speed */
-function computeCoins(difficulty: string, responseTimeMs: number): number {
-  const base = difficulty === 'easy' ? 5 : difficulty === 'medium' ? 8 : 12
-  const bonus = responseTimeMs < 5000 ? 3 : 0
-  return base + bonus
+/** Compute coin award based on question difficulty, response speed, accuracy, and streak */
+function computeCoins(difficulty: string, responseTimeMs: number, isCorrect: boolean, streak: number = 0): number {
+  if (!isCorrect) {
+    // 3 participation coins even on wrong answers to keep student engagement high
+    return 3
+  }
+  const base = difficulty === 'hard' ? 25 : difficulty === 'medium' ? 18 : 12
+  const speedBonus = responseTimeMs < 5000 ? 8 : responseTimeMs < 10000 ? 4 : 0
+  const streakBonus = streak >= 3 ? 5 : 0
+  return base + speedBonus + streakBonus
 }
 
 /** Compute points with difficulty multiplier and bid multiplier */
@@ -139,10 +144,10 @@ function computePoints(
   difficulty: string
 ): number {
   const diffMult = difficulty === 'hard' ? 1.5 : difficulty === 'medium' ? 1.25 : 1
-  const ratio = Math.max(0, Math.min(1, (timeRemainingMs || 0) / totalTimeMs))
+  const ratio = Math.max(0, Math.min(1, (timeRemainingMs || 0) / (totalTimeMs || 20000)))
   const speedFactor = 0.5 + 0.5 * ratio
   const streakMultiplier = 1 + Math.min(streak * 0.1, 0.5)
-  const multiplier = (powerUpActive ? 2 : 1) * bidMultiplier * diffMult
+  const multiplier = (powerUpActive ? 2 : 1) * (bidMultiplier || 1) * diffMult
   const pts = Math.round(Math.max(50, 1000 * speedFactor * streakMultiplier * multiplier))
   return Math.min(12000, pts)
 }
@@ -304,9 +309,7 @@ export async function POST(
           }
 
           // Coin award
-          const coinsEarned = isCorrect && !isSuspiciousBot
-            ? computeCoins(difficulty, responseTimeMs ?? 0)
-            : 0
+          const coinsEarned = computeCoins(difficulty, responseTimeMs ?? 0, isCorrect && !isSuspiciousBot, p.streak || 0)
 
           const updatedPlayer = {
             ...p,
@@ -423,7 +426,7 @@ export async function POST(
             lastAnswerCorrect: null, lastPointsEarned: 0,
             hasAnswered: false, selectedIndex: null,
             joinedAt: Date.now(), connected: true,
-            coins: 0, violations: 0, flagged: false, frenzyScore: 0
+            coins: 25, violations: 0, flagged: false, frenzyScore: 0
           }
         }
       }
