@@ -1031,7 +1031,7 @@ export async function joinSessionAsync(
     selectedIndex: null,
     joinedAt: Date.now(),
     connected: true,
-    coins: 25, // Starting bonus coins for Freshers Event
+    coins: 0, // Coins earned through quiz answers & performance
     violations: 0,
     flagged: false,
     frenzyScore: 0,
@@ -1103,7 +1103,7 @@ export function joinSession(
     selectedIndex: null,
     joinedAt: Date.now(),
     connected: true,
-    coins: 25, // Starting bonus coins for Freshers Event
+    coins: 0, // Coins earned through quiz answers & performance
     violations: 0,
     flagged: false,
     frenzyScore: 0,

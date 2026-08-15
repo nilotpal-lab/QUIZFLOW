@@ -426,7 +426,7 @@ export async function POST(
             lastAnswerCorrect: null, lastPointsEarned: 0,
             hasAnswered: false, selectedIndex: null,
             joinedAt: Date.now(), connected: true,
-            coins: 25, violations: 0, flagged: false, frenzyScore: 0
+            coins: 0, violations: 0, flagged: false, frenzyScore: 0
           }
         }
       }

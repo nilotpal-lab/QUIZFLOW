@@ -8,9 +8,10 @@ This document tracks all features that have been temporarily suspended / disable
 
 | Feature ID | Feature Name | Description | Status | Code Location | Re-enable Instruction |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| `FEATURE_EMOJI_REACTIONS` | **Live Emoji Reaction Bar & Floating Emojis** | In-game emoji sending & floating particle animations during live questions | 🔴 **SUSPENDED** | `src/quizflow/FloatingReactions.tsx`, `src/app/quizflow/play/page.tsx` | Set `ENABLE_EMOJI_REACTIONS = true` |
+| `FEATURE_EMOJI_REACTIONS` | **Live Emoji Reaction Bar & Floating Emojis** | In-game emoji sending & floating particle animations during live questions | 🔴 **SUSPENDED** | `src/quizflow/FloatingReactions.tsx`, `src/app/quizflow/lobby/[pin]/page.tsx` | Set `ENABLE_EMOJI_REACTIONS = true` |
 | `FEATURE_AVATAR_SPINNING` | **Avatar Spinning & Randomizer Options** | Random avatar spinning options and automated random avatar animation buttons | 🔴 **SUSPENDED** | `src/app/quizflow/join/page.tsx` | Set `ENABLE_AVATAR_SPINNING = true` |
-| `FEATURE_GLOBAL_PUBLISH` | **Global Community Publish & Heavy Sync** | Publishing quizzes to the global community library to minimize background DB writes during live room spikes | 🔴 **SUSPENDED** | `src/app/quizflow/dashboard/page.tsx` | Set `ENABLE_GLOBAL_PUBLISH = true` |
+| `FEATURE_TTS_AUDIO` | **Listen to Quiz & Explanation (TTS Narration)** | Web speech audio narration for questions and answer explanations | 🔴 **SUSPENDED** | `src/app/quizflow/play/page.tsx`, `src/app/quizflow/practice/page.tsx` | Set `ENABLE_TTS_AUDIO = true` |
+| `FEATURE_GLOBAL_PUBLISH` | **Global Community Publish & Quiz Library** | Publishing quizzes to the global community library and library saves | 🟢 **ACTIVE** | `src/app/quizflow/dashboard/page.tsx` | Active (`ENABLE_GLOBAL_PUBLISH = true`) |
 | `FEATURE_BOSS_FRENZY_SHOP` | **Power-Up Shop in Boss Frenzy Finale** | Coin shop actions during the 60s Boss Frenzy finale to keep the rapid-fire round pure speed and accuracy | 🔴 **SUSPENDED** | `src/app/quizflow/play/page.tsx` | Controlled automatically when `gameState.status === 'boss_frenzy'` |
 
 ---

@@ -36,8 +36,8 @@ function formatDuration(startedAt?: number, completedAt?: number, durationMs?: n
   return `${mins}m ${secs}s`
 }
 
-// Feature Flag: Suspended for high-concurrency 150-200 student live event
-const ENABLE_GLOBAL_PUBLISH = false
+// Feature Flag: Enabled for quiz creation, library saves, and global publishing
+const ENABLE_GLOBAL_PUBLISH = true
 
 export default function TeacherDashboard() {
   const router = useRouter()

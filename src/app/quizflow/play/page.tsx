@@ -21,6 +21,9 @@ import ParticleField from '@/quizflow/ParticleField'
 import { useScreenShake, DamageParticles, BossHealthBar } from '@/quizflow/BossVFX'
 import StreakBadge from '@/quizflow/StreakBadge'
 
+// Feature Flag: Suspended TTS audio narration for Freshers Event
+const ENABLE_TTS_AUDIO = false
+
 function ScorePopup({ points, onDone }: { points: number; onDone: () => void }) {
   useEffect(() => { const t = setTimeout(onDone, 1400); return () => clearTimeout(t) }, [onDone])
   return <div className="score-popup" style={{ top: '38%', left: '50%', transform: 'translateX(-50%)' }}>{formatPoints(points)} ✨</div>
@@ -1084,30 +1087,32 @@ function StudentPlayScreen() {
               </h2>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
                 {doubleActive && <span className="badge badge-sun">⭐ 2× DOUBLE</span>}
-                <button
-                  type="button"
-                  onClick={() => handleToggleTTS(q.prompt)}
-                  style={{
-                    padding: '8px 14px',
-                    background: isTTSActive ? 'var(--sun)' : 'var(--paper)',
-                    border: '2px solid var(--ink)',
-                    borderRadius: 'var(--radius-btn)',
-                    boxShadow: '2px 2px 0px var(--ink)',
-                    fontFamily: 'Space Grotesk',
-                    fontSize: 12,
-                    fontWeight: 800,
-                    color: 'var(--ink)',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 6
-                  }}
-                  title="Read question prompt aloud"
-                  aria-label="Read question aloud"
-                >
-                  <span>{isTTSActive ? '🔊' : '🔈'}</span>
-                  <span>{isTTSActive ? 'Stop' : 'Listen'}</span>
-                </button>
+                {ENABLE_TTS_AUDIO && (
+                  <button
+                    type="button"
+                    onClick={() => handleToggleTTS(q.prompt)}
+                    style={{
+                      padding: '8px 14px',
+                      background: isTTSActive ? 'var(--sun)' : 'var(--paper)',
+                      border: '2px solid var(--ink)',
+                      borderRadius: 'var(--radius-btn)',
+                      boxShadow: '2px 2px 0px var(--ink)',
+                      fontFamily: 'Space Grotesk',
+                      fontSize: 12,
+                      fontWeight: 800,
+                      color: 'var(--ink)',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6
+                    }}
+                    title="Read question prompt aloud"
+                    aria-label="Read question aloud"
+                  >
+                    <span>{isTTSActive ? '🔊' : '🔈'}</span>
+                    <span>{isTTSActive ? 'Stop' : 'Listen'}</span>
+                  </button>
+                )}
               </div>
             </div>
             {(q.imageUrl || q.media_url) && (
@@ -1259,28 +1264,30 @@ function StudentPlayScreen() {
                 <div style={{ color: 'var(--ink)', fontSize: 13, fontFamily: 'Inter', opacity: 0.85, fontWeight: 500 }}>
                   💡 {q.explanation}
                 </div>
-                <button
-                  type="button"
-                  onClick={() => handleToggleTTS(q.explanation || '')}
-                  style={{
-                    padding: '4px 12px',
-                    background: 'var(--paper)',
-                    border: '1.5px solid var(--ink)',
-                    borderRadius: 'var(--radius-pill)',
-                    boxShadow: '2px 2px 0px var(--ink)',
-                    fontFamily: 'Space Grotesk',
-                    fontSize: 11,
-                    fontWeight: 800,
-                    color: 'var(--ink)',
-                    cursor: 'pointer',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 5,
-                    marginTop: 4
-                  }}
-                >
-                  <span>🔊</span> Read Explanation
-                </button>
+                {ENABLE_TTS_AUDIO && (
+                  <button
+                    type="button"
+                    onClick={() => handleToggleTTS(q.explanation || '')}
+                    style={{
+                      padding: '4px 12px',
+                      background: 'var(--paper)',
+                      border: '1.5px solid var(--ink)',
+                      borderRadius: 'var(--radius-pill)',
+                      boxShadow: '2px 2px 0px var(--ink)',
+                      fontFamily: 'Space Grotesk',
+                      fontSize: 11,
+                      fontWeight: 800,
+                      color: 'var(--ink)',
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 5,
+                      marginTop: 4
+                    }}
+                  >
+                    <span>🔊</span> Read Explanation
+                  </button>
+                )}
               </div>
             )}
 
