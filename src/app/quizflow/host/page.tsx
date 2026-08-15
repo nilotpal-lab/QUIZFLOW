@@ -8,7 +8,8 @@ import {
   showLeaderboard, nextQuestion, endGame, kickPlayer, setGameMode,
   getTacticsRankings, getMasteryRankings,
   togglePauseTimer, extendTimer, skipQuestion, toggleAliasMode,
-  advanceTournamentRound, startBossFrenzy, endBossFrenzy
+  advanceTournamentRound, startBossFrenzy, endBossFrenzy,
+  isHostAuthorized
 } from '@/quizflow/sessionStore'
 import type { GameState } from '@/quizflow/sessionStore'
 import { buildAvatarUrl } from '@/quizflow/utils'
@@ -180,6 +181,39 @@ function TeacherHostDashboard() {
       </div>
     </div>
   )
+
+  // Host Ownership & Authorization Guard: Prevents unauthorized users/students from hijacking host controls
+  if (gameState && !isHostAuthorized(pin, gameState.hostId)) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--paper)', padding: 20 }}>
+        <div className="card anim-scale-in" style={{ padding: '36px 28px', textAlign: 'center', maxWidth: 440, width: '100%', border: '3px solid var(--ink)', boxShadow: '4px 4px 0 var(--ink)' }}>
+          <div style={{ fontSize: 48, marginBottom: 12 }}>🔒</div>
+          <h2 style={{ fontFamily: 'Space Grotesk', fontSize: 22, fontWeight: 900, color: 'var(--cherry)', marginBottom: 8 }}>
+            Host Controls Restricted
+          </h2>
+          <p style={{ fontFamily: 'Inter', fontSize: 14, color: 'var(--ink)', opacity: 0.8, marginBottom: 20, lineHeight: 1.5 }}>
+            This browser or device is not authenticated as the host for Game PIN <strong>{pin}</strong>. Host controls and question advancement are reserved exclusively for the teacher who started the session.
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <button
+              onClick={() => router.push(`/quizflow/join?pin=${pin}`)}
+              className="btn btn-sun"
+              style={{ width: '100%', padding: '12px 18px', fontWeight: 800, fontSize: 14 }}
+            >
+              🎮 Join Game as Student
+            </button>
+            <button
+              onClick={() => router.push('/quizflow/auth')}
+              className="btn"
+              style={{ width: '100%', padding: '10px 18px', fontWeight: 700, fontSize: 13, background: 'var(--paper-2)' }}
+            >
+              🔑 Teacher Login
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   const players      = Object.values(gameState.players)
   const totalPlayers = players.length

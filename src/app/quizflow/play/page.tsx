@@ -118,14 +118,22 @@ function StudentPlayScreen() {
     return unsub
   }, [pin])
 
-  // Session timeout: if no state after 6s, show error
+  // Session timeout & unregistered player guard: if no state or not in room, redirect to join
   useEffect(() => {
-    if (!pin) return
+    if (!pin || !playerId) {
+      router.push(pin ? `/quizflow/join?pin=${pin}` : '/quizflow/join')
+      return
+    }
     const t = setTimeout(() => {
-      if (!gameState) setSessionTimeout(true)
-    }, 6000)
+      if (!gameState) {
+        setSessionTimeout(true)
+      } else if (gameState.players && !gameState.players[playerId]) {
+        // Player not registered in this room
+        router.push(`/quizflow/join?pin=${pin}`)
+      }
+    }, 5000)
     return () => clearTimeout(t)
-  }, [pin])
+  }, [pin, playerId, gameState, router])
 
   // Navigate away when game ends
   useEffect(() => {

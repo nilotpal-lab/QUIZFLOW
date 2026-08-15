@@ -6,6 +6,7 @@
    ================================================================ */
 
 import type { AIGeneratedQuiz } from './types'
+import { safeGetLocalStorage, safeSetLocalStorage, safeGetSessionStorage, safeSetSessionStorage } from './utils'
 
 export type GameStatus =
   | 'lobby'           // Waiting for host to start
@@ -634,6 +635,7 @@ export function shuffleQuizChoices(quiz: AIGeneratedQuiz): AIGeneratedQuiz {
 export function createSession(quiz: AIGeneratedQuiz, hostId: string, gameMode: GameMode = 'classic'): GameState {
   const pin = String(Math.floor(100000 + Math.random() * 900000))
   const shuffledQuiz = shuffleQuizChoices(quiz)
+  const effectiveHostId = hostId || ('host_' + Date.now() + '_' + Math.random().toString(36).slice(2))
   const state: GameState = {
     pin,
     status: 'lobby',
@@ -645,12 +647,40 @@ export function createSession(quiz: AIGeneratedQuiz, hostId: string, gameMode: G
     questionStartedAt: 0,
     questionEndsAt: 0,
     players: {},
-    hostId,
+    hostId: effectiveHostId,
     revealCorrectIndex: null,
     createdAt: Date.now(),
   }
+  // Store host credentials on creator device
+  safeSetSessionStorage('qf_host_token_' + pin, effectiveHostId)
+  safeSetLocalStorage('qf_host_token_' + pin, effectiveHostId)
   saveState(state)
   return state
+}
+
+/**
+ * Validates whether the current browser/device is authorized to access host controls.
+ */
+export function isHostAuthorized(pin: string, stateHostId?: string): boolean {
+  if (typeof window === 'undefined') return true
+  if (!stateHostId) return true
+  // 1. Check local / session host token stored during createSession
+  const sessionToken = safeGetSessionStorage('qf_host_token_' + pin)
+  const localToken   = safeGetLocalStorage('qf_host_token_' + pin)
+  if (sessionToken && sessionToken === stateHostId) return true
+  if (localToken && localToken === stateHostId) return true
+
+  // 2. Check authenticated teacher host user
+  try {
+    const { getHostUser } = require('./authStore')
+    const user = getHostUser()
+    if (user?.id && user.id === stateHostId) return true
+  } catch {}
+
+  // 3. Demo / local dev fallback
+  if (stateHostId === 'host-demo' || stateHostId.startsWith('host_demo_')) return true
+
+  return false
 }
 
 export function setGameMode(pin: string, gameMode: GameMode) {
