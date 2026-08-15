@@ -2,11 +2,17 @@
 import { useEffect, useState } from 'react'
 import type { Reaction } from './sessionStore'
 
+// Feature Flag: Set to true to re-enable emoji reaction bar & floating emojis
+export const ENABLE_EMOJI_REACTIONS = false
+
 export function FloatingReactions({ reactions }: { reactions?: Reaction[] }) {
   const [activeItems, setActiveItems] = useState<Array<{ id: string; emoji: string; left: number }>>([])
 
   useEffect(() => {
-    if (!reactions || reactions.length === 0) return
+    if (!ENABLE_EMOJI_REACTIONS || !reactions || reactions.length === 0) {
+      setActiveItems([])
+      return
+    }
     const now = Date.now()
     // Take reactions created in the last 4 seconds
     const recent = reactions.filter(r => now - r.createdAt < 4000)

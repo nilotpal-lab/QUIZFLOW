@@ -264,14 +264,16 @@ function JoinInner() {
                   <label className="font-display text-[13px] font-[800] tracking-widest uppercase opacity-85 block">CHOOSE YOUR AVATAR</label>
                   <span className="text-[11px] font-display font-bold text-[var(--violet)]">16 Custom Characters · Scroll to explore</span>
                 </div>
-                <button
-                  type="button"
-                  onClick={handleRandomizeAvatar}
-                  className="hard bg-white rounded-full px-3 py-1 text-[11px] font-display font-[700] hover:bg-[var(--sun)] transition-colors"
-                  aria-label="Pick a random avatar"
-                >
-                  {randomAvatarText}
-                </button>
+                {ENABLE_AVATAR_SPINNING && (
+                  <button
+                    type="button"
+                    onClick={handleRandomizeAvatar}
+                    className="hard bg-white rounded-full px-3 py-1 text-[11px] font-display font-[700] hover:bg-[var(--sun)] transition-colors"
+                    aria-label="Pick a random avatar"
+                  >
+                    {randomAvatarText}
+                  </button>
+                )}
               </div>
 
               {/* Active Avatar Spotlight Banner */}
@@ -337,6 +339,9 @@ function JoinInner() {
     </div>
   )
 }
+
+// Feature Flag: Set to true to re-enable avatar spinning & randomizing options
+const ENABLE_AVATAR_SPINNING = false
 
 export default function JoinPage() {
   return (
