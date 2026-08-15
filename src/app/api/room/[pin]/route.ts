@@ -415,6 +415,15 @@ export async function POST(
       }
 
     } else if (action === 'join' && player && current) {
+      // Reject new joins if room has already ended to protect database and server load
+      if (current.status === 'ended') {
+        return NextResponse.json({
+          error: 'This game has already ended and is no longer accepting players.',
+          ended: true,
+          pin
+        }, { status: 410, headers: noCacheHeaders })
+      }
+
       current = {
         ...current,
         players: {

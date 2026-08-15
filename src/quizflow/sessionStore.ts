@@ -985,14 +985,14 @@ export function toggleAliasMode(pin: string) {
 export async function joinSessionAsync(
   pin: string,
   player: Omit<Player, 'score' | 'streak' | 'rank' | 'lastAnswerCorrect' | 'lastPointsEarned' | 'hasAnswered' | 'selectedIndex' | 'joinedAt' | 'connected' | 'coins' | 'violations' | 'flagged' | 'frenzyScore'>
-): Promise<'ok' | 'not_found' | 'locked' | 'duplicate'> {
+): Promise<'ok' | 'not_found' | 'locked' | 'duplicate' | 'ended'> {
   const cleanPin = pin.trim().toUpperCase()
   let state = loadState(cleanPin)
   if (!state) {
     state = await fetchRemoteState(cleanPin, 4)
   }
   if (!state) return 'not_found'
-  if (state.status === 'ended') return 'not_found'
+  if (state.status === 'ended') return 'ended'
 
   // If this exact player ID is already registered, update player info & return ok (re-join)
   if (state.players && state.players[player.id]) {
@@ -1055,7 +1055,7 @@ export async function joinSessionAsync(
 export function joinSession(
   pin: string,
   player: Omit<Player, 'score' | 'streak' | 'rank' | 'lastAnswerCorrect' | 'lastPointsEarned' | 'hasAnswered' | 'selectedIndex' | 'joinedAt' | 'connected' | 'coins' | 'violations' | 'flagged' | 'frenzyScore'>
-): 'ok' | 'not_found' | 'locked' | 'duplicate' {
+): 'ok' | 'not_found' | 'locked' | 'duplicate' | 'ended' {
   const state = loadState(pin)
   if (!state) {
     // Trigger background remote fetch
@@ -1066,7 +1066,7 @@ export function joinSession(
     })
     return 'ok' // Optimistic ok while remote state synchronizes
   }
-  if (state.status === 'ended') return 'not_found'
+  if (state.status === 'ended') return 'ended'
 
   if (state.players && state.players[player.id]) {
     saveState({

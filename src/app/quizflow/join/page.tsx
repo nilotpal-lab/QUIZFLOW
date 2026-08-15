@@ -136,13 +136,41 @@ function JoinInner() {
 
     setError('')
     setIsJoining(true)
-    setJoinBtnText('⏳ Connecting to Room...')
+    setJoinBtnText('⏳ Checking Room...')
+
+    try {
+      const res = await fetch(`/api/room/${fullPin}?_t=${Date.now()}`)
+      const data = await res.json().catch(() => ({}))
+
+      if (res.status === 404 || !data?.state) {
+        setError(`❌ Room PIN ${fullPin} not found. Please verify the code with your host.`)
+        setIsJoining(false)
+        setJoinBtnText('Join Arena 🚀')
+        return
+      }
+
+      if (data?.state?.status === 'ended') {
+        setError(`🚫 Room PIN ${fullPin} has already ended. Please ask your host for the new PIN.`)
+        setIsJoining(false)
+        setJoinBtnText('Join Arena 🚀')
+        return
+      }
+
+      if (data?.state?.isLocked) {
+        setError(`🔒 Room PIN ${fullPin} is currently locked by the host.`)
+        setIsJoining(false)
+        setJoinBtnText('Join Arena 🚀')
+        return
+      }
+    } catch {
+      // If network check fails, proceed with optimistic join in lobby
+    }
 
     // Smooth navigation to room lobby
     const chosenAvatar = ALL_AVATARS[selectedAvatarIdx] || ALL_AVATARS[0]
     const playerId = 'player_' + Date.now() + '_' + Math.random().toString(36).slice(2)
     
-    setJoinBtnText('✓ Joined! Loading Arena...')
+    setJoinBtnText('✓ Room Found! Entering Arena...')
     setTimeout(() => {
       router.push(`/lobby/${fullPin}?nickname=${encodeURIComponent(trimmed)}&seed=${encodeURIComponent(chosenAvatar.id)}&style=custom&avatar=${encodeURIComponent(chosenAvatar.src)}&pid=${playerId}`)
     }, 150)

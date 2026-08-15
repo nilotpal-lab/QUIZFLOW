@@ -89,6 +89,8 @@ function LobbyInner() {
         if (result === 'ok') {
           setError('')
           setJoined(true)
+        } else if (result === 'ended') {
+          setError(`🚫 Game Over: Room PIN ${pin} has already ended. Please ask your host for the new Game PIN.`)
         } else if (result === 'not_found') {
           attempt++
           if (attempt < maxAttempts) {
