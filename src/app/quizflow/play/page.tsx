@@ -4,7 +4,8 @@ import { Suspense } from 'react'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import {
-  subscribeToSession, submitAnswer, submitFrenzyAnswer, reportViolation, buyPowerUp
+  subscribeToSession, submitAnswer, submitFrenzyAnswer, reportViolation, buyPowerUp,
+  fetchRemoteState, joinSessionAsync
 } from '@/quizflow/sessionStore'
 import type { GameState } from '@/quizflow/sessionStore'
 import { buildAvatarUrl, POWER_UPS, calculatePoints, formatPoints, safeGetSessionStorage, safeSetSessionStorage } from '@/quizflow/utils'
@@ -77,6 +78,7 @@ function StudentPlayScreen() {
   const [isTTSActive, setIsTTSActive]   = useState(false)
   const [sessionTimeout, setSessionTimeout] = useState(false)
   const intervalRef = useRef<NodeJS.Timeout | null>(null)
+  const freezeTimerRef = useRef<NodeJS.Timeout | null>(null)
 
   // Coin shop state
   const [showCoinShop, setShowCoinShop] = useState(false)
@@ -96,8 +98,14 @@ function StudentPlayScreen() {
   const [responseStartMs] = useState(() => Date.now())
   const [answerResponseMs, setAnswerResponseMs] = useState<number|undefined>(undefined)
 
+  const me = gameState?.players?.[playerId]
+  const q  = gameState?.quiz?.questions?.[gameState?.currentQuestionIndex ?? 0] ?? null
+  const totalTime = q?.time_limit_ms ?? 20000
+  const timePct   = totalTime > 0 ? timeMs / totalTime : 0
+  const seconds   = Math.ceil(timeMs / 1000)
+
   // Anti-cheat shield integration with fullscreen enforcement + violation reporting
-  const { violationCount, showWarning, dismissWarning, lastReason, fullscreenActive, enterFullscreen } = useAntiCheat({
+  const { violationCount, showWarning, dismissWarning, lastReason, fullscreenActive, fullscreenSupported, enterFullscreen } = useAntiCheat({
     enabled: gameState?.status === 'question_active' || gameState?.status === 'question_reveal' || gameState?.status === 'boss_frenzy',
     blockCopyPaste: true,
     blockContextMenu: true,
@@ -110,6 +118,32 @@ function StudentPlayScreen() {
     }
   })
 
+  // Screen WakeLock management to keep display awake during active quiz play
+  useEffect(() => {
+    let wakeLock: any = null
+    const requestWakeLock = async () => {
+      try {
+        if ('wakeLock' in navigator) {
+          wakeLock = await (navigator as any).wakeLock.request('screen')
+        }
+      } catch {}
+    }
+    requestWakeLock()
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        requestWakeLock()
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibility)
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility)
+      if (wakeLock) {
+        try { wakeLock.release() } catch {}
+      }
+    }
+  }, [])
+
   // Subscribe to session
   useEffect(() => {
     const unsub = subscribeToSession(pin, (state) => {
@@ -118,7 +152,28 @@ function StudentPlayScreen() {
     return unsub
   }, [pin])
 
-  // Session timeout & unregistered player guard: if no state or not in room, redirect to join
+  // Re-sync immediately on tab visible or when device comes back online
+  useEffect(() => {
+    const onSync = () => {
+      if (document.visibilityState === 'visible' && pin) {
+        fetchRemoteState(pin).then(remote => {
+          if (remote) setGameState(remote)
+        })
+        if (gameState?.status === 'question_active' && gameState.questionEndsAt) {
+          const remaining = Math.max(0, gameState.questionEndsAt - Date.now())
+          setTimeMs(remaining)
+        }
+      }
+    }
+    document.addEventListener('visibilitychange', onSync)
+    window.addEventListener('online', onSync)
+    return () => {
+      document.removeEventListener('visibilitychange', onSync)
+      window.removeEventListener('online', onSync)
+    }
+  }, [pin, gameState?.status, gameState?.questionEndsAt])
+
+  // Session timeout & unregistered player auto-recovery
   useEffect(() => {
     if (!pin || !playerId) {
       router.push(pin ? `/quizflow/join?pin=${pin}` : '/quizflow/join')
@@ -128,12 +183,16 @@ function StudentPlayScreen() {
       if (!gameState) {
         setSessionTimeout(true)
       } else if (gameState.players && !gameState.players[playerId]) {
-        // Player not registered in this room
-        router.push(`/quizflow/join?pin=${pin}`)
+        // Optimistically attempt to re-register player into session before ejecting
+        joinSessionAsync(pin, { id: playerId, nickname, avatarSeed, avatarStyle }).then(res => {
+          if (res !== 'ok') {
+            router.push(`/quizflow/join?pin=${pin}`)
+          }
+        })
       }
-    }, 5000)
+    }, 7000)
     return () => clearTimeout(t)
-  }, [pin, playerId, gameState, router])
+  }, [pin, playerId, gameState, nickname, avatarSeed, avatarStyle, router])
 
   // Navigate away when game ends
   useEffect(() => {
@@ -144,29 +203,46 @@ function StudentPlayScreen() {
     }
   }, [gameState?.status, pin, playerId, router])
 
-  // Reset speech & state when question changes (preserve used power-ups across session)
+  // Comprehensive reset when question changes (preserve cumulative score & used power-ups across session)
   useEffect(() => {
     if (!gameState) return
     const qIdx = gameState.currentQuestionIndex
     if (qIdx !== prevQIndex) {
       setPrevQIndex(qIdx)
       setHiddenChoices(new Set())
+      if (freezeTimerRef.current) {
+        clearTimeout(freezeTimerRef.current)
+        freezeTimerRef.current = null
+      }
       setFrozen(false)
       setDoubleActive(false)
       setPlayedRevealSound(false)
       setIsTTSActive(false)
       stopSpeech()
+      setShowPopup(false)
+      setPopupPoints(0)
+      setAnswerResponseMs(undefined)
+      setShowDamageParticles(false)
+      setParticleTrigger(null)
+      setShowCoinShop(false)
+      if (gameState.status === 'question_active' && gameState.questionEndsAt) {
+        const remaining = Math.max(0, gameState.questionEndsAt - Date.now())
+        setTimeMs(remaining)
+      }
     }
-  }, [gameState?.currentQuestionIndex, prevQIndex, gameState])
+  }, [gameState?.currentQuestionIndex, prevQIndex, gameState?.status, gameState?.questionEndsAt])
 
-  // Cleanup speech on unmount
+  // Cleanup speech and timer on unmount
   useEffect(() => {
     return () => {
       stopSpeech()
+      if (freezeTimerRef.current) {
+        clearTimeout(freezeTimerRef.current)
+      }
     }
   }, [])
 
-  // Play reveal sound audio when status changes to question_reveal
+  // Play reveal sound audio & haptic vibration when status changes to question_reveal
   useEffect(() => {
     if (!gameState || gameState.status !== 'question_reveal' || playedRevealSound) return
     setPlayedRevealSound(true)
@@ -175,6 +251,9 @@ function StudentPlayScreen() {
     const streak = mePlayer?.streak ?? 0
     if (isCorrect) {
       playCorrectSound()
+      if (typeof window !== 'undefined' && window.navigator?.vibrate) {
+        try { window.navigator.vibrate([40, 60, 40]) } catch {}
+      }
       // Trigger correct particle burst
       setParticleTrigger('correct')
       setTimeout(() => setParticleTrigger(null), 900)
@@ -190,6 +269,9 @@ function StudentPlayScreen() {
       }
     } else if (mePlayer?.hasAnswered) {
       playWrongSound()
+      if (typeof window !== 'undefined' && window.navigator?.vibrate) {
+        try { window.navigator.vibrate([100, 50, 100]) } catch {}
+      }
       // Boss raid screen shake + damage on wrong
       if (gameState.gameMode === 'boss_raid') {
         triggerShake(8)
@@ -202,7 +284,6 @@ function StudentPlayScreen() {
     }
     setPrevAnswerCorrect(isCorrect ?? null)
   }, [gameState?.status, playedRevealSound, playerId, gameState, prevStreak, triggerShake])
-
 
   // Local timer (cosmetic — synced with server ends_at)
   useEffect(() => {
@@ -221,8 +302,8 @@ function StudentPlayScreen() {
       return
     }
 
-    const q = gameState.quiz.questions[gameState.currentQuestionIndex]
-    const totalDuration = q?.time_limit_ms ?? 20000
+    const currentQ = gameState.quiz.questions[gameState.currentQuestionIndex]
+    const totalDuration = currentQ?.time_limit_ms ?? 20000
 
     let lastSec = Math.ceil((gameState.questionEndsAt - Date.now()) / 1000)
     const tick = () => {
@@ -231,8 +312,11 @@ function StudentPlayScreen() {
       setTimeMs(Math.max(0, remaining))
       if (currentSec !== lastSec && currentSec > 0) {
         lastSec = currentSec
-        const urgency = totalDuration > 0 ? 1 - Math.max(0, remaining) / totalDuration : 0
-        playCountdownTick(urgency)
+        // Silence ticking sound if player already locked in their answer
+        if (!me?.hasAnswered) {
+          const urgency = totalDuration > 0 ? 1 - Math.max(0, remaining) / totalDuration : 0
+          playCountdownTick(urgency)
+        }
       }
       if (remaining <= 0 && intervalRef.current) clearInterval(intervalRef.current)
     }
@@ -241,13 +325,7 @@ function StudentPlayScreen() {
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current)
     }
-  }, [gameState?.status, gameState?.currentQuestionIndex, gameState?.questionEndsAt, gameState?.isPaused, gameState?.pausedTimeRemainingMs, frozen, gameState])
-
-  const me = gameState?.players[playerId]
-  const q  = gameState ? gameState.quiz.questions[gameState.currentQuestionIndex] : null
-  const totalTime = q?.time_limit_ms ?? 20000
-  const timePct   = totalTime > 0 ? timeMs / totalTime : 0
-  const seconds   = Math.ceil(timeMs / 1000)
+  }, [gameState?.status, gameState?.currentQuestionIndex, gameState?.questionEndsAt, gameState?.isPaused, gameState?.pausedTimeRemainingMs, frozen, gameState, me?.hasAnswered])
 
   // ── Boss Frenzy countdown timer ──
   useEffect(() => {
@@ -305,7 +383,7 @@ function StudentPlayScreen() {
     if (me?.hasAnswered) return
 
     if (typeof window !== 'undefined' && window.navigator?.vibrate) {
-      window.navigator.vibrate(30)
+      try { window.navigator.vibrate(35) } catch {}
     }
 
     playLockInSound()
@@ -331,6 +409,10 @@ function StudentPlayScreen() {
       return next
     })
 
+    if (typeof window !== 'undefined' && window.navigator?.vibrate) {
+      try { window.navigator.vibrate([25, 40, 50]) } catch {}
+    }
+
     if (type === 'fifty_fifty' && q) {
       playPowerUpSound('5050')
       const wrong = q.choices.map((_, i) => i).filter(i => i !== q.correct_index)
@@ -338,7 +420,8 @@ function StudentPlayScreen() {
     } else if (type === 'time_freeze') {
       playPowerUpSound('freeze')
       setFrozen(true)
-      setTimeout(() => setFrozen(false), 5000)
+      if (freezeTimerRef.current) clearTimeout(freezeTimerRef.current)
+      freezeTimerRef.current = setTimeout(() => setFrozen(false), 5000)
     } else if (type === 'double_points') {
       playPowerUpSound('double')
       setDoubleActive(true)
@@ -613,8 +696,8 @@ function StudentPlayScreen() {
 
       {showPopup && <ScorePopup points={popupPoints} onDone={() => setShowPopup(false)} />}
 
-      {/* FULLSCREEN PROMPT — shown when not fullscreen during active question */}
-      {!fullscreenActive && (gameState.status === 'question_active' || gameState.status === 'question_reveal') && (
+      {/* FULLSCREEN PROMPT — shown when not fullscreen during active question and fullscreen is supported by browser */}
+      {!fullscreenActive && fullscreenSupported && (gameState.status === 'question_active' || gameState.status === 'question_reveal') && (
         <div style={{
           position: 'fixed', inset: 0, zIndex: 200,
           background: 'rgba(10,10,11,0.92)',

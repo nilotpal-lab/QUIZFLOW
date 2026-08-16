@@ -1,6 +1,6 @@
 'use client'
 export const dynamic = 'force-dynamic'
-import { useEffect, useState, useCallback, Suspense } from 'react'
+import { useEffect, useState, useCallback, useRef, Suspense } from 'react'
 import Link from 'next/link'
 import { useParams, useSearchParams, useRouter } from 'next/navigation'
 import { subscribeToSession, joinSessionAsync, sendReaction } from '@/quizflow/sessionStore'
@@ -64,11 +64,46 @@ function LobbyInner() {
   const [error, setError]          = useState('')
   const [avatarRotation, setAvatarRotation] = useState(0)
   const [dots, setDots]            = useState('.')
+  const hasNavigatedRef            = useRef(false)
 
   const handleAvatarFlip = () => {
     setAvatarRotation(r => r + 360)
     playClickSound()
   }
+
+  // Keep screen awake while waiting in lobby
+  useEffect(() => {
+    let wakeLock: any = null
+    const requestWakeLock = async () => {
+      try {
+        if ('wakeLock' in navigator) {
+          wakeLock = await (navigator as any).wakeLock.request('screen')
+        }
+      } catch {}
+    }
+    requestWakeLock()
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        requestWakeLock()
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibility)
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility)
+      if (wakeLock) {
+        try { wakeLock.release() } catch {}
+      }
+    }
+  }, [])
+
+  // Prefetch play and results routes for instantaneous transition
+  useEffect(() => {
+    if (pin && playerId) {
+      router.prefetch(`/quizflow/play?pin=${pin}&pid=${playerId}&nickname=${encodeURIComponent(nickname)}&seed=${encodeURIComponent(avatarSeed)}&style=${avatarStyle}`)
+      router.prefetch(`/quizflow/results?pin=${pin}&pid=${playerId}`)
+    }
+  }, [pin, playerId, nickname, avatarSeed, avatarStyle, router])
 
   // Animated waiting dots
   useEffect(() => {
@@ -121,13 +156,18 @@ function LobbyInner() {
     return unsub
   }, [pin])
 
-  // Navigate when game starts or advances
+  // Navigate smoothly when game starts or advances (including boss_frenzy)
   useEffect(() => {
-    if (!gameState) return
-    if (['question_active', 'question_reveal', 'leaderboard'].includes(gameState.status)) {
+    if (!gameState || hasNavigatedRef.current) return
+    if (['question_active', 'question_reveal', 'leaderboard', 'boss_frenzy'].includes(gameState.status)) {
+      hasNavigatedRef.current = true
+      if (typeof window !== 'undefined' && window.navigator?.vibrate) {
+        try { window.navigator.vibrate(40) } catch {}
+      }
       router.push(`/quizflow/play?pin=${pin}&pid=${playerId}&nickname=${encodeURIComponent(nickname)}&seed=${encodeURIComponent(avatarSeed)}&style=${avatarStyle}`)
     }
     if (gameState.status === 'ended') {
+      hasNavigatedRef.current = true
       router.push(`/quizflow/results?pin=${pin}&pid=${playerId}`)
     }
   }, [gameState?.status, pin, playerId, nickname, avatarSeed, avatarStyle, router])

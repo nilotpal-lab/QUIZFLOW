@@ -77,6 +77,7 @@ export interface GameState {
   isPaused?: boolean
   pausedTimeRemainingMs?: number
   aliasMode?: boolean
+  phaseEpoch?: number   // Monotonic phase/transition epoch timestamp
   // Multi-round tournament fields
   tournamentConfig?: import('./types').TournamentConfig
   currentRound?: number
@@ -120,36 +121,77 @@ export function mergeGameStates(current: GameState | null, incoming: GameState |
   if (!current) return incoming
   if (!incoming) return current
 
-  // Identify newest question progression using questionStartedAt timestamp and index
+  // 1. Session Identity & Re-creation Precedence
+  // If incoming has a newer createdAt, a new session was created on the same PIN.
+  // We must not merge dead players or stale state from the previous session.
+  const curCreated = current.createdAt || 0
+  const inCreated = incoming.createdAt || 0
+  if (inCreated > curCreated) {
+    return incoming
+  }
+  if (curCreated > inCreated) {
+    return current
+  }
+
+  // 2. Multi-Round Tournament Causal Ordering
+  const curRound = current.currentRound ?? (current.tournamentConfig?.currentRoundIndex !== undefined ? current.tournamentConfig.currentRoundIndex + 1 : 1)
+  const inRound = incoming.currentRound ?? (incoming.tournamentConfig?.currentRoundIndex !== undefined ? incoming.tournamentConfig.currentRoundIndex + 1 : 1)
+  const isRoundAdvancement = inRound > curRound
+  const isRoundRegression = curRound > inRound
+
+  // 3. Question Index & Start Timestamp Progression
   const currentQ = current.currentQuestionIndex ?? 0
   const incomingQ = incoming.currentQuestionIndex ?? 0
   const currentStartedAt = current.questionStartedAt ?? 0
   const incomingStartedAt = incoming.questionStartedAt ?? 0
 
-  let base: GameState
-  const isQuestionAdvancement = incomingQ > currentQ || (incomingQ === currentQ && incomingStartedAt > currentStartedAt && incoming.status === 'question_active')
-  const isQuestionRegression = currentQ > incomingQ && !isQuestionAdvancement
+  const isQuestionAdvancement = isRoundAdvancement || (!isRoundRegression && (
+    incomingQ > currentQ ||
+    (incomingQ === currentQ && incomingStartedAt > currentStartedAt && (incoming.status === 'question_active' || incoming.status === 'lobby'))
+  ))
+  const isQuestionRegression = isRoundRegression || (!isRoundAdvancement && (
+    currentQ > incomingQ ||
+    (currentQ === incomingQ && currentStartedAt > incomingStartedAt && (current.status === 'question_active' || current.status === 'lobby'))
+  ))
 
-  if (isQuestionAdvancement) {
+  // 4. Base Selection via Monotonic Epochs & Causal Status Weights
+  let base: GameState
+  if (isRoundAdvancement || isQuestionAdvancement) {
     base = incoming
-  } else if (isQuestionRegression) {
+  } else if (isRoundRegression || isQuestionRegression) {
     base = current
   } else {
-    // Same question & same start timestamp: prioritize ended > boss_frenzy > leaderboard > question_reveal > question_active > lobby
-    const statusWeight: Record<GameStatus, number> = {
-      lobby: 0,
-      question_active: 1,
-      question_reveal: 2,
-      leaderboard: 3,
-      boss_frenzy: 4,
-      ended: 5,
+    // Same round, question, and start timestamp: check phaseEpoch if present
+    const curEpoch = current.phaseEpoch ?? 0
+    const inEpoch = incoming.phaseEpoch ?? 0
+
+    if (inEpoch > curEpoch && inEpoch > 0) {
+      base = incoming
+    } else if (curEpoch > inEpoch && curEpoch > 0) {
+      base = current
+    } else {
+      // Causal status weight ordering for same question:
+      // lobby (0) -> question_active (1) -> question_reveal (2) -> leaderboard (3) -> boss_frenzy (4) -> ended (5)
+      const statusWeight: Record<GameStatus, number> = {
+        lobby: 0,
+        question_active: 1,
+        question_reveal: 2,
+        leaderboard: 3,
+        boss_frenzy: 4,
+        ended: 5,
+      }
+      const inWeight = statusWeight[incoming.status] ?? 0
+      const curWeight = statusWeight[current.status] ?? 0
+      if (inWeight !== curWeight) {
+        base = inWeight > curWeight ? incoming : current
+      } else {
+        // Same status: prefer incoming to adopt host timer/pause updates
+        base = incoming
+      }
     }
-    const inWeight = statusWeight[incoming.status] ?? 0
-    const curWeight = statusWeight[current.status] ?? 0
-    base = inWeight >= curWeight ? incoming : current
   }
 
-  // Merge players monotonically: never erase cumulative scores or streaks, but respect question reset!
+  // 5. Merge players monotonically: never erase cumulative scores or streaks, but respect question reset!
   const mergedPlayers: Record<string, Player> = {}
   const allPlayerIds = Array.from(new Set([
     ...Object.keys(current.players || {}),
@@ -160,26 +202,30 @@ export function mergeGameStates(current: GameState | null, incoming: GameState |
     const p1 = current.players?.[pid]
     const p2 = incoming.players?.[pid]
     if (!p1 && p2) {
-      mergedPlayers[pid] = p2
+      mergedPlayers[pid] = { ...p2 }
     } else if (p1 && !p2) {
-      mergedPlayers[pid] = p1
+      mergedPlayers[pid] = { ...p1 }
     } else if (p1 && p2) {
       const score = Math.max(p1.score || 0, p2.score || 0)
-      const streak = Math.max(p1.streak || 0, p2.streak || 0)
-      const maxStreak = Math.max(p1.maxStreak || 0, p2.maxStreak || 0, streak)
+      const maxStreak = Math.max(p1.maxStreak || 0, p2.maxStreak || 0, p1.streak || 0, p2.streak || 0)
       const totalCorrect = Math.max(p1.totalCorrect || 0, p2.totalCorrect || 0)
       const totalAnswered = Math.max(p1.totalAnswered || 0, p2.totalAnswered || 0)
       const totalResponseTimeMs = Math.max(p1.totalResponseTimeMs || 0, p2.totalResponseTimeMs || 0)
       const coins = Math.max(p1.coins || 0, p2.coins || 0)
       const violations = Math.max(p1.violations || 0, p2.violations || 0)
-      const flagged = p1.flagged || p2.flagged
+      const flagged = Boolean(p1.flagged || p2.flagged)
+      const frozenUntil = Math.max(p1.frozenUntil || 0, p2.frozenUntil || 0)
+      const bidMultiplier = Math.max(p1.bidMultiplier || 1, p2.bidMultiplier || 1)
+      const frenzyScore = Math.max(p1.frenzyScore || 0, p2.frenzyScore || 0)
+      const connected = Boolean(p1.connected || p2.connected)
+      const coinPowerUps = p2.coinPowerUps || p1.coinPowerUps
 
-      if (isQuestionAdvancement) {
-        // Advanced to new question -> reset per-question answer flags from incoming (Host)
+      if (isRoundAdvancement || isQuestionAdvancement) {
+        // Advanced to new question or tournament round -> reset per-question answer flags from incoming (Host)
         mergedPlayers[pid] = {
           ...p2,
           score,
-          streak,
+          streak: p2.streak ?? p1.streak ?? 0,
           maxStreak,
           totalCorrect,
           totalAnswered,
@@ -187,36 +233,21 @@ export function mergeGameStates(current: GameState | null, incoming: GameState |
           coins,
           violations,
           flagged,
+          frozenUntil,
+          bidMultiplier: p2.bidMultiplier ?? 1,
+          frenzyScore,
+          connected,
+          coinPowerUps,
           hasAnswered: p2.hasAnswered || false,
           selectedIndex: p2.selectedIndex ?? null,
           lastAnswerCorrect: p2.lastAnswerCorrect ?? null,
           lastPointsEarned: p2.lastPointsEarned ?? 0
         }
-      } else if (isQuestionRegression) {
-        // Keep current
+      } else if (isRoundRegression || isQuestionRegression) {
+        // Keep current state
         mergedPlayers[pid] = {
           ...p1,
           score,
-          streak,
-          maxStreak,
-          totalCorrect,
-          totalAnswered,
-          totalResponseTimeMs,
-          coins,
-          violations,
-          flagged
-        }
-      } else {
-        // Same question: if either answered on THIS question, preserve the answer
-        const hasAnswered = Boolean(p1.hasAnswered || p2.hasAnswered)
-        const selectedIndex = p1.hasAnswered && p1.selectedIndex !== null ? p1.selectedIndex : p2.selectedIndex
-        const lastAnswerCorrect = p1.hasAnswered && p1.lastAnswerCorrect !== null ? p1.lastAnswerCorrect : p2.lastAnswerCorrect
-        const lastPointsEarned = Math.max(p1.lastPointsEarned || 0, p2.lastPointsEarned || 0)
-
-        mergedPlayers[pid] = {
-          ...(p2.joinedAt >= p1.joinedAt ? p2 : p1),
-          score,
-          streak,
           maxStreak,
           totalCorrect,
           totalAnswered,
@@ -224,6 +255,70 @@ export function mergeGameStates(current: GameState | null, incoming: GameState |
           coins,
           violations,
           flagged,
+          frozenUntil,
+          frenzyScore,
+          connected
+        }
+      } else {
+        // Same question: causally determine answer flags and streak
+        let selectedIndex: number | null
+        let lastAnswerCorrect: boolean | null
+        let lastPointsEarned: number
+        let hasAnswered: boolean
+        let currentStreak: number
+
+        if (p1.hasAnswered && !p2.hasAnswered) {
+          hasAnswered = true
+          selectedIndex = p1.selectedIndex
+          lastAnswerCorrect = p1.lastAnswerCorrect
+          lastPointsEarned = p1.lastPointsEarned || 0
+          currentStreak = p1.streak || 0
+        } else if (!p1.hasAnswered && p2.hasAnswered) {
+          hasAnswered = true
+          selectedIndex = p2.selectedIndex
+          lastAnswerCorrect = p2.lastAnswerCorrect
+          lastPointsEarned = p2.lastPointsEarned || 0
+          currentStreak = p2.streak || 0
+        } else if (p1.hasAnswered && p2.hasAnswered) {
+          hasAnswered = true
+          selectedIndex = p2.selectedIndex ?? p1.selectedIndex
+          lastAnswerCorrect = p2.lastAnswerCorrect !== null ? p2.lastAnswerCorrect : p1.lastAnswerCorrect
+          lastPointsEarned = Math.max(p1.lastPointsEarned || 0, p2.lastPointsEarned || 0)
+
+          if ((p2.totalAnswered || 0) > (p1.totalAnswered || 0)) {
+            currentStreak = p2.streak || 0
+          } else if ((p1.totalAnswered || 0) > (p2.totalAnswered || 0)) {
+            currentStreak = p1.streak || 0
+          } else {
+            // Same answer count: if answer was wrong, streak is 0, never resurrect via Math.max
+            currentStreak = (lastAnswerCorrect === false) ? 0 : Math.max(p1.streak || 0, p2.streak || 0)
+          }
+        } else {
+          hasAnswered = false
+          selectedIndex = null
+          lastAnswerCorrect = null
+          lastPointsEarned = 0
+          currentStreak = p2.streak ?? p1.streak ?? 0
+        }
+
+        const preferredPlayer = (p2.joinedAt >= (p1.joinedAt || 0)) ? p2 : p1
+
+        mergedPlayers[pid] = {
+          ...preferredPlayer,
+          score,
+          streak: currentStreak,
+          maxStreak,
+          totalCorrect,
+          totalAnswered,
+          totalResponseTimeMs,
+          coins,
+          violations,
+          flagged,
+          frozenUntil,
+          bidMultiplier,
+          frenzyScore,
+          connected,
+          coinPowerUps,
           hasAnswered,
           selectedIndex,
           lastAnswerCorrect,
@@ -233,11 +328,78 @@ export function mergeGameStates(current: GameState | null, incoming: GameState |
     }
   }
 
-  // Preserve answer keys the server stripped for anti-cheat.
-  // The server omits correct_index while a question is active; if we let that
-  // overwrite the client's quiz, local scoring breaks (answers look wrong even
-  // when the server scores them correctly). Keep the client's key whenever the
-  // incoming question doesn't carry one.
+  // 6. Boss Health & Max Health Merging
+  const bossMaxHealth = incoming.bossMaxHealth ?? current.bossMaxHealth ?? 100
+  let bossHealth: number
+  if (isRoundAdvancement) {
+    bossHealth = incoming.bossHealth ?? bossMaxHealth
+  } else {
+    const h1 = current.bossHealth ?? bossMaxHealth
+    const h2 = incoming.bossHealth ?? bossMaxHealth
+    bossHealth = Math.min(h1, h2)
+  }
+
+  // 7. Boss Frenzy Merging
+  let mergedBossFrenzy: import('./types').BossFrenzyState | undefined
+  if (current.bossFrenzy || incoming.bossFrenzy) {
+    const bf1 = current.bossFrenzy
+    const bf2 = incoming.bossFrenzy
+    if (!bf1) {
+      mergedBossFrenzy = bf2 ? { ...bf2, frenzyScores: { ...(bf2.frenzyScores || {}) } } : undefined
+    } else if (!bf2) {
+      mergedBossFrenzy = bf1 ? { ...bf1, frenzyScores: { ...(bf1.frenzyScores || {}) } } : undefined
+    } else {
+      const isEnded = base.status === 'ended'
+      const active = isEnded ? false : (bf1.active || bf2.active)
+      const currentFrenzyIndex = Math.max(bf1.currentFrenzyIndex || 0, bf2.currentFrenzyIndex || 0)
+      const questionStartedAt = Math.max(bf1.questionStartedAt || 0, bf2.questionStartedAt || 0)
+      const endsAt = Math.max(bf1.endsAt || 0, bf2.endsAt || 0)
+      const allPids = Array.from(new Set([
+        ...Object.keys(bf1.frenzyScores || {}),
+        ...Object.keys(bf2.frenzyScores || {})
+      ]))
+      const frenzyScores: Record<string, number> = {}
+      for (const fpid of allPids) {
+        frenzyScores[fpid] = Math.max(bf1.frenzyScores?.[fpid] || 0, bf2.frenzyScores?.[fpid] || 0)
+      }
+      mergedBossFrenzy = {
+        active,
+        endsAt,
+        questionIndices: bf2.questionIndices || bf1.questionIndices || [],
+        currentFrenzyIndex,
+        questionStartedAt,
+        frenzyScores
+      }
+    }
+  }
+
+  // 8. Reactions Merging (Deduplicate and sort by createdAt)
+  const reactionMap = new Map<string, Reaction>()
+  for (const rx of [...(current.reactions || []), ...(incoming.reactions || [])]) {
+    if (rx?.id && !reactionMap.has(rx.id)) {
+      reactionMap.set(rx.id, rx)
+    }
+  }
+  const mergedReactions = Array.from(reactionMap.values())
+    .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0))
+    .slice(-25)
+
+  // 9. Tournament Eliminations & Config Merging
+  const mergedEliminated = Array.from(new Set([
+    ...(current.eliminatedPlayers || []),
+    ...(incoming.eliminatedPlayers || [])
+  ]))
+  const mergedTournamentConfig = incoming.tournamentConfig || current.tournamentConfig
+    ? {
+        ...(incoming.tournamentConfig || current.tournamentConfig!),
+        eliminations: {
+          ...(current.tournamentConfig?.eliminations || {}),
+          ...(incoming.tournamentConfig?.eliminations || {})
+        }
+      }
+    : undefined
+
+  // 10. Preserve anti-cheat answer keys stripped by server
   const baseQuiz = base.quiz && current.quiz && base.quiz.questions && current.quiz.questions
     ? {
         ...base.quiz,
@@ -257,8 +419,13 @@ export function mergeGameStates(current: GameState | null, incoming: GameState |
   return {
     ...base,
     quiz: baseQuiz,
-    bossHealth: Math.min(current.bossHealth ?? 100, incoming.bossHealth ?? 100),
+    bossHealth,
+    bossMaxHealth,
     players: mergedPlayers,
+    reactions: mergedReactions,
+    bossFrenzy: mergedBossFrenzy,
+    eliminatedPlayers: mergedEliminated.length > 0 ? mergedEliminated : undefined,
+    tournamentConfig: mergedTournamentConfig,
     tacticsRankings: tactics.map((p, i) => ({ ...p, rank: i + 1, tacticsRank: i + 1 })),
     masteryRankings: mastery.map((p, i) => ({ ...p, masteryRank: i + 1 }))
   }
@@ -275,11 +442,20 @@ function getChannel(): BroadcastChannel | null {
   return _channel
 }
 
-function postRelay(pin: string, payload: GameState) {
+function postRelay(pin: string, payload: GameState, immediate = false) {
   const status = payload?.status
-  // Flush immediately on status transitions (host-driven) — everything else can
-  // tolerate a 200ms coalescing window since clients poll the relay anyway.
-  const flushNow = Boolean(status) && _lastPostedStatus[pin] !== status
+  const qIdx = payload?.currentQuestionIndex ?? 0
+  const round = payload?.currentRound ?? 1
+  const epoch = payload?.phaseEpoch ?? 0
+  // Flush immediately on status transitions, question index change, round change, phaseEpoch change, or explicit immediate flag
+  const flushNow = immediate || (
+    Boolean(status) && (
+      _lastPostedStatus[pin] !== status ||
+      _lastPostedQIdx[pin] !== qIdx ||
+      _lastPostedRound[pin] !== round ||
+      (_lastPostedPhaseEpoch[pin] !== epoch && epoch > 0)
+    )
+  )
   if (_relayTimers[pin]) {
     clearTimeout(_relayTimers[pin])
     delete _relayTimers[pin]
@@ -287,6 +463,9 @@ function postRelay(pin: string, payload: GameState) {
   const doPost = () => {
     delete _relayTimers[pin]
     if (status) _lastPostedStatus[pin] = status
+    _lastPostedQIdx[pin] = qIdx
+    _lastPostedRound[pin] = round
+    if (epoch > 0) _lastPostedPhaseEpoch[pin] = epoch
     fetch(`/api/room/${pin}?_t=${Date.now()}`, {
       method: 'POST',
       headers: {
@@ -302,7 +481,7 @@ function postRelay(pin: string, payload: GameState) {
   else _relayTimers[pin] = setTimeout(doPost, 200)
 }
 
-function broadcast(pin: string, state?: GameState, relay = true) {
+function broadcast(pin: string, state?: GameState, relay = true, immediate = false) {
   const ch = getChannel()
   if (ch) ch.postMessage({ pin, ts: Date.now() })
 
@@ -310,7 +489,7 @@ function broadcast(pin: string, state?: GameState, relay = true) {
   if (typeof window === 'undefined' || !payload) return
 
   // 1. Cloud Room Relay Sync (Works across all laptops, phones, and tablets over the internet)
-  if (relay) postRelay(pin, payload)
+  if (relay) postRelay(pin, payload, immediate)
 
   // 2. Supabase Realtime WebSocket Sync (if configured) — reuse and subscribe the cached channel
   if (supabase) {
@@ -346,6 +525,9 @@ const _servedByPin: Record<string, GameState> = {}
 // immediately when the session status changes so host transitions stay snappy.
 const _relayTimers: Record<string, ReturnType<typeof setTimeout>> = {}
 const _lastPostedStatus: Record<string, string> = {}
+const _lastPostedQIdx: Record<string, number> = {}
+const _lastPostedRound: Record<string, number> = {}
+const _lastPostedPhaseEpoch: Record<string, number> = {}
 
 // Cached Supabase broadcast channels per pin — creating a channel on every
 // broadcast leaked sockets during busy games.
@@ -353,9 +535,10 @@ const _relayChannels: Record<string, any> = {}
 
 function key(pin: string) { return STORE_PREFIX + pin }
 
-export function saveState(state: GameState, opts?: { relay?: boolean }) {
+export function saveState(state: GameState, opts?: { relay?: boolean; immediate?: boolean }): GameState {
   _memState[state.pin] = state
   const skipRelay = opts?.relay === false
+  const immediate = opts?.immediate === true
   if (typeof window !== 'undefined') {
     try {
       const current = loadState(state.pin)
@@ -371,11 +554,11 @@ export function saveState(state: GameState, opts?: { relay?: boolean }) {
       }
       _sigByPin[state.pin] = sig
       _servedByPin[state.pin] = merged
-      localStorage.setItem(key(state.pin), JSON.stringify(merged))
-      broadcast(state.pin, _memState[state.pin], !skipRelay)
+      localStorage.setItem(key(state.pin), sig)
+      broadcast(state.pin, _memState[state.pin], !skipRelay, immediate)
     } catch {}
   } else {
-    broadcast(state.pin, _memState[state.pin], !skipRelay)
+    broadcast(state.pin, _memState[state.pin], !skipRelay, immediate)
   }
   return _memState[state.pin]
 }
@@ -420,7 +603,7 @@ export async function fetchRemoteState(pin: string, maxRetries = 3): Promise<Gam
           _sigByPin[cleanPin] = sig
           _servedByPin[cleanPin] = merged
           try {
-            localStorage.setItem(key(cleanPin), JSON.stringify(merged))
+            localStorage.setItem(key(cleanPin), sig)
           } catch {}
           return merged as GameState
         }
@@ -438,6 +621,9 @@ export function deleteState(pin: string) {
   delete _sigByPin[pin]
   delete _servedByPin[pin]
   delete _lastPostedStatus[pin]
+  delete _lastPostedQIdx[pin]
+  delete _lastPostedRound[pin]
+  delete _lastPostedPhaseEpoch[pin]
   if (_relayTimers[pin]) {
     clearTimeout(_relayTimers[pin])
     delete _relayTimers[pin]
@@ -460,11 +646,41 @@ export function subscribeToSession(
   // 1. Immediate read from local cache
   const local = loadState(pin)
 
-  // Track the latest known status so polling can adapt its cadence.
-  let knownStatus: GameStatus | '' = local?.status || ''
   const notify = (state: GameState | null) => {
-    if (state) knownStatus = state.status
-    callback(state ? { ...state, players: { ...(state.players || {}) } } : null)
+    if (!state) {
+      callback(null)
+      return
+    }
+    // ALWAYS pass a freshly cloned immutable snapshot with deep clones of players and nested collections
+    // so React useState / useSyncExternalStore never bails out
+    const clonedPlayers: Record<string, Player> = {}
+    if (state.players) {
+      for (const [id, p] of Object.entries(state.players)) {
+        clonedPlayers[id] = {
+          ...p,
+          coinPowerUps: p.coinPowerUps ? [...p.coinPowerUps] : undefined
+        }
+      }
+    }
+    const clonedState: GameState = {
+      ...state,
+      players: clonedPlayers,
+      tacticsRankings: state.tacticsRankings ? state.tacticsRankings.map(p => ({ ...p })) : undefined,
+      masteryRankings: state.masteryRankings ? state.masteryRankings.map(p => ({ ...p })) : undefined,
+      reactions: state.reactions ? [...state.reactions] : undefined,
+      eliminatedPlayers: state.eliminatedPlayers ? [...state.eliminatedPlayers] : undefined,
+      bossFrenzy: state.bossFrenzy ? {
+        ...state.bossFrenzy,
+        questionIndices: [...(state.bossFrenzy.questionIndices || [])],
+        frenzyScores: { ...(state.bossFrenzy.frenzyScores || {}) }
+      } : undefined,
+      tournamentConfig: state.tournamentConfig ? {
+        ...state.tournamentConfig,
+        rounds: state.tournamentConfig.rounds ? [...state.tournamentConfig.rounds] : [],
+        eliminations: { ...(state.tournamentConfig.eliminations || {}) }
+      } : undefined
+    }
+    callback(clonedState)
   }
 
   if (local) notify(local)
@@ -706,11 +922,12 @@ export function startGame(pin: string) {
     currentQuestionIndex: 0,
     questionStartedAt: now,
     questionEndsAt: now + timeLimit,
+    phaseEpoch: now,
     revealCorrectIndex: null,
     players: Object.fromEntries(
       Object.entries(state.players || {}).map(([id, p]) => [id, { ...p, hasAnswered: false, selectedIndex: null, lastAnswerCorrect: null, lastPointsEarned: 0 }])
     )
-  })
+  }, { immediate: true })
 }
 
 export function revealAnswer(pin: string) {
@@ -718,7 +935,12 @@ export function revealAnswer(pin: string) {
   if (!state || !state.quiz?.questions?.length) return
   const q = state.quiz.questions[state.currentQuestionIndex]
   const correctIdx = q?.correct_index ?? 0
-  saveState({ ...state, status: 'question_reveal', revealCorrectIndex: correctIdx })
+  saveState({
+    ...state,
+    status: 'question_reveal',
+    revealCorrectIndex: correctIdx,
+    phaseEpoch: Date.now()
+  }, { immediate: true })
 }
 
 export function showLeaderboard(pin: string) {
@@ -744,9 +966,10 @@ export function showLeaderboard(pin: string) {
     ...state,
     status: 'leaderboard',
     players: updated,
+    phaseEpoch: Date.now(),
     tacticsRankings: tactics.map((p, i) => ({ ...p, rank: i + 1, tacticsRank: i + 1 })),
     masteryRankings: mastery.map((p, i) => ({ ...p, masteryRank: i + 1 })),
-  })
+  }, { immediate: true })
 }
 
 export function nextQuestion(pin: string) {
@@ -772,9 +995,10 @@ export function nextQuestion(pin: string) {
     currentQuestionIndex: nextIdx,
     questionStartedAt: now,
     questionEndsAt: now + timeLimit,
+    phaseEpoch: now,
     revealCorrectIndex: null,
     players: resetPlayers,
-  })
+  }, { immediate: true })
 }
 
 export function endGame(pin: string) {
@@ -799,12 +1023,13 @@ export function endGame(pin: string) {
   const finalState: GameState = {
     ...state,
     status: 'ended',
+    phaseEpoch: Date.now(),
     players: updated,
     tacticsRankings: tactics.map((p, i) => ({ ...p, rank: i + 1, tacticsRank: i + 1 })),
     masteryRankings: mastery.map((p, i) => ({ ...p, masteryRank: i + 1 })),
   }
 
-  saveState(finalState)
+  saveState(finalState, { immediate: true })
 
   try {
     const { recordCompletedSession } = require('./historyStore')
@@ -819,7 +1044,7 @@ export function kickPlayer(pin: string, playerId: string) {
   if (!state) return
   const players = { ...state.players }
   delete players[playerId]
-  saveState({ ...state, players })
+  saveState({ ...state, players, phaseEpoch: Date.now() }, { immediate: true })
 }
 
 /**
@@ -881,9 +1106,10 @@ export function eliminateRoundLosers(pin: string, roundNumber: number, rule: str
 
   saveState({
     ...state,
+    phaseEpoch: Date.now(),
     eliminatedPlayers: allEliminated,
     tournamentConfig: tc ? { ...tc, eliminations: newEliminations } : undefined
-  })
+  }, { immediate: true })
 
   return eliminated
 }
@@ -942,12 +1168,13 @@ export function advanceTournamentRound(pin: string) {
     currentQuestionIndex: 0,
     questionStartedAt: 0,
     questionEndsAt: 0,
+    phaseEpoch: Date.now(),
     revealCorrectIndex: null,
     currentRound: nextRoundConfig.roundNumber,
     tournamentRoundLabel: `Round ${nextRoundConfig.roundNumber} of ${tc.rounds.length}`,
     tournamentConfig: updatedTc,
     players: resetPlayers
-  })
+  }, { immediate: true })
 }
 
 
@@ -961,14 +1188,16 @@ export function togglePauseTimer(pin: string) {
       isPaused: false,
       questionEndsAt: Date.now() + remaining,
       pausedTimeRemainingMs: undefined,
-    })
+      phaseEpoch: Date.now(),
+    }, { immediate: true })
   } else {
     const remaining = Math.max(0, state.questionEndsAt - Date.now())
     saveState({
       ...state,
       isPaused: true,
       pausedTimeRemainingMs: remaining,
-    })
+      phaseEpoch: Date.now(),
+    }, { immediate: true })
   }
 }
 
@@ -979,12 +1208,14 @@ export function extendTimer(pin: string, addMs: number = 15000) {
     saveState({
       ...state,
       pausedTimeRemainingMs: (state.pausedTimeRemainingMs || 0) + addMs,
-    })
+      phaseEpoch: Date.now(),
+    }, { immediate: true })
   } else {
     saveState({
       ...state,
       questionEndsAt: state.questionEndsAt + addMs,
-    })
+      phaseEpoch: Date.now(),
+    }, { immediate: true })
   }
 }
 
@@ -1011,7 +1242,8 @@ export function toggleAliasMode(pin: string) {
   saveState({
     ...state,
     aliasMode: !state.aliasMode,
-  })
+    phaseEpoch: Date.now(),
+  }, { immediate: true })
 }
 
 
@@ -1157,7 +1389,15 @@ export function sendReaction(pin: string, emoji: string, senderName?: string) {
     createdAt: Date.now(),
   }
   const reactions = [...(state.reactions || []), newReaction].slice(-25)
-  saveState({ ...state, reactions })
+  saveState({ ...state, reactions }, { relay: false })
+
+  if (typeof window !== 'undefined') {
+    fetch(`/api/room/${pin}?_t=${Date.now()}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'reaction', reaction: newReaction })
+    }).catch(() => {})
+  }
 }
 
 export function submitAnswer(pin: string, playerId: string, selectedIndex: number, powerUpActive = false) {
@@ -1289,7 +1529,7 @@ export function startBossFrenzy(pin: string) {
     frenzyScores: Object.fromEntries(Object.keys(state.players).map(id => [id, 0]))
   }
 
-  saveState({ ...state, status: 'boss_frenzy', bossFrenzy })
+  saveState({ ...state, status: 'boss_frenzy', bossFrenzy, phaseEpoch: now }, { immediate: true })
 }
 
 /**
@@ -1347,6 +1587,7 @@ export function submitFrenzyAnswer(pin: string, playerId: string, selectedIndex:
     ...state,
     players: updatedPlayers,
     bossFrenzy: updatedFrenzy,
+    phaseEpoch: Date.now(),
     status: isLastQ ? 'ended' : 'boss_frenzy'
   }, { relay: false })
 
@@ -1386,8 +1627,9 @@ export function endBossFrenzy(pin: string) {
     ...state,
     players: updatedPlayers,
     status: 'ended',
+    phaseEpoch: Date.now(),
     bossFrenzy: { ...state.bossFrenzy, active: false }
-  })
+  }, { immediate: true })
 }
 
 // ── Anti-Cheat Violation Reporting ───────────────────────────────

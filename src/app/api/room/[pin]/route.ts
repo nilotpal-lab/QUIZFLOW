@@ -79,8 +79,8 @@ function writeTmpRoom(pin: string, data: { state: any; updatedAt: number }) {
 }
 
 // Supabase DB persistence.
-// Joins and status transitions write immediately (forceImmediate=true).
-// Answer submits debounce at 1500ms to reduce DB pressure during 150-player games.
+// Joins, room creation, and status transitions write immediately and are awaited (forceImmediate=true).
+// Rapid in-game answer submissions debounce at 1500ms to reduce DB pressure during 150-player games.
 const _pendingDbWrites = new Map<string, { state: any; timer: ReturnType<typeof setTimeout> }>()
 
 function debouncedSupabaseUpsert(pin: string, state: any, forceImmediate = false) {
@@ -92,7 +92,7 @@ function debouncedSupabaseUpsert(pin: string, state: any, forceImmediate = false
       clearTimeout(existing.timer)
       _pendingDbWrites.delete(pin)
     }
-    performSupabaseWrite(pin, state) // fire-and-forget — no await
+    performSupabaseWrite(pin, state) // fire and forget non-blocking
     return
   }
 
@@ -106,15 +106,15 @@ function debouncedSupabaseUpsert(pin: string, state: any, forceImmediate = false
     timer: setTimeout(() => {
       _pendingDbWrites.delete(pin)
       performSupabaseWrite(pin, entry.state)
-    }, 1500) // reduced from 2500ms to 1500ms
+    }, 1500)
   }
   _pendingDbWrites.set(pin, entry)
 }
 
-async function performSupabaseWrite(pin: string, current: any) {
+async function performSupabaseWrite(pin: string, current: any): Promise<void> {
   if (!supabase || !current) return
   try {
-    await supabase.from('quizzes').upsert({
+    const upsertPromise = supabase.from('quizzes').upsert({
       id: 'room_' + pin,
       host_id: current.hostId || 'host_live',
       title: current.quiz?.title || 'Live Room ' + pin,
@@ -124,16 +124,23 @@ async function performSupabaseWrite(pin: string, current: any) {
       is_draft: false,
       updated_at: new Date().toISOString()
     })
-  } catch {}
+    const timeoutPromise = new Promise((resolve) => setTimeout(resolve, 800))
+    await Promise.race([upsertPromise, timeoutPromise])
+  } catch (err) {
+    console.warn(`[QuizFlow Relay] Supabase write failed for room ${pin}:`, err)
+  }
 }
 
 function loadAnswerKeys(pin: string): number[] {
-  if (answerKeys.has(pin)) return answerKeys.get(pin)!
+  if (answerKeys.has(pin)) {
+    const mem = answerKeys.get(pin)!
+    if (mem.length > 0) return mem
+  }
   try {
     const kf = getKeyPath(pin)
     if (fs.existsSync(kf)) {
       const keys = JSON.parse(fs.readFileSync(kf, 'utf8'))
-      if (Array.isArray(keys)) {
+      if (Array.isArray(keys) && keys.length > 0) {
         answerKeys.set(pin, keys)
         return keys
       }
@@ -143,6 +150,7 @@ function loadAnswerKeys(pin: string): number[] {
 }
 
 function saveAnswerKeys(pin: string, keys: number[]) {
+  if (!Array.isArray(keys) || keys.length === 0) return
   answerKeys.set(pin, keys)
   try {
     fs.writeFileSync(getKeyPath(pin), JSON.stringify(keys), 'utf8')
@@ -150,14 +158,26 @@ function saveAnswerKeys(pin: string, keys: number[]) {
 }
 
 /**
+ * Extract and cache answer keys from state if present.
+ */
+function extractAndSaveKeysFromState(pin: string, state: any) {
+  if (state?.quiz?.questions && Array.isArray(state.quiz.questions)) {
+    const keys = state.quiz.questions.map((q: any) => (typeof q?.correct_index === 'number' ? q.correct_index : -1))
+    if (keys.some((k: number) => k >= 0)) {
+      saveAnswerKeys(pin, keys)
+    }
+  }
+}
+
+/**
  * Strip correct_index from quiz questions in client-facing state.
- * correct_index is only injected back into state when status === 'question_reveal'.
+ * correct_index is only injected back into state when status === 'question_reveal' or game has ended.
  */
 function sanitizeStateForClient(state: any, pin: string): any {
   if (!state?.quiz?.questions) return state
 
   const isActive = state.status === 'question_active' || state.status === 'boss_frenzy'
-  if (!isActive) return state // reveal/leaderboard/ended: send full state
+  if (!isActive) return state // reveal/leaderboard/ended/lobby: send full state
 
   return {
     ...state,
@@ -179,11 +199,11 @@ function computeCoins(difficulty: string, responseTimeMs: number, isCorrect: boo
   }
   const base = difficulty === 'hard' ? 25 : difficulty === 'medium' ? 18 : 12
   const speedBonus = responseTimeMs < 5000 ? 8 : responseTimeMs < 10000 ? 4 : 0
-  const streakBonus = streak >= 3 ? 5 : 0
+  const streakBonus = streak >= 2 ? 5 : 0
   return base + speedBonus + streakBonus
 }
 
-/** Compute points with difficulty multiplier and bid multiplier */
+/** Compute points with difficulty multiplier, speed decay, streak bonus, and bid multiplier */
 function computePoints(
   timeRemainingMs: number,
   totalTimeMs: number,
@@ -195,16 +215,17 @@ function computePoints(
   const diffMult = difficulty === 'hard' ? 1.5 : difficulty === 'medium' ? 1.25 : 1
   const ratio = Math.max(0, Math.min(1, (timeRemainingMs || 0) / (totalTimeMs || 20000)))
   const speedFactor = 0.5 + 0.5 * ratio
-  const streakMultiplier = 1 + Math.min(streak * 0.1, 0.5)
+  const streakMultiplier = 1 + Math.min((streak || 0) * 0.1, 0.5)
   const multiplier = (powerUpActive ? 2 : 1) * (bidMultiplier || 1) * diffMult
   const pts = Math.round(Math.max(50, 1000 * speedFactor * streakMultiplier * multiplier))
   return Math.min(12000, pts)
 }
 
 const noCacheHeaders = {
-  'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
+  'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0, s-maxage=0',
   'CDN-Cache-Control': 'no-store',
   'Vercel-CDN-Cache-Control': 'no-store',
+  'Surrogate-Control': 'no-store',
   'Pragma': 'no-cache',
   'Expires': '0'
 }
@@ -215,12 +236,13 @@ export async function GET(
 ) {
   const pin = params?.pin?.trim().toUpperCase()
   if (!pin) {
-    return NextResponse.json({ error: 'PIN required' }, { status: 400 })
+    return NextResponse.json({ error: 'PIN required' }, { status: 400, headers: noCacheHeaders })
   }
 
   // 1. Check in-memory map
   let room = rooms.get(pin)
   if (room?.state) {
+    extractAndSaveKeysFromState(pin, room.state)
     return NextResponse.json({
       success: true, pin,
       state: sanitizeStateForClient(room.state, pin),
@@ -232,7 +254,7 @@ export async function GET(
   const tmp = readTmpRoom(pin)
   if (tmp?.state) {
     rooms.set(pin, tmp)
-    // Also restore answer keys from disk
+    extractAndSaveKeysFromState(pin, tmp.state)
     loadAnswerKeys(pin)
     return NextResponse.json({
       success: true, pin,
@@ -244,11 +266,16 @@ export async function GET(
   // 3. Fallback to Supabase Cloud Database if serverless lambda was cold
   if (supabase) {
     try {
-      const { data } = await supabase
+      const fetchPromise = supabase
         .from('quizzes')
         .select('quiz_data, updated_at')
         .eq('id', 'room_' + pin)
         .maybeSingle()
+      const timeoutPromise = new Promise<{ data: any; error: any }>((resolve) =>
+        setTimeout(() => resolve({ data: null, error: new Error('timeout') }), 500)
+      )
+      const res = await Promise.race([fetchPromise, timeoutPromise])
+      const data = res?.data
 
       if (data?.quiz_data) {
         const item = {
@@ -257,7 +284,7 @@ export async function GET(
         }
         rooms.set(pin, item)
         writeTmpRoom(pin, item)
-        // Restore keys from db state (they were stored stripped — load from disk key file)
+        extractAndSaveKeysFromState(pin, data.quiz_data)
         loadAnswerKeys(pin)
         return NextResponse.json({
           success: true, pin,
@@ -277,9 +304,9 @@ export async function POST(
   req: Request,
   { params }: { params: { pin: string } }
 ) {
-  const pin = params?.pin
+  const pin = params?.pin?.trim().toUpperCase()
   if (!pin) {
-    return NextResponse.json({ error: 'PIN required' }, { status: 400 })
+    return NextResponse.json({ error: 'PIN required' }, { status: 400, headers: noCacheHeaders })
   }
 
   try {
@@ -288,15 +315,39 @@ export async function POST(
 
     let current = rooms.get(pin)?.state
 
-    // If memory is empty, attempt to restore from Supabase
-    if (!current && supabase) {
+    // If memory is empty, check /tmp disk first
+    if (!current) {
+      const tmp = readTmpRoom(pin)
+      if (tmp?.state) {
+        current = tmp.state
+        rooms.set(pin, tmp)
+        extractAndSaveKeysFromState(pin, current)
+      }
+    }
+
+    // If still empty and no state is being pushed directly, attempt to restore from Supabase
+    if (!current && !state && supabase) {
       try {
-        const { data } = await supabase
+        const fetchPromise = supabase
           .from('quizzes')
-          .select('quiz_data')
+          .select('quiz_data, updated_at')
           .eq('id', 'room_' + pin)
           .maybeSingle()
-        if (data?.quiz_data) current = data.quiz_data
+        const timeoutPromise = new Promise<{ data: any; error: any }>((resolve) =>
+          setTimeout(() => resolve({ data: null, error: new Error('timeout') }), 500)
+        )
+        const res = await Promise.race([fetchPromise, timeoutPromise])
+        const data = res?.data
+        if (data?.quiz_data) {
+          current = data.quiz_data
+          const item = {
+            state: current,
+            updatedAt: data.updated_at ? new Date(data.updated_at).getTime() : Date.now()
+          }
+          rooms.set(pin, item)
+          writeTmpRoom(pin, item)
+          extractAndSaveKeysFromState(pin, current)
+        }
       } catch {}
     }
 
@@ -304,53 +355,120 @@ export async function POST(
 
     if (state) {
       // Full state sync (host broadcasting state)
-      // Extract and store answer keys server-side on first sync
-      if (state.quiz?.questions) {
-        const keys = (state.quiz.questions as any[]).map((q: any) => q.correct_index ?? -1)
-        saveAnswerKeys(pin, keys)
-      }
+      extractAndSaveKeysFromState(pin, state)
 
       if (current) {
         // Monotonically merge players to prevent host from overwriting server-evaluated scores & answers
         const mergedPlayers: Record<string, any> = { ...(current.players || {}) }
-        const isNewQuestion = (state.currentQuestionIndex ?? 0) > (current.currentQuestionIndex ?? 0)
+        const isStatusStart = current.status === 'lobby' && (state.status === 'question_active' || state.status === 'boss_frenzy')
+        const isNewQuestion = (state.currentQuestionIndex ?? 0) > (current.currentQuestionIndex ?? 0) ||
+          ((state.currentQuestionIndex ?? 0) === (current.currentQuestionIndex ?? 0) && (state.questionStartedAt ?? 0) > (current.questionStartedAt ?? 0) && state.status === 'question_active') ||
+          isStatusStart
 
-        if (state.players) {
-          Object.entries(state.players).forEach(([pid, p]: [string, any]) => {
-            const sPlayer = mergedPlayers[pid]
-            if (!sPlayer) {
-              mergedPlayers[pid] = p
-            } else if (isNewQuestion) {
-              // New question started -> reset per-question flags
+        const allPids = Array.from(new Set([
+          ...Object.keys(current.players || {}),
+          ...Object.keys(state.players || {})
+        ]))
+
+        allPids.forEach(pid => {
+          const sPlayer = current.players?.[pid]
+          const p = state.players?.[pid]
+
+          if (!sPlayer && p) {
+            mergedPlayers[pid] = p
+          } else if (sPlayer && !p) {
+            mergedPlayers[pid] = sPlayer
+          } else if (sPlayer && p) {
+            const score = Math.max(p.score || 0, sPlayer.score || 0)
+            const streak = Math.max(p.streak || 0, sPlayer.streak || 0)
+            const maxStreak = Math.max(p.maxStreak || 0, sPlayer.maxStreak || 0, streak)
+            const totalCorrect = Math.max(p.totalCorrect || 0, sPlayer.totalCorrect || 0)
+            const totalAnswered = Math.max(p.totalAnswered || 0, sPlayer.totalAnswered || 0)
+            const totalResponseTimeMs = Math.max(p.totalResponseTimeMs || 0, sPlayer.totalResponseTimeMs || 0)
+            const coins = Math.max(p.coins || 0, sPlayer.coins || 0)
+            const violations = Math.max(p.violations || 0, sPlayer.violations || 0)
+            const flagged = sPlayer.flagged || p.flagged || false
+            const frenzyScore = Math.max(p.frenzyScore || 0, sPlayer.frenzyScore || 0)
+
+            if (isNewQuestion) {
+              // Advanced to new question -> reset per-question flags
               mergedPlayers[pid] = {
                 ...sPlayer,
+                ...p,
+                score,
+                streak,
+                maxStreak,
+                totalCorrect,
+                totalAnswered,
+                totalResponseTimeMs,
+                coins,
+                violations,
+                flagged,
+                frenzyScore,
+                rank: p.rank ?? sPlayer.rank ?? 0,
+                tacticsRank: p.tacticsRank ?? sPlayer.tacticsRank,
+                masteryRank: p.masteryRank ?? sPlayer.masteryRank,
                 hasAnswered: false,
                 selectedIndex: null,
                 lastAnswerCorrect: null,
                 lastPointsEarned: 0
               }
             } else {
-              // Same question -> preserve server evaluated score, streak, answer
+              // Same question -> preserve server evaluated answer and score
+              const hasAnswered = Boolean(sPlayer.hasAnswered || p.hasAnswered)
+              const selectedIndex = sPlayer.hasAnswered && sPlayer.selectedIndex !== null
+                ? sPlayer.selectedIndex
+                : (p.selectedIndex ?? sPlayer.selectedIndex)
+              const lastAnswerCorrect = sPlayer.hasAnswered && sPlayer.lastAnswerCorrect !== null
+                ? sPlayer.lastAnswerCorrect
+                : (p.lastAnswerCorrect ?? sPlayer.lastAnswerCorrect)
+              const lastPointsEarned = sPlayer.hasAnswered
+                ? (sPlayer.lastPointsEarned ?? 0)
+                : Math.max(sPlayer.lastPointsEarned || 0, p.lastPointsEarned || 0)
+
               mergedPlayers[pid] = {
+                ...sPlayer,
                 ...p,
-                score: Math.max(p.score || 0, sPlayer.score || 0),
-                streak: Math.max(p.streak || 0, sPlayer.streak || 0),
-                maxStreak: Math.max(p.maxStreak || 0, sPlayer.maxStreak || 0),
-                totalCorrect: Math.max(p.totalCorrect || 0, sPlayer.totalCorrect || 0),
-                totalAnswered: Math.max(p.totalAnswered || 0, sPlayer.totalAnswered || 0),
-                totalResponseTimeMs: Math.max(p.totalResponseTimeMs || 0, sPlayer.totalResponseTimeMs || 0),
-                coins: Math.max(p.coins || 0, sPlayer.coins || 0),
-                hasAnswered: sPlayer.hasAnswered || p.hasAnswered,
-                selectedIndex: sPlayer.selectedIndex ?? p.selectedIndex,
-                lastAnswerCorrect: sPlayer.lastAnswerCorrect ?? p.lastAnswerCorrect,
-                lastPointsEarned: sPlayer.lastPointsEarned || p.lastPointsEarned
+                score,
+                streak,
+                maxStreak,
+                totalCorrect,
+                totalAnswered,
+                totalResponseTimeMs,
+                coins,
+                violations,
+                flagged,
+                frenzyScore,
+                rank: p.rank ?? sPlayer.rank ?? 0,
+                tacticsRank: p.tacticsRank ?? sPlayer.tacticsRank,
+                masteryRank: p.masteryRank ?? sPlayer.masteryRank,
+                hasAnswered,
+                selectedIndex,
+                lastAnswerCorrect,
+                lastPointsEarned
               }
             }
+          }
+        })
+
+        // Preserve questions that contain correct_index if incoming host payload stripped them
+        let preservedQuestions = state.quiz?.questions
+        if (current.quiz?.questions && Array.isArray(current.quiz.questions) && Array.isArray(preservedQuestions)) {
+          preservedQuestions = preservedQuestions.map((q: any, i: number) => {
+            const curQ = current.quiz.questions[i]
+            if (typeof q?.correct_index !== 'number' && typeof curQ?.correct_index === 'number') {
+              return { ...q, correct_index: curQ.correct_index }
+            }
+            return q
           })
         }
 
         current = {
           ...state,
+          quiz: {
+            ...(state.quiz || current.quiz),
+            questions: preservedQuestions || current.quiz?.questions
+          },
           players: mergedPlayers,
           bossHealth: Math.min(state.bossHealth ?? 100, current.bossHealth ?? 100)
         }
@@ -359,13 +477,43 @@ export async function POST(
       }
 
     } else if (action === 'submit_answer' && current) {
+      // SECURITY: Validate that question is currently active
+      if (current.status !== 'question_active') {
+        return NextResponse.json({
+          error: 'Question is not currently active for answer submission.',
+          status: current.status,
+          pin
+        }, { status: 400, headers: noCacheHeaders })
+      }
+
       const { playerId, selectedIndex, powerUpActive, timeRemainingMs, responseTimeMs } = body
       const p = current.players?.[playerId]
+
       if (p && !p.hasAnswered) {
-        // Check frozen
         const now = Date.now()
+        const qIdx = current.currentQuestionIndex ?? 0
+        const q = current.quiz?.questions?.[qIdx]
+        const totalTimeMs = q?.time_limit_ms ?? 20000
+
+        // Server-authoritative time evaluation (prevents client time forgery)
+        const serverTimeRemainingMs = current.isPaused
+          ? Math.max(0, current.pausedTimeRemainingMs ?? 0)
+          : Math.max(0, (current.questionEndsAt ?? (now + totalTimeMs)) - now)
+        const serverElapsedMs = Math.max(0, now - (current.questionStartedAt ?? (now - totalTimeMs)))
+
+        // Effective time bounded by server clock with 1500ms network tolerance
+        const effectiveTimeRemainingMs = Math.min(
+          typeof timeRemainingMs === 'number' ? timeRemainingMs : serverTimeRemainingMs,
+          serverTimeRemainingMs + 1500
+        )
+        const effectiveResponseTimeMs = Math.max(
+          typeof responseTimeMs === 'number' ? responseTimeMs : serverElapsedMs,
+          serverElapsedMs > 1000 ? serverElapsedMs - 1500 : 0
+        )
+
+        // Check frozen status
         if (p.frozenUntil && p.frozenUntil > now) {
-          // Player is frozen — mark answered but award 0 points
+          // Player is frozen — record response but award 0 points
           const frozenPlayer = {
             ...p,
             hasAnswered: true,
@@ -375,37 +523,36 @@ export async function POST(
           }
           current = { ...current, players: { ...current.players, [playerId]: frozenPlayer } }
         } else {
-          // Look up correct answer from server-only key store
+          // Look up correct answer from server-only key store or server quiz questions
           const keys = loadAnswerKeys(pin)
-          const qIdx = current.currentQuestionIndex ?? 0
-          const correctIdx = keys[qIdx] ?? current.quiz?.questions?.[qIdx]?.correct_index ?? -1
+          const correctIdx = (typeof keys[qIdx] === 'number' && keys[qIdx] >= 0)
+            ? keys[qIdx]
+            : (typeof q?.correct_index === 'number' ? q.correct_index : -1)
 
-          const q = current.quiz?.questions?.[qIdx]
-          const totalTimeMs = q?.time_limit_ms ?? 20000
           const difficulty = q?.difficulty ?? 'medium'
           const isCorrect = correctIdx >= 0 && selectedIndex === correctIdx
 
-          // Anti-bot: sub-100ms answers flagged
-          const isSuspiciousBot = (responseTimeMs ?? 0) < 100 && totalTimeMs >= 5000
+          // Anti-bot security: sub-100ms answers on long questions flagged as suspicious
+          const isSuspiciousBot = effectiveResponseTimeMs < 100 && totalTimeMs >= 5000
 
           let points = 0
           const newStreak = isCorrect ? (p.streak || 0) + 1 : 0
           const bidMultiplier = p.bidMultiplier ?? 1
 
           if (isCorrect && !isSuspiciousBot) {
-            points = computePoints(timeRemainingMs, totalTimeMs, p.streak || 0, powerUpActive, bidMultiplier, difficulty)
+            points = computePoints(effectiveTimeRemainingMs, totalTimeMs, p.streak || 0, powerUpActive, bidMultiplier, difficulty)
           } else if (current.gameMode === 'boss_raid') {
             points = -5
           }
 
-          // Boss health
+          // Boss health calculation for Boss Raid mode
           let bossHp = current.bossHealth ?? 100
           if (current.gameMode === 'boss_raid' && isCorrect && !isSuspiciousBot) {
             bossHp = Math.max(0, bossHp - 10)
           }
 
-          // Coin award
-          const coinsEarned = computeCoins(difficulty, responseTimeMs ?? 0, isCorrect && !isSuspiciousBot, p.streak || 0)
+          // Coin award computation
+          const coinsEarned = computeCoins(difficulty, effectiveResponseTimeMs, isCorrect && !isSuspiciousBot, p.streak || 0)
 
           const updatedPlayer = {
             ...p,
@@ -418,9 +565,9 @@ export async function POST(
             maxStreak: Math.max(p.maxStreak || 0, newStreak),
             totalCorrect: (p.totalCorrect || 0) + (isCorrect ? 1 : 0),
             totalAnswered: (p.totalAnswered || 0) + 1,
-            totalResponseTimeMs: (p.totalResponseTimeMs || 0) + (responseTimeMs || 0),
+            totalResponseTimeMs: (p.totalResponseTimeMs || 0) + effectiveResponseTimeMs,
             coins: (p.coins || 0) + coinsEarned,
-            bidMultiplier: 1 // reset bid multiplier after use
+            bidMultiplier: 1 // securely consume active bid multiplier
           }
 
           const updatedPlayers = { ...current.players, [playerId]: updatedPlayer }
@@ -429,12 +576,21 @@ export async function POST(
       }
 
     } else if (action === 'frenzy_answer' && current) {
+      if (current.status !== 'boss_frenzy') {
+        return NextResponse.json({
+          error: 'Boss frenzy mode is not active.',
+          pin
+        }, { status: 400, headers: noCacheHeaders })
+      }
+
       const { playerId, selectedIndex, frenzyIndex } = body
       const frenzy = current.bossFrenzy
       if (frenzy?.active && frenzyIndex === frenzy.currentFrenzyIndex) {
         const keys = loadAnswerKeys(pin)
         const qIdx = frenzy.questionIndices?.[frenzyIndex]
-        const correctIdx = keys[qIdx] ?? current.quiz?.questions?.[qIdx]?.correct_index ?? -1
+        const correctIdx = (typeof keys[qIdx] === 'number' && keys[qIdx] >= 0)
+          ? keys[qIdx]
+          : (typeof current.quiz?.questions?.[qIdx]?.correct_index === 'number' ? current.quiz.questions[qIdx].correct_index : -1)
         const isCorrect = correctIdx >= 0 && selectedIndex === correctIdx
 
         const newScores = { ...frenzy.frenzyScores }
@@ -451,7 +607,7 @@ export async function POST(
             if (updatedPlayers[pid]) {
               updatedPlayers[pid] = {
                 ...updatedPlayers[pid],
-                score: updatedPlayers[pid].score + (correct as number) * 200,
+                score: (updatedPlayers[pid].score || 0) + (correct as number) * 200,
                 frenzyScore: correct as number
               }
             }
@@ -482,7 +638,7 @@ export async function POST(
 
       if (p && (p.coins || 0) >= cost) {
         const updatedPlayers = { ...current.players }
-        updatedPlayers[playerId] = { ...p, coins: p.coins - cost }
+        updatedPlayers[playerId] = { ...p, coins: (p.coins || 0) - cost }
 
         if (powerUpType === 'bid_2x' || powerUpType === 'bid_3x' || powerUpType === 'bid_4x') {
           const mult = powerUpType === 'bid_2x' ? 2 : powerUpType === 'bid_3x' ? 3 : 4
@@ -501,7 +657,7 @@ export async function POST(
       }
 
     } else if (action === 'report_violation' && current) {
-      const { playerId, reason } = body
+      const { playerId } = body
       const p = current.players?.[playerId]
       if (p) {
         const violations = (p.violations || 0) + 1
@@ -520,18 +676,31 @@ export async function POST(
         }, { status: 410, headers: noCacheHeaders })
       }
 
+      const existingPlayer = current.players?.[player.id]
+
       current = {
         ...current,
         players: {
           ...current.players,
           [player.id]: {
             ...player,
-            score: 0, streak: 0, maxStreak: 0, totalCorrect: 0, totalAnswered: 0,
-            totalResponseTimeMs: 0, rank: 0,
-            lastAnswerCorrect: null, lastPointsEarned: 0,
-            hasAnswered: false, selectedIndex: null,
-            joinedAt: Date.now(), connected: true,
-            coins: 0, violations: 0, flagged: false, frenzyScore: 0
+            score: existingPlayer ? (existingPlayer.score || 0) : 0,
+            streak: existingPlayer ? (existingPlayer.streak || 0) : 0,
+            maxStreak: existingPlayer ? (existingPlayer.maxStreak || 0) : 0,
+            totalCorrect: existingPlayer ? (existingPlayer.totalCorrect || 0) : 0,
+            totalAnswered: existingPlayer ? (existingPlayer.totalAnswered || 0) : 0,
+            totalResponseTimeMs: existingPlayer ? (existingPlayer.totalResponseTimeMs || 0) : 0,
+            rank: existingPlayer ? (existingPlayer.rank || 0) : 0,
+            lastAnswerCorrect: existingPlayer ? existingPlayer.lastAnswerCorrect : null,
+            lastPointsEarned: existingPlayer ? (existingPlayer.lastPointsEarned || 0) : 0,
+            hasAnswered: existingPlayer ? Boolean(existingPlayer.hasAnswered) : false,
+            selectedIndex: existingPlayer ? existingPlayer.selectedIndex : null,
+            joinedAt: existingPlayer ? existingPlayer.joinedAt : Date.now(),
+            connected: true,
+            coins: existingPlayer ? (existingPlayer.coins || 0) : 0,
+            violations: existingPlayer ? (existingPlayer.violations || 0) : 0,
+            flagged: existingPlayer ? Boolean(existingPlayer.flagged) : false,
+            frenzyScore: existingPlayer ? (existingPlayer.frenzyScore || 0) : 0
           }
         }
       }
@@ -542,7 +711,7 @@ export async function POST(
     }
 
     if (!current) {
-      return NextResponse.json({ error: 'Cannot update non-existent room' }, { status: 404 })
+      return NextResponse.json({ error: 'Cannot update non-existent room', pin }, { status: 404, headers: noCacheHeaders })
     }
 
     // 1. Update in-memory Map & disk tmp cache
@@ -551,13 +720,15 @@ export async function POST(
     writeTmpRoom(pin, item)
 
     // 2. Supabase DB Sync
-    // - Join actions: force-immediate so other containers can find the room right away
-    // - Status transitions (start game, next Q, reveal): force-immediate
-    // - Answer submits & reactions: debounced at 1500ms
+    // - Joins, Room creation/push, Status transitions (start game, next Q, reveal, end): force-immediate & awaited
+    // - Answer submits & reactions: debounced at 1500ms for high concurrency
     const prevStatus = rooms.get(pin)?.state?.status
     const isStatusTransition = Boolean(state && state.status !== prevStatus)
     const isJoin = action === 'join'
-    const forceNow = isJoin || isStatusTransition || !action // !action = host full-state push
+    const isPowerUp = action === 'buy_powerup'
+    const isViolation = action === 'report_violation'
+    const isEnded = current.status === 'ended'
+    const forceNow = isJoin || isStatusTransition || isPowerUp || isViolation || isEnded || !action // !action = host full-state push
 
     if (supabase) {
       debouncedSupabaseUpsert(pin, current, forceNow)
