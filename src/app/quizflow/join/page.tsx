@@ -256,20 +256,23 @@ function JoinInner() {
                       value={nickname}
                       onChange={e => setNickname(e.target.value)}
                       onKeyDown={e => e.key === 'Enter' && handleJoin()}
-                      placeholder="Enter your name..."
+                      placeholder="Enter your full name..."
                       className="min-w-0 flex-1 h-[48px] sm:h-[52px] px-3 sm:px-4 bg-white rounded-[12px] border-[2.5px] sm:border-[3px] border-[var(--ink)] text-[15px] sm:text-[16px] font-[700] outline-none focus:ring-[3px] focus:ring-[#FFE57F] shadow-[2px_2px_0px_#10100F] sm:shadow-[3px_3px_0px_#10100F] text-[var(--ink)]"
                       aria-label="Player Nickname"
                     />
-                    <button
-                      type="button"
-                      onClick={handleRandomizeNick}
-                      className="shrink-0 hard btn-press bg-[var(--sun)] rounded-[12px] px-3 sm:px-4 h-[48px] sm:h-[52px] font-display font-[800] text-[12px] sm:text-[13px] whitespace-nowrap text-[var(--ink)] flex items-center justify-center gap-1"
-                      aria-label="Randomize nickname"
-                    >
-                      <span>🎲</span>
-                      <span className="hidden xs:inline sm:inline">{randomBtnText.replace(/^🎲\s*/, '')}</span>
-                      <span className="inline xs:hidden sm:hidden">Dice</span>
-                    </button>
+                    {/* Feature Flag: Randomize button hidden for Freshers Event to encourage real student names and zero DB load */}
+                    {false && (
+                      <button
+                        type="button"
+                        onClick={handleRandomizeNick}
+                        className="shrink-0 hard btn-press bg-[var(--sun)] rounded-[12px] px-3 sm:px-4 h-[48px] sm:h-[52px] font-display font-[800] text-[12px] sm:text-[13px] whitespace-nowrap text-[var(--ink)] flex items-center justify-center gap-1"
+                        aria-label="Randomize nickname"
+                      >
+                        <span>🎲</span>
+                        <span className="hidden xs:inline sm:inline">{randomBtnText.replace(/^🎲\s*/, '')}</span>
+                        <span className="inline xs:hidden sm:hidden">Dice</span>
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>

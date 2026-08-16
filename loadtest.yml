@@ -1,0 +1,42 @@
+config:
+  target: "https://task-flow-web.vercel.app"
+  phases:
+    - duration: 30
+      arrivalRate: 5
+      name: "Warm up (5 students/sec)"
+    - duration: 60
+      arrivalRate: 150
+      name: "Mass Join Storm (150 students joining simultaneously)"
+    - duration: 120
+      arrivalRate: 150
+      name: "Sustained 150 player active quiz session"
+
+scenarios:
+  - name: "Student joins and plays live quiz"
+    flow:
+      # 1. Student joins live room
+      - post:
+          url: "/api/room/TEST01"
+          json:
+            action: "join"
+            player:
+              id: "player_load_{{ $randomNumber(1000, 9999) }}"
+              nickname: "FreshStudent_{{ $randomNumber(1, 300) }}"
+              avatarSeed: "Totoro"
+              avatarStyle: "custom"
+      - think: 1
+
+      # 2. Student polls for live room state
+      - get:
+          url: "/api/room/TEST01"
+      - think: 1.5
+
+      # 3. Student submits answer for active question
+      - post:
+          url: "/api/room/TEST01"
+          json:
+            action: "submit_answer"
+            playerId: "player_load_{{ $randomNumber(1000, 9999) }}"
+            selectedIndex: "{{ $randomNumber(0, 3) }}"
+            timeRemainingMs: 15000
+      - think: 2
