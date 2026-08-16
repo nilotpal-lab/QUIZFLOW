@@ -78,8 +78,9 @@ function writeTmpRoom(pin: string, data: { state: any; updatedAt: number }) {
   _pendingWrites.set(pin, entry)
 }
 
-// Debounced Supabase DB persistence. Aggregates concurrent join POSTs and answer submits
-// so Supabase connection pool is not overloaded during 150-200 student events.
+// Supabase DB persistence.
+// Joins and status transitions write immediately (forceImmediate=true).
+// Answer submits debounce at 1500ms to reduce DB pressure during 150-player games.
 const _pendingDbWrites = new Map<string, { state: any; timer: ReturnType<typeof setTimeout> }>()
 
 function debouncedSupabaseUpsert(pin: string, state: any, forceImmediate = false) {
@@ -91,7 +92,7 @@ function debouncedSupabaseUpsert(pin: string, state: any, forceImmediate = false
       clearTimeout(existing.timer)
       _pendingDbWrites.delete(pin)
     }
-    performSupabaseWrite(pin, state)
+    performSupabaseWrite(pin, state) // fire-and-forget — no await
     return
   }
 
@@ -105,7 +106,7 @@ function debouncedSupabaseUpsert(pin: string, state: any, forceImmediate = false
     timer: setTimeout(() => {
       _pendingDbWrites.delete(pin)
       performSupabaseWrite(pin, entry.state)
-    }, 2500)
+    }, 1500) // reduced from 2500ms to 1500ms
   }
   _pendingDbWrites.set(pin, entry)
 }
@@ -549,12 +550,17 @@ export async function POST(
     rooms.set(pin, item)
     writeTmpRoom(pin, item)
 
-    // 2. Debounced DB Sync: Reduces Supabase writes by 95% during 150-200 student joins & answers
-    const isStatusTransition = Boolean(state && state.status !== rooms.get(pin)?.state?.status)
+    // 2. Supabase DB Sync
+    // - Join actions: force-immediate so other containers can find the room right away
+    // - Status transitions (start game, next Q, reveal): force-immediate
+    // - Answer submits & reactions: debounced at 1500ms
+    const prevStatus = rooms.get(pin)?.state?.status
+    const isStatusTransition = Boolean(state && state.status !== prevStatus)
     const isJoin = action === 'join'
+    const forceNow = isJoin || isStatusTransition || !action // !action = host full-state push
 
-    if (supabase && (isStatusTransition || isJoin || !action)) {
-      debouncedSupabaseUpsert(pin, current, isStatusTransition)
+    if (supabase) {
+      debouncedSupabaseUpsert(pin, current, forceNow)
     }
 
     return NextResponse.json({
