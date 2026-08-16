@@ -120,20 +120,22 @@ export function mergeGameStates(current: GameState | null, incoming: GameState |
   if (!current) return incoming
   if (!incoming) return current
 
-  // Identify newest question progression
+  // Identify newest question progression using questionStartedAt timestamp and index
   const currentQ = current.currentQuestionIndex ?? 0
   const incomingQ = incoming.currentQuestionIndex ?? 0
+  const currentStartedAt = current.questionStartedAt ?? 0
+  const incomingStartedAt = incoming.questionStartedAt ?? 0
 
   let base: GameState
-  const isQuestionAdvancement = incomingQ > currentQ
-  const isQuestionRegression = currentQ > incomingQ
+  const isQuestionAdvancement = incomingQ > currentQ || (incomingQ === currentQ && incomingStartedAt > currentStartedAt && incoming.status === 'question_active')
+  const isQuestionRegression = currentQ > incomingQ && !isQuestionAdvancement
 
   if (isQuestionAdvancement) {
     base = incoming
   } else if (isQuestionRegression) {
     base = current
   } else {
-    // Same question: prioritize 'ended' > 'boss_frenzy' > 'leaderboard' > 'question_reveal' > 'question_active' > 'lobby'
+    // Same question & same start timestamp: prioritize ended > boss_frenzy > leaderboard > question_reveal > question_active > lobby
     const statusWeight: Record<GameStatus, number> = {
       lobby: 0,
       question_active: 1,
