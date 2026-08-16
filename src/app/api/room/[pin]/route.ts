@@ -308,7 +308,54 @@ export async function POST(
         const keys = (state.quiz.questions as any[]).map((q: any) => q.correct_index ?? -1)
         saveAnswerKeys(pin, keys)
       }
-      current = state
+
+      if (current) {
+        // Monotonically merge players to prevent host from overwriting server-evaluated scores & answers
+        const mergedPlayers: Record<string, any> = { ...(current.players || {}) }
+        const isNewQuestion = (state.currentQuestionIndex ?? 0) > (current.currentQuestionIndex ?? 0)
+
+        if (state.players) {
+          Object.entries(state.players).forEach(([pid, p]: [string, any]) => {
+            const sPlayer = mergedPlayers[pid]
+            if (!sPlayer) {
+              mergedPlayers[pid] = p
+            } else if (isNewQuestion) {
+              // New question started -> reset per-question flags
+              mergedPlayers[pid] = {
+                ...sPlayer,
+                hasAnswered: false,
+                selectedIndex: null,
+                lastAnswerCorrect: null,
+                lastPointsEarned: 0
+              }
+            } else {
+              // Same question -> preserve server evaluated score, streak, answer
+              mergedPlayers[pid] = {
+                ...p,
+                score: Math.max(p.score || 0, sPlayer.score || 0),
+                streak: Math.max(p.streak || 0, sPlayer.streak || 0),
+                maxStreak: Math.max(p.maxStreak || 0, sPlayer.maxStreak || 0),
+                totalCorrect: Math.max(p.totalCorrect || 0, sPlayer.totalCorrect || 0),
+                totalAnswered: Math.max(p.totalAnswered || 0, sPlayer.totalAnswered || 0),
+                totalResponseTimeMs: Math.max(p.totalResponseTimeMs || 0, sPlayer.totalResponseTimeMs || 0),
+                coins: Math.max(p.coins || 0, sPlayer.coins || 0),
+                hasAnswered: sPlayer.hasAnswered || p.hasAnswered,
+                selectedIndex: sPlayer.selectedIndex ?? p.selectedIndex,
+                lastAnswerCorrect: sPlayer.lastAnswerCorrect ?? p.lastAnswerCorrect,
+                lastPointsEarned: sPlayer.lastPointsEarned || p.lastPointsEarned
+              }
+            }
+          })
+        }
+
+        current = {
+          ...state,
+          players: mergedPlayers,
+          bossHealth: Math.min(state.bossHealth ?? 100, current.bossHealth ?? 100)
+        }
+      } else {
+        current = state
+      }
 
     } else if (action === 'submit_answer' && current) {
       const { playerId, selectedIndex, powerUpActive, timeRemainingMs, responseTimeMs } = body

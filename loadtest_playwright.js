@@ -1,14 +1,14 @@
 const { chromium } = require('@playwright/test');
 
 /* ================================================================
-   QuizFlow — Full Active Gameplay Playwright Student Generator
-   Joins room AND automatically submits random A/B/C/D answers on active questions!
+   QuizFlow — 50 Active Gameplay Playwright Students
+   Joins room PIN, stays in lobby, and plays the quiz live on start!
    ================================================================ */
 
 const TARGET_URL = 'https://quizflow-peach.vercel.app';
-const ROOM_PIN   = process.env.PIN || '842091';
+const ROOM_PIN   = process.env.PIN || '776163';
 const TOTAL_STUDENTS = parseInt(process.env.STUDENTS || '50', 10);
-const HOLD_MS    = parseInt(process.env.HOLD_MS || '300000', 10); // Hold open for 5 minutes during full game
+const HOLD_MS    = parseInt(process.env.HOLD_MS || '300000', 10); // 5 minutes
 
 async function joinAndPlayStudent(browser, studentIdx) {
   const context = await browser.newContext({
@@ -57,8 +57,12 @@ async function joinAndPlayStudent(browser, studentIdx) {
 
           if (state?.status === 'question_active' && state?.currentQuestionIndex !== lastAnsweredQuestionIdx) {
             lastAnsweredQuestionIdx = state.currentQuestionIndex;
-            const randomOption = Math.floor(Math.random() * 4); // Random A=0, B=1, C=2, D=3
-            const randomTimeRemaining = Math.floor(5000 + Math.random() * 15000);
+            const randomOption = Math.floor(Math.random() * 4); // Random Option A=0, B=1, C=2, D=3
+            const randomResponseTimeMs = Math.floor(1200 + Math.random() * 4000); // 1.2s to 5.2s response time
+            const randomTimeRemaining = Math.max(1000, 20000 - randomResponseTimeMs);
+
+            // Wait a realistic student reaction delay before clicking
+            await page.waitForTimeout(Math.min(2500, randomResponseTimeMs / 2));
 
             // Submit answer via API
             await page.request.post(`${TARGET_URL}/api/room/${ROOM_PIN}`, {
@@ -66,7 +70,8 @@ async function joinAndPlayStudent(browser, studentIdx) {
                 action: 'submit_answer',
                 playerId: playerId,
                 selectedIndex: randomOption,
-                timeRemainingMs: randomTimeRemaining
+                timeRemainingMs: randomTimeRemaining,
+                responseTimeMs: randomResponseTimeMs
               },
               headers: { 'Content-Type': 'application/json' }
             }).catch(() => {});
@@ -76,7 +81,7 @@ async function joinAndPlayStudent(browser, studentIdx) {
         }
       } catch {}
 
-      await page.waitForTimeout(1500); // 1.5s poll loop during gameplay
+      await page.waitForTimeout(600); // Fast 600ms poll loop
     }
 
   } catch (err) {
@@ -87,8 +92,7 @@ async function joinAndPlayStudent(browser, studentIdx) {
 }
 
 async function main() {
-  console.log(`\n🚀 Starting Full Active Gameplay Playwright Test (${TOTAL_STUDENTS} Students)...`);
-  console.log(`📌 Room PIN: ${ROOM_PIN}`);
+  console.log(`\n🚀 Starting 50 Active Gameplay Students for Room PIN: ${ROOM_PIN}...`);
   console.log(`🎯 Target URL: ${TARGET_URL}\n`);
 
   const browser = await chromium.launch({ headless: true });
@@ -96,7 +100,7 @@ async function main() {
 
   for (let i = 1; i <= TOTAL_STUDENTS; i++) {
     tasks.push(joinAndPlayStudent(browser, i));
-    await new Promise(r => setTimeout(r, 200)); // 200ms join pacing
+    await new Promise(r => setTimeout(r, 150)); // 150ms join pacing
   }
 
   await Promise.all(tasks);
