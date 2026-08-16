@@ -310,10 +310,15 @@ function broadcast(pin: string, state?: GameState, relay = true) {
   // 1. Cloud Room Relay Sync (Works across all laptops, phones, and tablets over the internet)
   if (relay) postRelay(pin, payload)
 
-  // 2. Supabase Realtime WebSocket Sync (if configured) — reuse the cached channel
+  // 2. Supabase Realtime WebSocket Sync (if configured) — reuse and subscribe the cached channel
   if (supabase) {
     try {
-      if (!_relayChannels[pin]) _relayChannels[pin] = supabase.channel(`qf_room_${pin}`)
+      if (!_relayChannels[pin]) {
+        _relayChannels[pin] = supabase.channel(`qf_room_${pin}`, {
+          config: { broadcast: { self: true } }
+        })
+        _relayChannels[pin].subscribe()
+      }
       _relayChannels[pin].send({
         type: 'broadcast',
         event: 'state_sync',
@@ -509,9 +514,12 @@ export function subscribeToSession(
   let sbSub: any = null
   if (supabase) {
     try {
-      sbSub = supabase.channel(`qf_room_${pin}`, {
-        config: { broadcast: { self: true } }
-      })
+      if (!_relayChannels[pin]) {
+        _relayChannels[pin] = supabase.channel(`qf_room_${pin}`, {
+          config: { broadcast: { self: true } }
+        })
+      }
+      sbSub = _relayChannels[pin]
       sbSub
         .on('broadcast', { event: 'state_sync' }, (res: any) => {
           if (res?.payload && res.payload.pin === pin) {
