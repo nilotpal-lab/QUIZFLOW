@@ -142,13 +142,6 @@ function JoinInner() {
       const res = await fetch(`/api/room/${fullPin}?_t=${Date.now()}`)
       const data = await res.json().catch(() => ({}))
 
-      if (res.status === 404 || !data?.state) {
-        setError(`❌ Room PIN ${fullPin} not found. Please verify the code with your host.`)
-        setIsJoining(false)
-        setJoinBtnText('Join Arena 🚀')
-        return
-      }
-
       if (data?.state?.status === 'ended') {
         setError(`🚫 Room PIN ${fullPin} has already ended. Please ask your host for the new PIN.`)
         setIsJoining(false)
@@ -163,7 +156,7 @@ function JoinInner() {
         return
       }
     } catch {
-      // If network check fails, proceed with optimistic join in lobby
+      // If network check fails or returns cold status, proceed with optimistic join in lobby
     }
 
     // Smooth navigation to room lobby

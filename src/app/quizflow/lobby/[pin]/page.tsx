@@ -33,7 +33,7 @@ function LobbyInner() {
   })
 
   const [nickname] = useState(() => {
-    const fromUrl = searchParams.get('nickname')
+    const fromUrl = searchParams.get('nickname') || searchParams.get('nick')
     if (fromUrl) {
       safeSetSessionStorage(`qf_nick_${pin}`, fromUrl)
       return fromUrl
