@@ -462,7 +462,7 @@ export function subscribeToSession(
   let knownStatus: GameStatus | '' = local?.status || ''
   const notify = (state: GameState | null) => {
     if (state) knownStatus = state.status
-    callback(state)
+    callback(state ? { ...state, players: { ...(state.players || {}) } } : null)
   }
 
   if (local) notify(local)
@@ -490,16 +490,11 @@ export function subscribeToSession(
   window.addEventListener('storage', onStorage)
 
   // 5. Cloud Room Relay Polling for cross-device internet sync.
-  //    Adaptive cadence: fast during live questions, slower otherwise, and
-  //    paused entirely while the tab is hidden (a big battery/network win when
-  //    a classroom has many background tabs open).
   let lastPollAt = 0
   const poll = () => {
     if (typeof document !== 'undefined' && document.hidden) return
     const now = Date.now()
-    const minInterval =
-      knownStatus === 'question_active' || knownStatus === 'boss_frenzy' ? 400 :
-      knownStatus === 'question_reveal' || knownStatus === 'leaderboard' ? 800 : 2000
+    const minInterval = 350 // Fast 350ms polling across all phases for instant sync
     if (now - lastPollAt < minInterval) return
     lastPollAt = now
     fetchRemoteState(pin).then(remote => {
