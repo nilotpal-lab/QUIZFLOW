@@ -676,12 +676,17 @@ export async function POST(
         }, { status: 410, headers: noCacheHeaders })
       }
 
-      const existingPlayer = current.players?.[player.id]
+      const latestTmp = readTmpRoom(pin)
+      const allKnownPlayers = {
+        ...(latestTmp?.state?.players || {}),
+        ...(current.players || {})
+      }
+      const existingPlayer = allKnownPlayers[player.id]
 
       current = {
         ...current,
         players: {
-          ...current.players,
+          ...allKnownPlayers,
           [player.id]: {
             ...player,
             score: existingPlayer ? (existingPlayer.score || 0) : 0,

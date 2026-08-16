@@ -98,7 +98,7 @@ async function main() {
   const tasks = [];
   for (let i = 1; i <= TOTAL_STUDENTS; i++) {
     tasks.push(joinAndPlayStudent(i));
-    await new Promise(r => setTimeout(r, 40)); // Fast 40ms join pacing
+    await new Promise(r => setTimeout(r, 100)); // 100ms realistic join pacing
   }
 
   await Promise.all(tasks);
