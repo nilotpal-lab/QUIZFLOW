@@ -150,7 +150,7 @@ function LoginInner() {
                 autoCorrect="off"
                 value={username}
                 onChange={e => setUsername(e.target.value)}
-                placeholder="e.g. phoenix-a1b2"
+                placeholder="e.g. Phoenix Squad"
                 className="w-full h-[50px] px-4 bg-white border-[3px] border-[var(--ink)] rounded-[12px] font-body text-[15px] font-semibold outline-none focus:ring-[3px] focus:ring-[#FFE57F] shadow-[3px_3px_0px_#10100F]"
                 aria-label="Team username"
               />

@@ -503,3 +503,34 @@ TO anon, authenticated;` (migration does not enable RLS).
   case-insensitive lookup, so the team name as typed always resolves.
 - **Verified**: `npx tsc --noEmit` — PASSED.
 
+### 6. Browser verification (same day) — full student login flow
+- **Setup**: migrations are applied on the cloud project, `teams` table live, gate
+  `login_open = true`. The running dev server was STALE (all `_next/static` chunks
+  404 → React never hydrated → the login form did a native GET submit). Killed the
+  old server (PID 8896), wiped `.next`, restarted `npm run dev` on 3001.
+- **Playwright browser run (headless Chromium, real UI)** — all PASSED:
+  1. Exact team name + leader name → lands on `/quizflow/student/dashboard` with the
+     team name shown.
+  2. Lowercase team name typed → still logs in (the `ilike` fix).
+  3. Wrong password → "Invalid team username or password." shown, stays on login.
+  4. Second device (fresh browser context = new device id) → blocked (device binding).
+- **Cleanup**: temp script `scripts/verify-student-login.mjs` deleted; leaked seed
+  teams removed from the DB (early `process.exit` in failed runs had skipped the
+  cleanup `finally`). One user test team "Phoenix" left untouched.
+- **Small fix included**: student login placeholder `e.g. phoenix-a1b2` →
+  `e.g. Phoenix Squad` (still matched the old random-username scheme).
+
+### 7. Admin-side verification (same day) — team creation flow in the browser
+- **Setup**: local admin login (`Sanchit` / `123456` → signed `qf_admin` cookie, no
+  Supabase account needed) via `/quizflow/auth`, then the Teams tab.
+- **Playwright browser run (headless Chromium, real UI)** — 12/12 PASSED:
+  - Single create: credential card shows 👤 username = team name, 🔒 password =
+    leader name; row appears in the teams table.
+  - DB assertions: stored username == team name; `password_hash` == PBKDF2(leader
+    name, salt); roster leader first.
+  - Bulk CSV upload (2 teams): preview shows both, create succeeds, both rows have
+    username = team name and password = leader name.
+- **Cleanup**: temp script deleted; 3 leaked teams removed from the DB (script used
+  `process.exit` before the cleanup `finally` — same gotcha as the student flow).
+  User's "Phoenix" team untouched.
+
