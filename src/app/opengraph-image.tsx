@@ -1,4 +1,5 @@
 import { ImageResponse } from 'next/og'
+import { QUIZFLOW_LOGO_DATA_URI } from '@/quizflow/logoDataUri'
 
 export const runtime = 'edge'
 export const alt = 'QuizFlow — #1 AI Classroom Quiz Competition & Battle Arena'
@@ -7,6 +8,7 @@ export const size = {
   height: 630,
 }
 export const contentType = 'image/png'
+
 
 export default async function Image() {
   return new ImageResponse(
@@ -52,9 +54,13 @@ export default async function Image() {
                 padding: '6px 16px',
                 borderRadius: '12px',
                 boxShadow: '4px 4px 0px #10100F',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
               }}
             >
-              ⚡ QuizFlow
+              <img src={QUIZFLOW_LOGO_DATA_URI} width={40} height={40} alt="" style={{ display: 'flex' }} />
+              QuizFlow
             </span>
           </div>
 
@@ -86,6 +92,9 @@ export default async function Image() {
         >
           <div
             style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
               fontSize: '64px',
               fontWeight: 900,
               color: '#10100F',
@@ -94,8 +103,11 @@ export default async function Image() {
               textTransform: 'uppercase',
             }}
           >
-            The #1 AI Classroom <br />
-            <span style={{ color: '#7C4DFF' }}>Quiz Competition</span> Arena
+            <span>The #1 AI Classroom</span>
+            <span style={{ display: 'flex' }}>
+              <span style={{ color: '#7C4DFF' }}>Quiz Competition</span>
+              <span>&nbsp;Arena</span>
+            </span>
           </div>
 
           <div

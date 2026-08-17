@@ -13,9 +13,14 @@ export default function manifest(): MetadataRoute.Manifest {
     categories: ['education', 'games', 'productivity'],
     icons: [
       {
-        src: '/favicon.ico',
+        src: '/logo.png',
         sizes: 'any',
-        type: 'image/x-icon',
+        type: 'image/png',
+      },
+      {
+        src: '/icon.png',
+        sizes: 'any',
+        type: 'image/png',
       },
     ],
   }

@@ -84,21 +84,38 @@ function saveAnswerKeys(pin: string, keys: number[]) {
 
 /**
  * Strip correct_index from quiz questions in client-facing state.
- * correct_index is only injected back into state when status === 'question_reveal'.
+ *
+ * SECURITY (manually audited — do not weaken): the ONLY correct answer
+ * that may ever reach a client is the CURRENT question's, and only when
+ * that question has reached the reveal phase. Everything else stays
+ * server-side:
+ *   - lobby / question_active / boss_frenzy / leaderboard → strip ALL
+ *     (the next question's answer must not leak during the interlude)
+ *   - question_reveal → inject ONLY the current question's index
+ *   - ended → full state is fine (all reveals have happened; the results
+ *     page needs every answer for post-game review)
  */
 function sanitizeStateForClient(state: any, pin: string): any {
   if (!state?.quiz?.questions) return state
 
-  const isActive = state.status === 'question_active' || state.status === 'boss_frenzy'
-  if (!isActive) return state // reveal/leaderboard/ended: send full state
+  const revealable = state.status === 'question_reveal' || state.status === 'ended'
+  const revealCurrentOnly = state.status === 'question_reveal'
+  const currentIdx = state.currentQuestionIndex ?? 0
 
   return {
     ...state,
     quiz: {
       ...state.quiz,
-      questions: state.quiz.questions.map((q: any) => {
-        const { correct_index, ...safeQ } = q
-        return safeQ
+      questions: state.quiz.questions.map((q: any, i: number) => {
+        if (!revealable) {
+          const { correct_index, ...safeQ } = q
+          return safeQ
+        }
+        if (revealCurrentOnly && i !== currentIdx) {
+          const { correct_index, ...safeQ } = q
+          return safeQ
+        }
+        return q
       })
     }
   }
@@ -431,13 +448,18 @@ export async function POST(
       (state && state.status !== rooms.get(pin)?.state?.status)
 
     if (supabase && isStatusChange) {
+      // SECURITY: persist the SANITIZED state only. The `quizzes` table
+      // is readable with the anon key, so storing `current` here would
+      // leak every correct_index to any client that can read the DB.
+      // Answer keys stay in the server-only in-memory/tmp store; on a
+      // fresh machine the host's next state broadcast re-extracts them.
       void supabase.from('quizzes').upsert({
         id: 'room_' + pin,
         host_id: current.hostId || 'host_live',
         title: current.quiz?.title || 'Live Room ' + pin,
         description: 'Live active game session',
         question_count: current.quiz?.questions?.length || 0,
-        quiz_data: current,
+        quiz_data: sanitizeStateForClient(current, pin),
         is_draft: false,
         updated_at: new Date().toISOString()
       })

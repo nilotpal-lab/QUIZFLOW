@@ -2,6 +2,7 @@
 import { useState, useRef, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
+import QuizFlowLogo from '@/quizflow/QuizFlowLogo'
 
 const RANDOM_NICKNAMES = [
   'QuantumNinja', 'NeonSage', 'ByteTiger', 'CosmicFox',
@@ -155,8 +156,8 @@ function JoinInner() {
       {/* Top Nav */}
       <nav className="w-full bg-[var(--paper)] border-b-[3px] border-[var(--ink)]">
         <div className="max-w-[1280px] mx-auto px-4 md:px-6 h-[64px] flex items-center justify-between">
-          <Link href="/quizflow" className="font-display font-[800] text-[24px] tracking-tight flex items-center gap-1 cursor-pointer">
-            <span>⚡</span> QuizFlow
+          <Link href="/quizflow" className="font-display font-[800] text-[24px] tracking-tight flex items-center gap-1.5 cursor-pointer">
+            <QuizFlowLogo size={26} alt="QuizFlow" /> QuizFlow
           </Link>
           <Link href="/quizflow/studio">
             <button className="hard bg-[var(--sun)] text-[var(--ink)] rounded-full px-3.5 py-1 text-[12px] font-display font-bold">

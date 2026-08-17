@@ -9,16 +9,17 @@ import {
   signUpHostAsync,
   loginHostAsync,
   loginHost,
-  loginWithGoogleAsync,
   resendConfirmationEmailAsync,
   initAuthSync,
   type HostUser
 } from '@/quizflow/authStore'
+import { verifyAdminCredential } from '@/quizflow/adminCredentials'
+import QuizFlowLogo from '@/quizflow/QuizFlowLogo'
 
-export default function TeacherAuthPage() {
+export default function AdminAuthPage() {
   const router = useRouter()
   const [isSignUp, setIsSignUp] = useState(false)
-  const [email, setEmail]       = useState('')
+  const [identifier, setIdentifier] = useState('') // admin name (login) or email (signup)
   const [password, setPassword] = useState('')
   const [name, setName]         = useState('')
   const [school, setSchool]     = useState('')
@@ -28,19 +29,6 @@ export default function TeacherAuthPage() {
   const [authNotice, setAuthNotice]   = useState('')
 
   useEffect(() => {
-    // Check URL parameters for OAuth errors
-    if (typeof window !== 'undefined') {
-      const hash = window.location.hash
-      const search = window.location.search
-      if (hash.includes('error_description=') || search.includes('error_description=')) {
-        const match = (hash + search).match(/error_description=([^&]+)/)
-        if (match && match[1]) {
-          const decoded = decodeURIComponent(match[1].replace(/\+/g, ' '))
-          setAuthError(`Google Auth Notice: ${decoded}`)
-        }
-      }
-    }
-
     const existing = getHostUser()
     if (existing) {
       setUser(existing)
@@ -58,7 +46,7 @@ export default function TeacherAuthPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!email.trim() || !password.trim()) return
+    if (!identifier.trim() || !password.trim()) return
 
     setAuthError('')
     setAuthNotice('')
@@ -66,7 +54,7 @@ export default function TeacherAuthPage() {
 
     try {
       if (isSignUp) {
-        const res = await signUpHostAsync(email.trim(), password, name.trim(), school.trim())
+        const res = await signUpHostAsync(identifier.trim(), password, name.trim(), school.trim())
         setUser(res.user)
         if (res.message) {
           setAuthNotice(res.message)
@@ -74,7 +62,24 @@ export default function TeacherAuthPage() {
           router.push('/quizflow/dashboard')
         }
       } else {
-        const loggedIn = await loginHostAsync(email.trim(), password)
+        // 1) Local admin credential (name + password, e.g. Sanchit / 123456)
+        const cred = verifyAdminCredential(identifier.trim(), password)
+        if (cred) {
+          const adminEmail = cred.name.trim().toLowerCase().replace(/\s+/g, '.') + '@quizflow.local'
+          const localUser = loginHost(adminEmail, cred.name, cred.school || 'QuizFlow Admin')
+          setUser(localUser)
+          // Issue the signed admin cookie so the event tools (teams,
+          // controls, game) work without a Supabase account.
+          await fetch('/api/admin/session', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: cred.name, password })
+          }).catch(() => {})
+          router.push('/quizflow/dashboard')
+          return
+        }
+        // 2) Fallback: Supabase email+password admin accounts (type the email)
+        const loggedIn = await loginHostAsync(identifier.trim(), password)
         setUser(loggedIn)
         router.push('/quizflow/dashboard')
       }
@@ -86,14 +91,14 @@ export default function TeacherAuthPage() {
   }
 
   const handleResendEmail = async () => {
-    if (!email.trim()) {
+    if (!identifier.trim()) {
       setAuthError('Please enter your email address above to resend the confirmation link.')
       return
     }
     setAuthError('')
     setIsSubmitting(true)
     try {
-      const msg = await resendConfirmationEmailAsync(email.trim())
+      const msg = await resendConfirmationEmailAsync(identifier.trim())
       setAuthNotice(msg)
     } catch (err: any) {
       setAuthError(err.message || 'Failed to resend confirmation email.')
@@ -103,25 +108,12 @@ export default function TeacherAuthPage() {
   }
 
   const handleLocalBypassLogin = () => {
-    if (!email.trim()) return
+    if (!identifier.trim()) return
     setAuthError('')
     setAuthNotice('')
-    const localUser = loginHost(email.trim())
+    const localUser = loginHost(identifier.trim())
     setUser(localUser)
     router.push('/quizflow/dashboard')
-  }
-
-  const handleGoogleLogin = async () => {
-    setAuthError('')
-    setAuthNotice('')
-    setIsSubmitting(true)
-    try {
-      await loginWithGoogleAsync()
-    } catch (err: any) {
-      setAuthError(err.message || 'Google authentication failed. Please try again.')
-    } finally {
-      setIsSubmitting(false)
-    }
   }
 
   const handleDemoLogin = () => {
@@ -138,10 +130,10 @@ export default function TeacherAuthPage() {
       {/* BRANDING HEADER */}
       <div className="text-center mb-6">
         <Link href="/quizflow" className="inline-flex items-center gap-2.5 font-display font-[900] text-[32px] md:text-[38px] tracking-tight hover:opacity-90 transition-opacity">
-          <span className="text-[36px] md:text-[42px] text-[var(--violet)] drop-shadow-[1px_1px_0px_var(--ink)]">⚡</span> QuizFlow Studio
+          <QuizFlowLogo size={40} className="md:w-[46px] md:h-[46px]" alt="QuizFlow" /> QuizFlow Studio
         </Link>
         <div className="font-body text-[14px] md:text-[15px] font-semibold text-[var(--ink)] opacity-75 mt-1">
-          Teacher &amp; Host Command Center
+          Admin &amp; Competition Command Center
         </div>
       </div>
 
@@ -175,7 +167,7 @@ export default function TeacherAuthPage() {
                 !isSignUp ? 'bg-[var(--sun)] text-[var(--ink)] border-b-[3px] border-[var(--ink)]' : 'bg-transparent text-[var(--ink)] opacity-60 hover:opacity-100'
               }`}
             >
-              🔑 Teacher Login
+              🔑 Admin Login
             </button>
             <button
               type="button"
@@ -231,28 +223,6 @@ export default function TeacherAuthPage() {
               <span>{authNotice}</span>
             </div>
           )}
-          {/* 1-CLICK GOOGLE LOGIN BUTTON */}
-          <div className="mb-5">
-            <button
-              type="button"
-              onClick={handleGoogleLogin}
-              className="w-full h-[50px] hard btn-press bg-white text-[var(--ink)] font-display font-[800] text-[15px] rounded-[12px] border-[3px] border-[var(--ink)] shadow-[3.5px_3.5px_0px_#10100F] cursor-pointer flex items-center justify-center gap-3 hover:bg-[#FAF9F5] transition-colors"
-            >
-              <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24">
-                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
-                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
-              </svg>
-              <span>Continue with Google</span>
-            </button>
-            <div className="flex items-center gap-3 my-4">
-              <div className="flex-1 h-[1.5px] bg-[var(--ink)] opacity-15"></div>
-              <span className="text-[11px] font-display font-bold uppercase tracking-wider text-[var(--ink)] opacity-50">OR WITH EMAIL</span>
-              <div className="flex-1 h-[1.5px] bg-[var(--ink)] opacity-15"></div>
-            </div>
-          </div>
-
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
             {isSignUp && (
               <div>
@@ -272,21 +242,22 @@ export default function TeacherAuthPage() {
 
             <div>
               <label className="block text-[11px] font-display font-[800] tracking-widest text-[var(--ink)] uppercase opacity-75 mb-1.5">
-                Teacher Email
+                {isSignUp ? 'Admin Email' : 'Admin Name'}
               </label>
               <input
-                type="email"
-                placeholder="teacher@school.edu"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
+                type={isSignUp ? 'email' : 'text'}
+                placeholder={isSignUp ? 'admin@school.edu' : 'e.g. Sanchit'}
+                value={identifier}
+                onChange={e => setIdentifier(e.target.value)}
                 required
+                autoComplete={isSignUp ? 'email' : 'username'}
                 className="w-full h-[48px] px-4 bg-white border-[3px] border-[var(--ink)] rounded-[12px] font-body text-[14px] font-semibold outline-none focus:ring-[3px] focus:ring-[#FFE57F] shadow-[3px_3px_0px_#10100F]"
               />
             </div>
 
             <div>
               <label className="block text-[11px] font-display font-[800] tracking-widest text-[var(--ink)] uppercase opacity-75 mb-1.5">
-                Password (min 6 characters)
+                Password
               </label>
               <input
                 type="password"
@@ -339,7 +310,7 @@ export default function TeacherAuthPage() {
               onClick={handleDemoLogin}
               className="w-full py-3.5 px-4 hard btn-press bg-[var(--sun)] text-[var(--ink)] font-display font-[800] text-[14px] rounded-[12px] border-[2.5px] border-[var(--ink)] shadow-[3px_3px_0px_#10100F] cursor-pointer"
             >
-              🎓 Instant Demo Teacher Login (Prof. Alex)
+              🎓 Instant Demo Admin Login (Prof. Alex)
             </button>
           </div>
 

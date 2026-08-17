@@ -84,52 +84,6 @@ export function QuizFlowJsonLd() {
           },
         ],
       },
-      {
-        '@type': 'FAQPage',
-        '@id': 'https://quizflow-peach.vercel.app/#faq',
-        mainEntity: [
-          {
-            '@type': 'Question',
-            name: 'What is QuizFlow?',
-            acceptedAnswer: {
-              '@type': 'Answer',
-              text: 'QuizFlow is a modern, AI-powered interactive classroom quiz platform that allows educators and students to generate high-order thinking quizzes instantly, host live multiplayer games with 6-digit PINs, and study through a categorized library.',
-            },
-          },
-          {
-            '@type': 'Question',
-            name: 'How does QuizFlow AI create questions?',
-            acceptedAnswer: {
-              '@type': 'Answer',
-              text: 'QuizFlow uses advanced artificial intelligence to synthesize curriculum concepts into structured multiple-choice questions aligned with Bloom’s Taxonomy. It automatically attaches relevant images, distractor misconception explanations, and timers.',
-            },
-          },
-          {
-            '@type': 'Question',
-            name: 'How do students join a live QuizFlow game?',
-            acceptedAnswer: {
-              '@type': 'Answer',
-              text: 'Students can simply navigate to the Join Game page on any device (phone, tablet, or laptop), enter the 6-digit room PIN displayed on the teacher’s screen, choose a nickname and custom avatar, and compete in real time.',
-            },
-          },
-          {
-            '@type': 'Question',
-            name: 'Is QuizFlow free to use for teachers and schools?',
-            acceptedAnswer: {
-              '@type': 'Answer',
-              text: 'Yes! QuizFlow is 100% free to host live multiplayer classroom battles, generate AI quizzes, and practice solo with flashcards.',
-            },
-          },
-          {
-            '@type': 'Question',
-            name: 'What subjects are covered in the QuizFlow Library?',
-            acceptedAnswer: {
-              '@type': 'Answer',
-              text: 'The QuizFlow Library contains pre-made and founder-verified decks spanning Sports, Biology & Life Sciences, Mathematics & Logic, Technology & Code, World History, Cosmology & Space, and General Knowledge.',
-            },
-          },
-        ],
-      },
     ],
   }
 

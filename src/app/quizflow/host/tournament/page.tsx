@@ -6,6 +6,7 @@ import { getSavedQuizzes, saveQuizDraft, type SavedQuizItem } from '@/quizflow/q
 import { createSession } from '@/quizflow/sessionStore'
 import type { AIGeneratedQuiz, AIGeneratedQuestion } from '@/quizflow/types'
 import type { RoundConfig, TournamentConfig } from '@/quizflow/types'
+import QuizFlowLogo from '@/quizflow/QuizFlowLogo'
 
 type Step = 'build' | 'preview' | 'launching'
 type QuizSourceMode = 'saved' | 'ai' | 'manual'
@@ -330,7 +331,9 @@ export default function TournamentPage() {
       {/* Top bar */}
       <div className="top-bar">
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <span style={{ fontFamily: 'Space Grotesk', fontSize: 20, fontWeight: 800 }}>⚡ QuizFlow</span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontFamily: 'Space Grotesk', fontSize: 20, fontWeight: 800 }}>
+            <QuizFlowLogo size={22} alt="QuizFlow" /> QuizFlow
+          </span>
           <span className="badge badge-cherry">🏆 TOURNAMENT BUILDER</span>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>

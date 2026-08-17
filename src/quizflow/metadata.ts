@@ -105,9 +105,13 @@ export function constructMetadata({
       google: 'wQL1EpHqs-Hr1TdpGgz2udV0mgtOivVXXYjU4dpum9s',
     },
     icons: {
-      icon: '/favicon.ico',
+      icon: [
+        { url: '/favicon.ico', sizes: 'any' },
+        { url: '/logo.png', sizes: 'any', type: 'image/png' },
+        { url: '/icon.png', sizes: 'any', type: 'image/png' },
+      ],
       shortcut: '/favicon.ico',
-      apple: '/apple-touch-icon.png',
+      apple: '/apple-icon.png',
     },
     manifest: '/manifest.webmanifest',
     category: 'education',

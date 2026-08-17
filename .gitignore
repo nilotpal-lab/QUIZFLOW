@@ -5,12 +5,15 @@
 
 # Testing
 /coverage
-/playwright-report
-/test-results
+playwright-report/
+test-results/
 
 # Next.js build output
 /.next/
 /out/
+
+# TypeScript incremental build cache
+tsconfig.tsbuildinfo
 
 # Production
 /build
@@ -22,6 +25,9 @@
 .env.development.local
 .env.test.local
 .env.production.local
+
+# Local agent config (contains local API tokens — never commit)
+.claude/
 
 # Debug logs
 npm-debug.log*

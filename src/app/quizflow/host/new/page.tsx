@@ -5,6 +5,7 @@ import { createSession } from '@/quizflow/sessionStore'
 import { getSavedQuizzes, type SavedQuizItem } from '@/quizflow/quizStore'
 import type { AIGeneratedQuiz } from '@/quizflow/types'
 import { useRouter } from 'next/navigation'
+import QuizFlowLogo from '@/quizflow/QuizFlowLogo'
 
 
 export default function HostNewPage() {
@@ -48,7 +49,9 @@ export default function HostNewPage() {
       {/* Top bar */}
       <div className="top-bar">
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <span style={{ fontFamily: 'Space Grotesk', fontSize: 20, fontWeight: 800 }}>⚡ QuizFlow</span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontFamily: 'Space Grotesk', fontSize: 20, fontWeight: 800 }}>
+            <QuizFlowLogo size={22} alt="QuizFlow" /> QuizFlow
+          </span>
           <span className="badge badge-sun">📡 HOST COMMAND</span>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>

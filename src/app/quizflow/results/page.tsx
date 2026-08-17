@@ -6,6 +6,7 @@ import { subscribeToSession } from '@/quizflow/sessionStore'
 import type { GameState, Player } from '@/quizflow/sessionStore'
 import { buildAvatarUrl } from '@/quizflow/utils'
 import { playLevelUpFanfare, playClickSound } from '@/quizflow/sound'
+import QuizFlowLogo from '@/quizflow/QuizFlowLogo'
 
 function ResultsInner() {
   const searchParams = useSearchParams()
@@ -175,8 +176,8 @@ function ResultsInner() {
       {/* Top Bar */}
       <nav className="sticky top-0 z-40 bg-[var(--paper)] border-b-[3px] border-[var(--ink)]">
         <div className="max-w-[1280px] mx-auto px-4 md:px-6 h-[64px] flex items-center justify-between">
-          <div className="font-display font-[800] text-[24px] tracking-tight flex items-center gap-1 cursor-pointer" onClick={() => router.push('/quizflow')}>
-            <span>⚡</span> QuizFlow
+          <div className="font-display font-[800] text-[24px] tracking-tight flex items-center gap-1.5 cursor-pointer" onClick={() => router.push('/quizflow')}>
+            <QuizFlowLogo size={26} alt="QuizFlow" /> QuizFlow
           </div>
           <div className="flex items-center gap-2">
             <button onClick={() => router.push('/quizflow')} className="hard bg-white rounded-full px-3.5 py-1.5 text-[12px] font-display font-bold">
