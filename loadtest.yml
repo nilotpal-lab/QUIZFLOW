@@ -1,0 +1,38 @@
+config:
+  target: "https://quizflow-git-loadtest-preview-nilotpaldeb083-gmailcoms-projects.vercel.app"
+  phases:
+    - duration: 30
+      arrivalRate: 2
+      name: "Warm up (2 students/sec)"
+    - duration: 60
+      arrivalRate: 3
+      maxVusers: 150
+      name: "150 students joining realistically"
+    - duration: 120
+      arrivalRate: 1
+      maxVusers: 150
+      name: "Sustained 150 player quiz session"
+
+scenarios:
+  - name: "Student joins and plays quiz"
+    flow:
+      - post:
+          url: "/api/room/TEST01"
+          json:
+            action: "join"
+            player:
+              id: "player_{{ $randomNumber(1000, 9999) }}"
+              nickname: "FreshStudent_{{ $randomNumber(1, 300) }}"
+              avatarSeed: "Totoro"
+      - think: 1.5
+      - get:
+          url: "/api/room/TEST01"
+      - think: 20
+      - post:
+          url: "/api/room/TEST01"
+          json:
+            action: "submit_answer"
+            playerId: "player_{{ $randomNumber(1000, 9999) }}"
+            selectedIndex: "{{ $randomNumber(0, 3) }}"
+            timeRemainingMs: 15000
+      - think: 5

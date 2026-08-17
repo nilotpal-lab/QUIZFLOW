@@ -35,11 +35,12 @@ const CATEGORY_COLORS: Record<string, { bg: string; border: string; text: string
   Biology: { bg: '#D9FDE8', border: '#00E676', text: '#00897B' },
   Mathematics: { bg: '#FFF9C4', border: '#FBC02D', text: '#F57F17' },
   Technology: { bg: '#EDE7FF', border: '#7C4DFF', text: '#512DA8' },
-  History: { bg: '#FFE0B2', border: '#FB8C00', text: '#E65100' },
-  Science: { bg: '#E0F7FA', border: '#00BCD4', text: '#006064' },
   'General Knowledge': { bg: '#F3E5F5', border: '#AB47BC', text: '#6A1B9A' },
   Default: { bg: '#FFF8EB', border: '#10100F', text: '#10100F' }
 }
+
+// Feature Flag: Suspended TTS audio narration for Freshers Event
+const ENABLE_TTS_AUDIO = false
 
 export default function CommunityPracticeHub() {
   const router = useRouter()
@@ -827,17 +828,19 @@ export default function CommunityPracticeHub() {
                 <div className="flex items-center justify-between mb-3 text-[12px] font-extrabold text-black/60">
                   <span>Question {currentQIdx + 1} of {practicingQuiz.quiz.questions.length}</span>
                   <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => {
-                        const promptText = practicingQuiz.quiz?.questions?.[currentQIdx]?.prompt || ''
-                        if (promptText) handleToggleTTS(promptText)
-                      }}
-                      className={`px-3 py-1 rounded-[8px] border-[2px] border-[#10100F] text-[11px] font-extrabold flex items-center gap-1.5 btn-press ${
-                        isTTSActive ? 'bg-[#FFE57F]' : 'bg-white'
-                      }`}
-                    >
-                      <span>{isTTSActive ? '🔊 Stop' : '🔈 Listen'}</span>
-                    </button>
+                    {ENABLE_TTS_AUDIO && (
+                      <button
+                        onClick={() => {
+                          const promptText = practicingQuiz.quiz?.questions?.[currentQIdx]?.prompt || ''
+                          if (promptText) handleToggleTTS(promptText)
+                        }}
+                        className={`px-3 py-1 rounded-[8px] border-[2px] border-[#10100F] text-[11px] font-extrabold flex items-center gap-1.5 btn-press ${
+                          isTTSActive ? 'bg-[#FFE57F]' : 'bg-white'
+                        }`}
+                      >
+                        <span>{isTTSActive ? '🔊 Stop' : '🔈 Listen'}</span>
+                      </button>
+                    )}
                   </div>
                 </div>
 

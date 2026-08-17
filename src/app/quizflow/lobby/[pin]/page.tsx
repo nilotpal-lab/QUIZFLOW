@@ -1,6 +1,6 @@
 'use client'
 export const dynamic = 'force-dynamic'
-import { useEffect, useState, useCallback, Suspense } from 'react'
+import { useEffect, useState, useCallback, useRef, Suspense } from 'react'
 import Link from 'next/link'
 import { useParams, useSearchParams, useRouter } from 'next/navigation'
 import { subscribeToSession, joinSessionAsync, sendReaction } from '@/quizflow/sessionStore'
@@ -8,6 +8,9 @@ import type { GameState } from '@/quizflow/sessionStore'
 import { buildAvatarUrl, safeGetSessionStorage, safeSetSessionStorage } from '@/quizflow/utils'
 import { playClickSound } from '@/quizflow/sound'
 import { FloatingReactions } from '@/quizflow/FloatingReactions'
+
+// Feature Flag: Suspended for live freshers event
+const ENABLE_EMOJI_REACTIONS = false
 
 function LobbyInner() {
   const params = useParams()
@@ -30,7 +33,7 @@ function LobbyInner() {
   })
 
   const [nickname] = useState(() => {
-    const fromUrl = searchParams.get('nickname')
+    const fromUrl = searchParams.get('nickname') || searchParams.get('nick')
     if (fromUrl) {
       safeSetSessionStorage(`qf_nick_${pin}`, fromUrl)
       return fromUrl
@@ -61,11 +64,46 @@ function LobbyInner() {
   const [error, setError]          = useState('')
   const [avatarRotation, setAvatarRotation] = useState(0)
   const [dots, setDots]            = useState('.')
+  const hasNavigatedRef            = useRef(false)
 
   const handleAvatarFlip = () => {
     setAvatarRotation(r => r + 360)
     playClickSound()
   }
+
+  // Keep screen awake while waiting in lobby
+  useEffect(() => {
+    let wakeLock: any = null
+    const requestWakeLock = async () => {
+      try {
+        if ('wakeLock' in navigator) {
+          wakeLock = await (navigator as any).wakeLock.request('screen')
+        }
+      } catch {}
+    }
+    requestWakeLock()
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        requestWakeLock()
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibility)
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility)
+      if (wakeLock) {
+        try { wakeLock.release() } catch {}
+      }
+    }
+  }, [])
+
+  // Prefetch play and results routes for instantaneous transition
+  useEffect(() => {
+    if (pin && playerId) {
+      router.prefetch(`/quizflow/play?pin=${pin}&pid=${playerId}&nickname=${encodeURIComponent(nickname)}&seed=${encodeURIComponent(avatarSeed)}&style=${avatarStyle}`)
+      router.prefetch(`/quizflow/results?pin=${pin}&pid=${playerId}`)
+    }
+  }, [pin, playerId, nickname, avatarSeed, avatarStyle, router])
 
   // Animated waiting dots
   useEffect(() => {
@@ -86,6 +124,8 @@ function LobbyInner() {
         if (result === 'ok') {
           setError('')
           setJoined(true)
+        } else if (result === 'ended') {
+          setError(`🚫 Game Over: Room PIN ${pin} has already ended. Please ask your host for the new Game PIN.`)
         } else if (result === 'not_found') {
           attempt++
           if (attempt < maxAttempts) {
@@ -116,13 +156,18 @@ function LobbyInner() {
     return unsub
   }, [pin])
 
-  // Navigate when game starts or advances
+  // Navigate smoothly when game starts or advances (including boss_frenzy)
   useEffect(() => {
-    if (!gameState) return
-    if (['question_active', 'question_reveal', 'leaderboard'].includes(gameState.status)) {
+    if (!gameState || hasNavigatedRef.current) return
+    if (['question_active', 'question_reveal', 'leaderboard', 'boss_frenzy'].includes(gameState.status)) {
+      hasNavigatedRef.current = true
+      if (typeof window !== 'undefined' && window.navigator?.vibrate) {
+        try { window.navigator.vibrate(40) } catch {}
+      }
       router.push(`/quizflow/play?pin=${pin}&pid=${playerId}&nickname=${encodeURIComponent(nickname)}&seed=${encodeURIComponent(avatarSeed)}&style=${avatarStyle}`)
     }
     if (gameState.status === 'ended') {
+      hasNavigatedRef.current = true
       router.push(`/quizflow/results?pin=${pin}&pid=${playerId}`)
     }
   }, [gameState?.status, pin, playerId, nickname, avatarSeed, avatarStyle, router])
@@ -194,35 +239,37 @@ function LobbyInner() {
             You&apos;re in the lobby! ✅
           </div>
 
-          {/* Emoji Reaction Buttons */}
-          <div style={{ marginTop: 20, paddingTop: 16, borderTop: '2px dashed var(--ink)' }}>
-            <div style={{ fontSize: 11, fontFamily: 'Space Grotesk', fontWeight: 800, textTransform: 'uppercase', color: 'var(--ink)', marginBottom: 10, opacity: 0.7 }}>
-              Send Live Emoji Reaction
+          {/* Emoji Reaction Buttons (Suspended for Freshers Event) */}
+          {ENABLE_EMOJI_REACTIONS && (
+            <div style={{ marginTop: 20, paddingTop: 16, borderTop: '2px dashed var(--ink)' }}>
+              <div style={{ fontSize: 11, fontFamily: 'Space Grotesk', fontWeight: 800, textTransform: 'uppercase', color: 'var(--ink)', marginBottom: 10, opacity: 0.7 }}>
+                Send Live Emoji Reaction
+              </div>
+              <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
+                {['🔥', '👑', '⚡', '🚀', '🎃'].map(emoji => (
+                  <button
+                    key={emoji}
+                    type="button"
+                    onClick={() => {
+                      playClickSound()
+                      sendReaction(pin, emoji, nickname)
+                    }}
+                    className="btn"
+                    style={{
+                      fontSize: 22,
+                      padding: '6px 12px',
+                      background: 'var(--paper)',
+                      border: '2px solid var(--ink)',
+                      boxShadow: '2px 2px 0 var(--ink)',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {emoji}
+                  </button>
+                ))}
+              </div>
             </div>
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
-              {['🔥', '👑', '⚡', '🚀', '🎃'].map(emoji => (
-                <button
-                  key={emoji}
-                  type="button"
-                  onClick={() => {
-                    playClickSound()
-                    sendReaction(pin, emoji, nickname)
-                  }}
-                  className="btn"
-                  style={{
-                    fontSize: 22,
-                    padding: '6px 12px',
-                    background: 'var(--paper)',
-                    border: '2px solid var(--ink)',
-                    boxShadow: '2px 2px 0 var(--ink)',
-                    cursor: 'pointer',
-                  }}
-                >
-                  {emoji}
-                </button>
-              ))}
-            </div>
-          </div>
+          )}
 
           {/* PIN display */}
           <div className="pin-display" style={{ margin: '20px auto', display: 'inline-flex', alignItems: 'center', gap: 10 }}>

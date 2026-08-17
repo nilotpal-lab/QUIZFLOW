@@ -137,13 +137,34 @@ function JoinInner() {
 
     setError('')
     setIsJoining(true)
-    setJoinBtnText('⏳ Connecting to Room...')
+    setJoinBtnText('⏳ Checking Room...')
+
+    try {
+      const res = await fetch(`/api/room/${fullPin}?_t=${Date.now()}`)
+      const data = await res.json().catch(() => ({}))
+
+      if (data?.state?.status === 'ended') {
+        setError(`🚫 Room PIN ${fullPin} has already ended. Please ask your host for the new PIN.`)
+        setIsJoining(false)
+        setJoinBtnText('Join Arena 🚀')
+        return
+      }
+
+      if (data?.state?.isLocked) {
+        setError(`🔒 Room PIN ${fullPin} is currently locked by the host.`)
+        setIsJoining(false)
+        setJoinBtnText('Join Arena 🚀')
+        return
+      }
+    } catch {
+      // If network check fails or returns cold status, proceed with optimistic join in lobby
+    }
 
     // Smooth navigation to room lobby
     const chosenAvatar = ALL_AVATARS[selectedAvatarIdx] || ALL_AVATARS[0]
     const playerId = 'player_' + Date.now() + '_' + Math.random().toString(36).slice(2)
     
-    setJoinBtnText('✓ Joined! Loading Arena...')
+    setJoinBtnText('✓ Room Found! Entering Arena...')
     setTimeout(() => {
       router.push(`/lobby/${fullPin}?nickname=${encodeURIComponent(trimmed)}&seed=${encodeURIComponent(chosenAvatar.id)}&style=custom&avatar=${encodeURIComponent(chosenAvatar.src)}&pid=${playerId}`)
     }, 150)
@@ -168,21 +189,21 @@ function JoinInner() {
       </nav>
 
       {/* Landscape Main Content Area */}
-      <main className="flex-1 w-full max-w-[1040px] px-4 md:px-6 py-6 md:py-10 flex flex-col justify-center">
-        <div className="hard bg-[var(--paper-2)] rounded-[var(--radius-card)] p-5 md:p-8 relative overflow-hidden w-full">
+      <main className="flex-1 w-full max-w-[1040px] px-3 sm:px-4 md:px-6 py-4 sm:py-6 md:py-10 flex flex-col justify-center">
+        <div className="hard bg-[var(--paper-2)] rounded-[var(--radius-card)] p-4 sm:p-6 md:p-8 relative overflow-hidden w-full box-border">
           
-          <div className="absolute right-6 top-6 w-20 h-20 bg-[var(--sun)] border-[3px] border-[var(--ink)] rotate-[15deg] opacity-20 -z-0"></div>
+          <div className="absolute right-4 top-4 sm:right-6 sm:top-6 w-16 sm:w-20 h-16 sm:h-20 bg-[var(--sun)] border-[3px] border-[var(--ink)] rotate-[15deg] opacity-20 -z-0 pointer-events-none"></div>
 
           <div className="relative z-10 grid grid-cols-1 lg:grid-cols-[1fr_1.1fr] gap-6 lg:gap-10">
             
             {/* Left Column: Form Info */}
             <div className="flex flex-col justify-between">
               <div>
-                <div className="inline-flex items-center gap-2 hard bg-[var(--cherry)] text-white px-3 py-1 rounded-full font-display font-[800] text-[11px] mb-3 self-start">
+                <div className="inline-flex items-center gap-1.5 hard bg-[var(--cherry)] text-white px-3 py-1 rounded-full font-display font-[800] text-[11px] mb-3 self-start">
                   <span>🎮</span> LIVE GAME JOIN
                 </div>
 
-                <h1 className="font-display font-[900] text-[36px] md:text-[44px] leading-[1] tracking-[-0.02em] mb-4 uppercase">
+                <h1 className="font-display font-[900] text-[28px] sm:text-[36px] md:text-[44px] leading-[1.1] tracking-[-0.02em] mb-4 uppercase text-[var(--ink)]">
                   Join the Arena
                 </h1>
                 
@@ -193,11 +214,11 @@ function JoinInner() {
                 )}
 
                 {/* PIN Input */}
-                <div className="mt-4">
-                  <label htmlFor="pin-input-0" className="font-display text-[13px] font-[800] tracking-widest block mb-2.5 uppercase opacity-85">
+                <div className="mt-2 sm:mt-4">
+                  <label htmlFor="pin-input-0" className="font-display text-[12px] sm:text-[13px] font-[800] tracking-widest block mb-2 uppercase opacity-85 text-[var(--ink)]">
                     6-Digit Room PIN (Paste or Type)
                   </label>
-                  <div className="flex gap-2 justify-between">
+                  <div className="grid grid-cols-6 gap-1.5 sm:gap-2 w-full">
                     {pin.map((digit, idx) => (
                       <input
                         key={idx}
@@ -210,7 +231,7 @@ function JoinInner() {
                         inputMode="numeric"
                         autoComplete={idx === 0 ? "one-time-code" : "off"}
                         maxLength={1}
-                        className="w-[calc(16.66%-6px)] aspect-[3/4] text-center bg-[var(--paper)] rounded-[12px] border-[3px] border-[var(--ink)] font-display text-[26px] md:text-[30px] font-[800] outline-none focus:ring-[4px] focus:ring-[#FFE57F] focus:border-[var(--violet)] transition-colors shadow-[3px_3px_0px_#10100F]"
+                        className="w-full aspect-[4/5] sm:aspect-[3/4] text-center bg-[var(--paper)] rounded-[10px] sm:rounded-[12px] border-[2.5px] sm:border-[3px] border-[var(--ink)] font-display text-[22px] sm:text-[26px] md:text-[30px] font-[800] outline-none focus:ring-[3px] focus:ring-[#FFE57F] focus:border-[var(--violet)] transition-colors shadow-[2px_2px_0px_#10100F] sm:shadow-[3px_3px_0px_#10100F] p-0 text-[var(--ink)]"
                         placeholder="·"
                         aria-label={`PIN digit ${idx + 1}`}
                       />
@@ -219,28 +240,33 @@ function JoinInner() {
                 </div>
 
                 {/* Nickname Input */}
-                <div className="mt-6">
-                  <label htmlFor="player-nickname-input" className="font-display text-[13px] font-[800] tracking-widest block mb-2.5 uppercase opacity-85">
+                <div className="mt-5 sm:mt-6">
+                  <label htmlFor="player-nickname-input" className="font-display text-[12px] sm:text-[13px] font-[800] tracking-widest block mb-2 uppercase opacity-85 text-[var(--ink)]">
                     Player Nickname
                   </label>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 w-full items-center">
                     <input
                       id="player-nickname-input"
                       value={nickname}
                       onChange={e => setNickname(e.target.value)}
                       onKeyDown={e => e.key === 'Enter' && handleJoin()}
-                      placeholder="Enter your name..."
-                      className="flex-1 h-[52px] px-4 bg-white rounded-[12px] border-[3px] border-[var(--ink)] text-[16px] font-[700] outline-none focus:ring-[4px] focus:ring-[#FFE57F] shadow-[3px_3px_0px_#10100F]"
+                      placeholder="Enter your full name..."
+                      className="min-w-0 flex-1 h-[48px] sm:h-[52px] px-3 sm:px-4 bg-white rounded-[12px] border-[2.5px] sm:border-[3px] border-[var(--ink)] text-[15px] sm:text-[16px] font-[700] outline-none focus:ring-[3px] focus:ring-[#FFE57F] shadow-[2px_2px_0px_#10100F] sm:shadow-[3px_3px_0px_#10100F] text-[var(--ink)]"
                       aria-label="Player Nickname"
                     />
-                    <button
-                      type="button"
-                      onClick={handleRandomizeNick}
-                      className="hard btn-press bg-[var(--sun)] rounded-[12px] px-3.5 h-[52px] font-display font-[800] text-[13px] min-w-[130px]"
-                      aria-label="Randomize nickname"
-                    >
-                      {randomBtnText}
-                    </button>
+                    {/* Feature Flag: Randomize button hidden for Freshers Event to encourage real student names and zero DB load */}
+                    {false && (
+                      <button
+                        type="button"
+                        onClick={handleRandomizeNick}
+                        className="shrink-0 hard btn-press bg-[var(--sun)] rounded-[12px] px-3 sm:px-4 h-[48px] sm:h-[52px] font-display font-[800] text-[12px] sm:text-[13px] whitespace-nowrap text-[var(--ink)] flex items-center justify-center gap-1"
+                        aria-label="Randomize nickname"
+                      >
+                        <span>🎲</span>
+                        <span className="hidden xs:inline sm:inline">{randomBtnText.replace(/^🎲\s*/, '')}</span>
+                        <span className="inline xs:hidden sm:hidden">Dice</span>
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -249,7 +275,7 @@ function JoinInner() {
               <button
                 onClick={handleJoin}
                 disabled={isJoining}
-                className="mt-8 lg:mt-auto w-full h-[62px] rounded-[var(--radius-btn)] bg-[var(--violet)] text-white font-display font-[900] text-[20px] md:text-[22px] uppercase tracking-wide hard btn-press shadow-[4px_4px_0px_#10100F] disabled:opacity-70 flex items-center justify-center gap-2"
+                className="mt-6 sm:mt-8 lg:mt-auto w-full h-[54px] sm:h-[62px] rounded-[var(--radius-btn)] bg-[var(--violet)] text-white font-display font-[900] text-[18px] sm:text-[20px] md:text-[22px] uppercase tracking-wide hard btn-press shadow-[3px_3px_0px_#10100F] sm:shadow-[4px_4px_0px_#10100F] disabled:opacity-70 flex items-center justify-center gap-2"
                 aria-label="Join game arena"
               >
                 {joinBtnText}
@@ -263,14 +289,16 @@ function JoinInner() {
                   <label className="font-display text-[13px] font-[800] tracking-widest uppercase opacity-85 block">CHOOSE YOUR AVATAR</label>
                   <span className="text-[11px] font-display font-bold text-[var(--violet)]">16 Custom Characters · Scroll to explore</span>
                 </div>
-                <button
-                  type="button"
-                  onClick={handleRandomizeAvatar}
-                  className="hard bg-white rounded-full px-3 py-1 text-[11px] font-display font-[700] hover:bg-[var(--sun)] transition-colors"
-                  aria-label="Pick a random avatar"
-                >
-                  {randomAvatarText}
-                </button>
+                {ENABLE_AVATAR_SPINNING && (
+                  <button
+                    type="button"
+                    onClick={handleRandomizeAvatar}
+                    className="hard bg-white rounded-full px-3 py-1 text-[11px] font-display font-[700] hover:bg-[var(--sun)] transition-colors"
+                    aria-label="Pick a random avatar"
+                  >
+                    {randomAvatarText}
+                  </button>
+                )}
               </div>
 
               {/* Active Avatar Spotlight Banner */}
@@ -336,6 +364,9 @@ function JoinInner() {
     </div>
   )
 }
+
+// Feature Flag: Set to true to re-enable avatar spinning & randomizing options
+const ENABLE_AVATAR_SPINNING = false
 
 export default function JoinPage() {
   return (

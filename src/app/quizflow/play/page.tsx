@@ -4,7 +4,8 @@ import { Suspense } from 'react'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import {
-  subscribeToSession, submitAnswer, submitFrenzyAnswer, reportViolation, buyPowerUp
+  subscribeToSession, submitAnswer, submitFrenzyAnswer, reportViolation, buyPowerUp,
+  fetchRemoteState, joinSessionAsync
 } from '@/quizflow/sessionStore'
 import type { GameState } from '@/quizflow/sessionStore'
 import { buildAvatarUrl, POWER_UPS, calculatePoints, formatPoints, safeGetSessionStorage, safeSetSessionStorage } from '@/quizflow/utils'
@@ -20,6 +21,9 @@ import { useAntiCheat, requestFullscreen } from '@/quizflow/antiCheat'
 import ParticleField from '@/quizflow/ParticleField'
 import { useScreenShake, DamageParticles, BossHealthBar } from '@/quizflow/BossVFX'
 import StreakBadge from '@/quizflow/StreakBadge'
+
+// Feature Flag: Suspended TTS audio narration for Freshers Event
+const ENABLE_TTS_AUDIO = false
 
 function ScorePopup({ points, onDone }: { points: number; onDone: () => void }) {
   useEffect(() => { const t = setTimeout(onDone, 1400); return () => clearTimeout(t) }, [onDone])
@@ -74,6 +78,7 @@ function StudentPlayScreen() {
   const [isTTSActive, setIsTTSActive]   = useState(false)
   const [sessionTimeout, setSessionTimeout] = useState(false)
   const intervalRef = useRef<NodeJS.Timeout | null>(null)
+  const freezeTimerRef = useRef<NodeJS.Timeout | null>(null)
 
   // Coin shop state
   const [showCoinShop, setShowCoinShop] = useState(false)
@@ -93,8 +98,14 @@ function StudentPlayScreen() {
   const [responseStartMs] = useState(() => Date.now())
   const [answerResponseMs, setAnswerResponseMs] = useState<number|undefined>(undefined)
 
+  const me = gameState?.players?.[playerId]
+  const q  = gameState?.quiz?.questions?.[gameState?.currentQuestionIndex ?? 0] ?? null
+  const totalTime = q?.time_limit_ms ?? 20000
+  const timePct   = totalTime > 0 ? timeMs / totalTime : 0
+  const seconds   = Math.ceil(timeMs / 1000)
+
   // Anti-cheat shield integration with fullscreen enforcement + violation reporting
-  const { violationCount, showWarning, dismissWarning, lastReason, fullscreenActive, enterFullscreen } = useAntiCheat({
+  const { violationCount, showWarning, dismissWarning, lastReason, fullscreenActive, fullscreenSupported, enterFullscreen } = useAntiCheat({
     enabled: gameState?.status === 'question_active' || gameState?.status === 'question_reveal' || gameState?.status === 'boss_frenzy',
     blockCopyPaste: true,
     blockContextMenu: true,
@@ -107,6 +118,32 @@ function StudentPlayScreen() {
     }
   })
 
+  // Screen WakeLock management to keep display awake during active quiz play
+  useEffect(() => {
+    let wakeLock: any = null
+    const requestWakeLock = async () => {
+      try {
+        if ('wakeLock' in navigator) {
+          wakeLock = await (navigator as any).wakeLock.request('screen')
+        }
+      } catch {}
+    }
+    requestWakeLock()
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        requestWakeLock()
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibility)
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility)
+      if (wakeLock) {
+        try { wakeLock.release() } catch {}
+      }
+    }
+  }, [])
+
   // Subscribe to session
   useEffect(() => {
     const unsub = subscribeToSession(pin, (state) => {
@@ -115,14 +152,47 @@ function StudentPlayScreen() {
     return unsub
   }, [pin])
 
-  // Session timeout: if no state after 6s, show error
+  // Re-sync immediately on tab visible or when device comes back online
   useEffect(() => {
-    if (!pin) return
+    const onSync = () => {
+      if (document.visibilityState === 'visible' && pin) {
+        fetchRemoteState(pin).then(remote => {
+          if (remote) setGameState(remote)
+        })
+        if (gameState?.status === 'question_active' && gameState.questionEndsAt) {
+          const remaining = Math.max(0, gameState.questionEndsAt - Date.now())
+          setTimeMs(remaining)
+        }
+      }
+    }
+    document.addEventListener('visibilitychange', onSync)
+    window.addEventListener('online', onSync)
+    return () => {
+      document.removeEventListener('visibilitychange', onSync)
+      window.removeEventListener('online', onSync)
+    }
+  }, [pin, gameState?.status, gameState?.questionEndsAt])
+
+  // Session timeout & unregistered player auto-recovery
+  useEffect(() => {
+    if (!pin || !playerId) {
+      router.push(pin ? `/quizflow/join?pin=${pin}` : '/quizflow/join')
+      return
+    }
     const t = setTimeout(() => {
-      if (!gameState) setSessionTimeout(true)
-    }, 6000)
+      if (!gameState) {
+        setSessionTimeout(true)
+      } else if (gameState.players && !gameState.players[playerId]) {
+        // Optimistically attempt to re-register player into session before ejecting
+        joinSessionAsync(pin, { id: playerId, nickname, avatarSeed, avatarStyle }).then(res => {
+          if (res !== 'ok') {
+            router.push(`/quizflow/join?pin=${pin}`)
+          }
+        })
+      }
+    }, 7000)
     return () => clearTimeout(t)
-  }, [pin])
+  }, [pin, playerId, gameState, nickname, avatarSeed, avatarStyle, router])
 
   // Navigate away when game ends
   useEffect(() => {
@@ -133,29 +203,46 @@ function StudentPlayScreen() {
     }
   }, [gameState?.status, pin, playerId, router])
 
-  // Reset speech & state when question changes (preserve used power-ups across session)
+  // Comprehensive reset when question changes (preserve cumulative score & used power-ups across session)
   useEffect(() => {
     if (!gameState) return
     const qIdx = gameState.currentQuestionIndex
     if (qIdx !== prevQIndex) {
       setPrevQIndex(qIdx)
       setHiddenChoices(new Set())
+      if (freezeTimerRef.current) {
+        clearTimeout(freezeTimerRef.current)
+        freezeTimerRef.current = null
+      }
       setFrozen(false)
       setDoubleActive(false)
       setPlayedRevealSound(false)
       setIsTTSActive(false)
       stopSpeech()
+      setShowPopup(false)
+      setPopupPoints(0)
+      setAnswerResponseMs(undefined)
+      setShowDamageParticles(false)
+      setParticleTrigger(null)
+      setShowCoinShop(false)
+      if (gameState.status === 'question_active' && gameState.questionEndsAt) {
+        const remaining = Math.max(0, gameState.questionEndsAt - Date.now())
+        setTimeMs(remaining)
+      }
     }
-  }, [gameState?.currentQuestionIndex, prevQIndex, gameState])
+  }, [gameState?.currentQuestionIndex, prevQIndex, gameState?.status, gameState?.questionEndsAt])
 
-  // Cleanup speech on unmount
+  // Cleanup speech and timer on unmount
   useEffect(() => {
     return () => {
       stopSpeech()
+      if (freezeTimerRef.current) {
+        clearTimeout(freezeTimerRef.current)
+      }
     }
   }, [])
 
-  // Play reveal sound audio when status changes to question_reveal
+  // Play reveal sound audio & haptic vibration when status changes to question_reveal
   useEffect(() => {
     if (!gameState || gameState.status !== 'question_reveal' || playedRevealSound) return
     setPlayedRevealSound(true)
@@ -164,6 +251,9 @@ function StudentPlayScreen() {
     const streak = mePlayer?.streak ?? 0
     if (isCorrect) {
       playCorrectSound()
+      if (typeof window !== 'undefined' && window.navigator?.vibrate) {
+        try { window.navigator.vibrate([40, 60, 40]) } catch {}
+      }
       // Trigger correct particle burst
       setParticleTrigger('correct')
       setTimeout(() => setParticleTrigger(null), 900)
@@ -179,6 +269,9 @@ function StudentPlayScreen() {
       }
     } else if (mePlayer?.hasAnswered) {
       playWrongSound()
+      if (typeof window !== 'undefined' && window.navigator?.vibrate) {
+        try { window.navigator.vibrate([100, 50, 100]) } catch {}
+      }
       // Boss raid screen shake + damage on wrong
       if (gameState.gameMode === 'boss_raid') {
         triggerShake(8)
@@ -191,7 +284,6 @@ function StudentPlayScreen() {
     }
     setPrevAnswerCorrect(isCorrect ?? null)
   }, [gameState?.status, playedRevealSound, playerId, gameState, prevStreak, triggerShake])
-
 
   // Local timer (cosmetic — synced with server ends_at)
   useEffect(() => {
@@ -210,8 +302,8 @@ function StudentPlayScreen() {
       return
     }
 
-    const q = gameState.quiz.questions[gameState.currentQuestionIndex]
-    const totalDuration = q?.time_limit_ms ?? 20000
+    const currentQ = gameState.quiz.questions[gameState.currentQuestionIndex]
+    const totalDuration = currentQ?.time_limit_ms ?? 20000
 
     let lastSec = Math.ceil((gameState.questionEndsAt - Date.now()) / 1000)
     const tick = () => {
@@ -220,8 +312,11 @@ function StudentPlayScreen() {
       setTimeMs(Math.max(0, remaining))
       if (currentSec !== lastSec && currentSec > 0) {
         lastSec = currentSec
-        const urgency = totalDuration > 0 ? 1 - Math.max(0, remaining) / totalDuration : 0
-        playCountdownTick(urgency)
+        // Silence ticking sound if player already locked in their answer
+        if (!me?.hasAnswered) {
+          const urgency = totalDuration > 0 ? 1 - Math.max(0, remaining) / totalDuration : 0
+          playCountdownTick(urgency)
+        }
       }
       if (remaining <= 0 && intervalRef.current) clearInterval(intervalRef.current)
     }
@@ -230,13 +325,7 @@ function StudentPlayScreen() {
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current)
     }
-  }, [gameState?.status, gameState?.currentQuestionIndex, gameState?.questionEndsAt, gameState?.isPaused, gameState?.pausedTimeRemainingMs, frozen, gameState])
-
-  const me = gameState?.players[playerId]
-  const q  = gameState ? gameState.quiz.questions[gameState.currentQuestionIndex] : null
-  const totalTime = q?.time_limit_ms ?? 20000
-  const timePct   = totalTime > 0 ? timeMs / totalTime : 0
-  const seconds   = Math.ceil(timeMs / 1000)
+  }, [gameState?.status, gameState?.currentQuestionIndex, gameState?.questionEndsAt, gameState?.isPaused, gameState?.pausedTimeRemainingMs, frozen, gameState, me?.hasAnswered])
 
   // ── Boss Frenzy countdown timer ──
   useEffect(() => {
@@ -294,7 +383,7 @@ function StudentPlayScreen() {
     if (me?.hasAnswered) return
 
     if (typeof window !== 'undefined' && window.navigator?.vibrate) {
-      window.navigator.vibrate(30)
+      try { window.navigator.vibrate(35) } catch {}
     }
 
     playLockInSound()
@@ -320,6 +409,10 @@ function StudentPlayScreen() {
       return next
     })
 
+    if (typeof window !== 'undefined' && window.navigator?.vibrate) {
+      try { window.navigator.vibrate([25, 40, 50]) } catch {}
+    }
+
     if (type === 'fifty_fifty' && q) {
       playPowerUpSound('5050')
       const wrong = q.choices.map((_, i) => i).filter(i => i !== q.correct_index)
@@ -327,7 +420,8 @@ function StudentPlayScreen() {
     } else if (type === 'time_freeze') {
       playPowerUpSound('freeze')
       setFrozen(true)
-      setTimeout(() => setFrozen(false), 5000)
+      if (freezeTimerRef.current) clearTimeout(freezeTimerRef.current)
+      freezeTimerRef.current = setTimeout(() => setFrozen(false), 5000)
     } else if (type === 'double_points') {
       playPowerUpSound('double')
       setDoubleActive(true)
@@ -602,8 +696,8 @@ function StudentPlayScreen() {
 
       {showPopup && <ScorePopup points={popupPoints} onDone={() => setShowPopup(false)} />}
 
-      {/* FULLSCREEN PROMPT — shown when not fullscreen during active question */}
-      {!fullscreenActive && (gameState.status === 'question_active' || gameState.status === 'question_reveal') && (
+      {/* FULLSCREEN PROMPT — shown when not fullscreen during active question and fullscreen is supported by browser */}
+      {!fullscreenActive && fullscreenSupported && (gameState.status === 'question_active' || gameState.status === 'question_reveal') && (
         <div style={{
           position: 'fixed', inset: 0, zIndex: 200,
           background: 'rgba(10,10,11,0.92)',
@@ -627,78 +721,182 @@ function StudentPlayScreen() {
         </div>
       )}
 
-      {/* COIN SHOP OVERLAY */}
+      {/* COIN SHOP MODAL DRAWER — STADIUM POP REDESIGN */}
       {showCoinShop && (
         <div style={{
-          position: 'fixed', inset: 0, zIndex: 150,
-          background: 'rgba(0,0,0,0.7)',
+          position: 'fixed', inset: 0, zIndex: 110,
+          background: 'rgba(16, 16, 15, 0.75)',
           display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
-          backdropFilter: 'blur(4px)'
+          backdropFilter: 'blur(6px)'
         }} onClick={() => setShowCoinShop(false)}>
           <div
             className="anim-scale-in"
-            style={{ width: '100%', maxWidth: 500, background: 'var(--paper)', borderRadius: '20px 20px 0 0', padding: '24px 20px', border: '2px solid var(--ink)', borderBottom: 'none' }}
+            style={{
+              width: '100%', maxWidth: 520, background: 'var(--paper)',
+              borderRadius: '24px 24px 0 0', padding: '24px 20px 32px',
+              border: '3px solid var(--ink)', borderBottom: 'none',
+              boxShadow: '0 -6px 0 rgba(16,16,15,0.2)',
+              maxHeight: '85vh', overflowY: 'auto'
+            }}
             onClick={e => e.stopPropagation()}
           >
+            {/* Header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <div style={{ fontFamily: 'Space Grotesk', fontSize: 20, fontWeight: 800, color: 'var(--ink)' }}>🪙 Coin Shop</div>
-              <div style={{ fontFamily: 'Space Grotesk', fontSize: 16, fontWeight: 700, color: '#DAA520' }}>🪙 {me?.coins ?? 0} coins</div>
-              <button onClick={() => setShowCoinShop(false)} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--ink)' }}>✕</button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 24 }}>🛒</span>
+                <span style={{ fontFamily: 'Space Grotesk', fontSize: 22, fontWeight: 900, color: 'var(--ink)' }}>STADIUM SHOP</span>
+              </div>
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                background: 'var(--sun)', border: '2px solid var(--ink)',
+                borderRadius: 'var(--radius-pill)', padding: '4px 12px',
+                boxShadow: '2px 2px 0 var(--ink)'
+              }}>
+                <span style={{ fontSize: 16 }}>🪙</span>
+                <span style={{ fontFamily: 'Space Grotesk', fontSize: 16, fontWeight: 900, color: 'var(--ink)' }}>{me?.coins ?? 0}</span>
+                <span style={{ fontSize: 10, fontWeight: 800, opacity: 0.75 }}>COINS</span>
+              </div>
+              <button
+                onClick={() => setShowCoinShop(false)}
+                style={{
+                  background: 'var(--paper-2)', border: '2px solid var(--ink)',
+                  borderRadius: '50%', width: 34, height: 34,
+                  fontSize: 16, fontWeight: 800, cursor: 'pointer',
+                  color: 'var(--ink)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  boxShadow: '2px 2px 0 var(--ink)'
+                }}
+              >✕</button>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {SHOP_ITEMS.map(item => {
-                const canAfford = (me?.coins ?? 0) >= item.cost
-                return (
-                  <div key={item.type} style={{
-                    display: 'flex', alignItems: 'center', gap: 12,
-                    padding: '12px 14px', background: canAfford ? 'var(--paper-2)' : '#f5f5f5',
-                    border: '1.5px solid var(--ink)', borderRadius: 12,
-                    opacity: canAfford ? 1 : 0.5
+
+            {/* Boss Frenzy Lockout Notification */}
+            {gameState?.status === 'boss_frenzy' ? (
+              <div style={{
+                padding: '20px 16px', background: '#FFE4E7',
+                border: '2px solid var(--cherry)', borderRadius: 14,
+                textAlign: 'center', marginBottom: 16
+              }}>
+                <div style={{ fontSize: 32, marginBottom: 6 }}>🔒</div>
+                <div style={{ fontFamily: 'Space Grotesk', fontWeight: 900, fontSize: 16, color: 'var(--cherry)' }}>
+                  BOSS FRENZY FINALE ACTIVE!
+                </div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink)', marginTop: 4 }}>
+                  The power-up shop is disabled during the final rapid-fire round. Focus on speed & accuracy!
+                </div>
+              </div>
+            ) : (
+              <>
+                {/* Active Bid Banner if armed */}
+                {me?.bidMultiplier && me.bidMultiplier > 1 && (
+                  <div style={{
+                    padding: '10px 14px', background: '#FFE57F',
+                    border: '2px solid var(--ink)', borderRadius: 12,
+                    marginBottom: 14, display: 'flex', alignItems: 'center', gap: 8,
+                    boxShadow: '2px 2px 0 var(--ink)'
                   }}>
-                    <span style={{ fontSize: 28 }}>{item.emoji}</span>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontFamily: 'Space Grotesk', fontSize: 14, fontWeight: 700, color: 'var(--ink)' }}>{item.label}</div>
-                      <div style={{ fontFamily: 'Inter', fontSize: 12, color: '#666' }}>{item.description}</div>
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-                      <div style={{ fontFamily: 'Space Grotesk', fontSize: 13, fontWeight: 800, color: '#DAA520' }}>🪙 {item.cost}</div>
-                      {item.requiresTarget ? (
-                        <select
-                          style={{ fontSize: 11, border: '1px solid var(--ink)', borderRadius: 4, padding: '2px 4px', maxWidth: 80, fontFamily: 'Inter' }}
-                          onChange={e => setShopTarget(e.target.value)}
-                          defaultValue=""
-                        >
-                          <option value="" disabled>Pick player</option>
-                          {Object.values(gameState.players)
-                            .filter(p => p.id !== playerId)
-                            .map(p => <option key={p.id} value={p.id}>{p.nickname}</option>)
-                          }
-                        </select>
-                      ) : null}
-                      <button
-                        disabled={!canAfford}
-                        onClick={() => {
-                          const target = item.requiresTarget ? shopTarget ?? undefined : undefined
-                          if (item.requiresTarget && !target) return
-                          const ok = buyPowerUp(pin, playerId, item.type as CoinPowerUpType, target)
-                          if (ok) {
-                            playPowerUpSound('double')
-                            setShowCoinShop(false)
-                          }
-                        }}
-                        style={{
-                          padding: '6px 12px', fontFamily: 'Space Grotesk', fontSize: 12, fontWeight: 700,
-                          background: canAfford ? 'var(--sun)' : '#ddd', color: 'var(--ink)',
-                          border: '1.5px solid var(--ink)', borderRadius: 8,
-                          cursor: canAfford ? 'pointer' : 'not-allowed',
-                          boxShadow: canAfford ? '2px 2px 0 var(--ink)' : 'none'
-                        }}
-                      >Buy</button>
+                    <span style={{ fontSize: 20 }}>⚡</span>
+                    <div style={{ fontSize: 12, fontFamily: 'Space Grotesk', fontWeight: 800, color: 'var(--ink)' }}>
+                      {me.bidMultiplier}× MULTIPLIER ARMED FOR YOUR NEXT QUESTION!
                     </div>
                   </div>
-                )
-              })}
-            </div>
+                )}
+
+                {/* Items List */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {SHOP_ITEMS.map(item => {
+                    const canAfford = (me?.coins ?? 0) >= item.cost
+                    const isBid = item.type.startsWith('bid_')
+                    const isItemActive = isBid && me?.bidMultiplier && (
+                      (item.type === 'bid_2x' && me.bidMultiplier === 2) ||
+                      (item.type === 'bid_3x' && me.bidMultiplier === 3) ||
+                      (item.type === 'bid_4x' && me.bidMultiplier === 4)
+                    )
+
+                    return (
+                      <div key={item.type} style={{
+                        display: 'flex', alignItems: 'center', gap: 12,
+                        padding: '12px 14px',
+                        background: isItemActive ? '#FFFDE7' : canAfford ? 'var(--paper-2)' : '#F5F5F0',
+                        border: isItemActive ? '2.5px solid #FFD700' : '2px solid var(--ink)',
+                        borderRadius: 14,
+                        boxShadow: isItemActive ? '3px 3px 0 #DAA520' : canAfford ? '3px 3px 0 var(--ink)' : 'none',
+                        opacity: canAfford || isItemActive ? 1 : 0.55
+                      }}>
+                        <div style={{
+                          width: 44, height: 44, borderRadius: 10,
+                          background: isItemActive ? '#FFE57F' : 'var(--paper)',
+                          border: '2px solid var(--ink)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontSize: 24, flexShrink: 0
+                        }}>
+                          {item.emoji}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontFamily: 'Space Grotesk', fontSize: 14, fontWeight: 800, color: 'var(--ink)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span>{item.label}</span>
+                            {isItemActive && <span className="badge badge-sun" style={{ fontSize: 9, padding: '1px 6px' }}>ACTIVE</span>}
+                          </div>
+                          <div style={{ fontFamily: 'Inter', fontSize: 11, color: 'var(--ink)', opacity: 0.75, lineHeight: 1.3, marginTop: 2 }}>
+                            {item.description}
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, flexShrink: 0 }}>
+                          <div style={{
+                            fontFamily: 'Space Grotesk', fontSize: 13, fontWeight: 900,
+                            color: canAfford ? '#B8860B' : '#999', display: 'flex', alignItems: 'center', gap: 3
+                          }}>
+                            <span>🪙</span>
+                            <span>{item.cost}</span>
+                          </div>
+                          {item.requiresTarget && canAfford && (
+                            <select
+                              style={{
+                                fontSize: 11, border: '1.5px solid var(--ink)', borderRadius: 6,
+                                padding: '3px 6px', maxWidth: 96, fontFamily: 'Space Grotesk', fontWeight: 700,
+                                background: '#fff', color: 'var(--ink)'
+                              }}
+                              onChange={e => setShopTarget(e.target.value)}
+                              defaultValue=""
+                            >
+                              <option value="" disabled>Pick Target</option>
+                              {Object.values(gameState?.players || {})
+                                .filter(p => p.id !== playerId)
+                                .map(p => <option key={p.id} value={p.id}>{p.nickname}</option>)
+                              }
+                            </select>
+                          )}
+                          <button
+                            disabled={!canAfford || !!isItemActive}
+                            onClick={() => {
+                              const target = item.requiresTarget ? shopTarget ?? undefined : undefined
+                              if (item.requiresTarget && !target) {
+                                alert('Please select a player to freeze first!')
+                                return
+                              }
+                              const ok = buyPowerUp(pin, playerId, item.type as CoinPowerUpType, target)
+                              if (ok) {
+                                playPowerUpSound('double')
+                                setShowCoinShop(false)
+                              }
+                            }}
+                            style={{
+                              padding: '6px 14px', fontFamily: 'Space Grotesk', fontSize: 12, fontWeight: 900,
+                              background: isItemActive ? 'var(--mint)' : canAfford ? 'var(--sun)' : '#ccc',
+                              color: 'var(--ink)',
+                              border: '2px solid var(--ink)', borderRadius: 'var(--radius-btn)',
+                              cursor: canAfford && !isItemActive ? 'pointer' : 'not-allowed',
+                              boxShadow: canAfford && !isItemActive ? '2px 2px 0 var(--ink)' : 'none',
+                              textTransform: 'uppercase'
+                            }}
+                          >
+                            {isItemActive ? '✓ Armed' : 'Buy'}
+                          </button>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
@@ -872,25 +1070,42 @@ function StudentPlayScreen() {
           {frozen && <div style={{ fontSize: 10, color: 'var(--sky)', fontFamily: 'Space Grotesk', fontWeight: 700, textTransform: 'uppercase' }}>FROZEN</div>}
         </div>
 
-        {/* Score + streak + 5x supercharged banner */}
+        {/* Score + streak + bid indicator + coin shop button */}
         <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
           <div style={{ fontFamily: 'Space Grotesk', fontSize: 10, color: 'var(--paper)', lineHeight: 1, opacity: 0.7, textTransform: 'uppercase' }}>SCORE</div>
           <div style={{ fontFamily: 'Space Grotesk', fontSize: 16, fontWeight: 800, color: 'var(--mint)' }}>⚡ {(me?.score ?? 0).toLocaleString()}</div>
           {/* Coin balance + shop button */}
           <button
-            onClick={() => { playClickSound(); setShowCoinShop(true) }}
-            style={{
-              marginTop: 4, display: 'flex', alignItems: 'center', gap: 4,
-              background: 'rgba(218,165,32,0.15)', border: '1.5px solid #DAA520',
-              borderRadius: 20, padding: '3px 10px', cursor: 'pointer',
-              fontFamily: 'Space Grotesk', fontSize: 11, fontWeight: 800, color: '#DAA520'
+            onClick={() => {
+              if (gameState?.status === 'boss_frenzy') return
+              playClickSound()
+              setShowCoinShop(true)
             }}
+            disabled={gameState?.status === 'boss_frenzy'}
+            style={{
+              marginTop: 4, display: 'flex', alignItems: 'center', gap: 5,
+              background: gameState?.status === 'boss_frenzy' ? 'rgba(255,255,255,0.1)' : 'var(--sun)',
+              border: '2px solid var(--ink)',
+              borderRadius: 20, padding: '4px 10px',
+              cursor: gameState?.status === 'boss_frenzy' ? 'not-allowed' : 'pointer',
+              fontFamily: 'Space Grotesk', fontSize: 12, fontWeight: 900,
+              color: 'var(--ink)',
+              boxShadow: gameState?.status === 'boss_frenzy' ? 'none' : '2px 2px 0 var(--ink)',
+              opacity: gameState?.status === 'boss_frenzy' ? 0.6 : 1
+            }}
+            title={gameState?.status === 'boss_frenzy' ? 'Shop disabled during Boss Frenzy' : 'Open Coin Shop'}
           >
-            🪙 {me?.coins ?? 0}
+            <span>{gameState?.status === 'boss_frenzy' ? '🔒' : '🪙'}</span>
+            <span>{me?.coins ?? 0}</span>
+            <span style={{ fontSize: 10, opacity: 0.8 }}>{gameState?.status === 'boss_frenzy' ? 'FRENZY' : 'SHOP'}</span>
           </button>
           {me?.bidMultiplier && me.bidMultiplier > 1 && (
-            <div className="badge badge-sun anim-stamp-in" style={{ marginTop: 4, fontSize: 10, padding: '2px 8px', background: '#FFD700', color: 'var(--ink)', border: '1.5px solid var(--ink)' }}>
-              {me.bidMultiplier}× NEXT Q 🎯
+            <div className="badge badge-sun anim-stamp-in" style={{
+              marginTop: 4, fontSize: 10, padding: '3px 8px',
+              background: '#FFD700', color: 'var(--ink)', border: '2px solid var(--ink)',
+              boxShadow: '2px 2px 0 var(--ink)', fontFamily: 'Space Grotesk', fontWeight: 900
+            }}>
+              {me.bidMultiplier === 4 ? '💥 4× BID ARMED' : me.bidMultiplier === 3 ? '🔥 3× BID ARMED' : '⚡ 2× BID ARMED'} 🎯
             </div>
           )}
           {streakCount >= 5 ? (
@@ -943,39 +1158,52 @@ function StudentPlayScreen() {
       </div>
 
       <div className="play-content-area" style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 14 }}>
-        {/* Question Card with Dominant Hero Typography & TTS */}
+        {/* Question Card with Mobile Anti-Selection Shield & Hero Typography */}
         {q && (
-          <div className={`card anim-scale-in ${doubleActive ? 'star-aura' : ''}`} style={{ padding: '24px 22px', background: 'var(--surface-1)' }}>
+          <div
+            className={`card anim-scale-in ${doubleActive ? 'star-aura' : ''}`}
+            onContextMenu={e => e.preventDefault()}
+            style={{
+              padding: '24px 22px', background: 'var(--surface-1)',
+              userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none'
+            }}
+          >
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 14 }}>
-              <h2 style={{ fontFamily: 'Space Grotesk', fontSize: 'clamp(20px, 3.6vw, 30px)', fontWeight: 800, lineHeight: 1.3, flex: 1, color: 'var(--ink)', margin: 0 }}>
+              <h2 style={{
+                fontFamily: 'Space Grotesk', fontSize: 'clamp(20px, 3.6vw, 30px)',
+                fontWeight: 800, lineHeight: 1.3, flex: 1, color: 'var(--ink)', margin: 0,
+                userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none'
+              }}>
                 {q.prompt}
               </h2>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
                 {doubleActive && <span className="badge badge-sun">⭐ 2× DOUBLE</span>}
-                <button
-                  type="button"
-                  onClick={() => handleToggleTTS(q.prompt)}
-                  style={{
-                    padding: '8px 14px',
-                    background: isTTSActive ? 'var(--sun)' : 'var(--paper)',
-                    border: '2px solid var(--ink)',
-                    borderRadius: 'var(--radius-btn)',
-                    boxShadow: '2px 2px 0px var(--ink)',
-                    fontFamily: 'Space Grotesk',
-                    fontSize: 12,
-                    fontWeight: 800,
-                    color: 'var(--ink)',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 6
-                  }}
-                  title="Read question prompt aloud"
-                  aria-label="Read question aloud"
-                >
-                  <span>{isTTSActive ? '🔊' : '🔈'}</span>
-                  <span>{isTTSActive ? 'Stop' : 'Listen'}</span>
-                </button>
+                {ENABLE_TTS_AUDIO && (
+                  <button
+                    type="button"
+                    onClick={() => handleToggleTTS(q.prompt)}
+                    style={{
+                      padding: '8px 14px',
+                      background: isTTSActive ? 'var(--sun)' : 'var(--paper)',
+                      border: '2px solid var(--ink)',
+                      borderRadius: 'var(--radius-btn)',
+                      boxShadow: '2px 2px 0px var(--ink)',
+                      fontFamily: 'Space Grotesk',
+                      fontSize: 12,
+                      fontWeight: 800,
+                      color: 'var(--ink)',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6
+                    }}
+                    title="Read question prompt aloud"
+                    aria-label="Read question aloud"
+                  >
+                    <span>{isTTSActive ? '🔊' : '🔈'}</span>
+                    <span>{isTTSActive ? 'Stop' : 'Listen'}</span>
+                  </button>
+                )}
               </div>
             </div>
             {(q.imageUrl || q.media_url) && (
@@ -1005,9 +1233,16 @@ function StudentPlayScreen() {
           </div>
         )}
 
-        {/* Answer Grid (2×2 on Desktop, 1-Column Stacked on Mobile) */}
+        {/* Answer Grid (2×2 on Desktop, 1-Column Stacked on Mobile) with Mobile Shield */}
         {q && (
-          <div className="quiz-answer-grid" style={{ flex: 1 }}>
+          <div
+            className="quiz-answer-grid"
+            onContextMenu={e => e.preventDefault()}
+            style={{
+              flex: 1,
+              userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none'
+            }}
+          >
             {q.choices.map((choice, idx) => {
               const colors   = answerBgColors[idx]
               const isHidden = hiddenChoices.has(idx)
@@ -1035,12 +1270,14 @@ function StudentPlayScreen() {
                   className={btnClasses}
                   onClick={() => handleAnswer(idx)}
                   disabled={hasAnswered || isRevealed || isHidden}
+                  onContextMenu={e => e.preventDefault()}
                   style={{
                     position: 'relative',
                     minHeight: 88,
                     background: bg,
                     borderColor,
                     display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px',
+                    userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none',
                     ...(myPick ? { transform: 'translate(3px, 3px)', boxShadow: '1px 1px 0 var(--ink)' } : {}),
                     ...(hasAnswered && !myPick && !isCorrect ? { opacity: 0.35 } : {})
                   }}
@@ -1066,7 +1303,7 @@ function StudentPlayScreen() {
                     </span>
                   )}
                   <div className="answer-glyph" style={{ color: borderColor, flexShrink: 0, fontSize: 18, fontWeight: 900 }}>{answerGlyphs[idx]}</div>
-                  <span style={{ fontSize: 14, lineHeight: 1.35, textAlign: 'left', color: 'var(--ink)', fontFamily: 'Inter', fontWeight: 600, flex: 1 }}>{choice}</span>
+                  <span style={{ fontSize: 14, lineHeight: 1.35, textAlign: 'left', color: 'var(--ink)', fontFamily: 'Inter', fontWeight: 600, flex: 1, userSelect: 'none', WebkitUserSelect: 'none' }}>{choice}</span>
                   {isRevealed && isCorrect && <span style={{ marginLeft: 'auto', fontSize: 20, fontWeight: 800 }}>✓</span>}
                 </button>
               )
@@ -1094,8 +1331,15 @@ function StudentPlayScreen() {
             textAlign: 'center'
           }}>
             {myCorrect ? (
-              <div style={{ fontFamily: 'Space Grotesk', fontWeight: 800, fontSize: 18, color: 'var(--ink)' }}>
-                ✅ Correct! +{(me.lastPointsEarned ?? 0).toLocaleString()} pts
+              <div>
+                <div style={{ fontFamily: 'Space Grotesk', fontWeight: 900, fontSize: 20, color: 'var(--ink)' }}>
+                  ✅ Correct! +{(me.lastPointsEarned ?? 0).toLocaleString()} pts
+                </div>
+                {me.lastPointsEarned > 1000 && (
+                  <div style={{ fontSize: 12, fontFamily: 'Space Grotesk', fontWeight: 800, color: 'var(--ink)', opacity: 0.8, marginTop: 4 }}>
+                    ⚡ Speed & Streak Multiplier Applied!
+                  </div>
+                )}
               </div>
             ) : me.selectedIndex !== null ? (
               <div style={{ fontFamily: 'Space Grotesk', fontWeight: 800, fontSize: 16, color: 'var(--paper)' }}>
@@ -1111,28 +1355,30 @@ function StudentPlayScreen() {
                 <div style={{ color: 'var(--ink)', fontSize: 13, fontFamily: 'Inter', opacity: 0.85, fontWeight: 500 }}>
                   💡 {q.explanation}
                 </div>
-                <button
-                  type="button"
-                  onClick={() => handleToggleTTS(q.explanation || '')}
-                  style={{
-                    padding: '4px 12px',
-                    background: 'var(--paper)',
-                    border: '1.5px solid var(--ink)',
-                    borderRadius: 'var(--radius-pill)',
-                    boxShadow: '2px 2px 0px var(--ink)',
-                    fontFamily: 'Space Grotesk',
-                    fontSize: 11,
-                    fontWeight: 800,
-                    color: 'var(--ink)',
-                    cursor: 'pointer',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 5,
-                    marginTop: 4
-                  }}
-                >
-                  <span>🔊</span> Read Explanation
-                </button>
+                {ENABLE_TTS_AUDIO && (
+                  <button
+                    type="button"
+                    onClick={() => handleToggleTTS(q.explanation || '')}
+                    style={{
+                      padding: '4px 12px',
+                      background: 'var(--paper)',
+                      border: '1.5px solid var(--ink)',
+                      borderRadius: 'var(--radius-pill)',
+                      boxShadow: '2px 2px 0px var(--ink)',
+                      fontFamily: 'Space Grotesk',
+                      fontSize: 11,
+                      fontWeight: 800,
+                      color: 'var(--ink)',
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 5,
+                      marginTop: 4
+                    }}
+                  >
+                    <span>🔊</span> Read Explanation
+                  </button>
+                )}
               </div>
             )}
 

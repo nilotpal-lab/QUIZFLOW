@@ -30,25 +30,42 @@ export interface AntiCheatOptions {
 
 // ── Fullscreen helpers ────────────────────────────────────────────
 
+export function isFullscreenSupported(): boolean {
+  if (typeof document === 'undefined') return false
+  const doc = document as any
+  const el = document.documentElement as any
+  return Boolean(
+    el?.requestFullscreen ||
+    el?.webkitRequestFullscreen ||
+    el?.mozRequestFullScreen ||
+    doc?.fullscreenEnabled ||
+    doc?.webkitFullscreenEnabled
+  )
+}
+
 export function requestFullscreen() {
+  if (typeof document === 'undefined') return
   const el = document.documentElement as any
   try {
-    if (el.requestFullscreen) return el.requestFullscreen()
-    if (el.webkitRequestFullscreen) return el.webkitRequestFullscreen()
-    if (el.mozRequestFullScreen) return el.mozRequestFullScreen()
+    if (el?.requestFullscreen) return el.requestFullscreen()
+    if (el?.webkitRequestFullscreen) return el.webkitRequestFullscreen()
+    if (el?.mozRequestFullScreen) return el.mozRequestFullScreen()
   } catch {}
 }
 
 export function exitFullscreen() {
+  if (typeof document === 'undefined') return
   const doc = document as any
   try {
-    if (doc.exitFullscreen) return doc.exitFullscreen()
-    if (doc.webkitExitFullscreen) return doc.webkitExitFullscreen()
-    if (doc.mozCancelFullScreen) return doc.mozCancelFullScreen()
+    if (doc?.exitFullscreen) return doc.exitFullscreen()
+    if (doc?.webkitExitFullscreen) return doc.webkitExitFullscreen()
+    if (doc?.mozCancelFullScreen) return doc.mozCancelFullScreen()
   } catch {}
 }
 
 export function isFullscreen(): boolean {
+  if (typeof document === 'undefined') return true
+  if (!isFullscreenSupported()) return true // Graceful pass for mobile iOS Safari
   const doc = document as any
   return Boolean(
     doc.fullscreenElement ||
@@ -87,6 +104,14 @@ export class AntiCheatShield {
     }
   }
 
+  private handleSelectStart = (e: Event) => {
+    if (this.options.blockCopyPaste !== false) {
+      e.preventDefault()
+      e.stopPropagation()
+      this.recordViolation('copy_paste_attempt')
+    }
+  }
+
   private handleContextMenu = (e: MouseEvent) => {
     if (this.options.blockContextMenu !== false) {
       e.preventDefault()
@@ -95,7 +120,7 @@ export class AntiCheatShield {
   }
 
   private handleFullscreenChange = () => {
-    if (this.options.enforceFullscreen && !isFullscreen()) {
+    if (this.options.enforceFullscreen && isFullscreenSupported() && !isFullscreen()) {
       this.recordViolation('fullscreen_exit')
     }
   }
@@ -146,6 +171,7 @@ export class AntiCheatShield {
       document.addEventListener('copy', this.handleCopyPaste)
       document.addEventListener('paste', this.handleCopyPaste)
       document.addEventListener('cut', this.handleCopyPaste)
+      document.addEventListener('selectstart', this.handleSelectStart)
     }
 
     if (this.options.blockContextMenu !== false) {
@@ -182,6 +208,7 @@ export class AntiCheatShield {
     document.removeEventListener('copy', this.handleCopyPaste)
     document.removeEventListener('paste', this.handleCopyPaste)
     document.removeEventListener('cut', this.handleCopyPaste)
+    document.removeEventListener('selectstart', this.handleSelectStart)
     document.removeEventListener('contextmenu', this.handleContextMenu)
     document.removeEventListener('fullscreenchange', this.handleFullscreenChange)
     document.removeEventListener('webkitfullscreenchange', this.handleFullscreenChange)
@@ -225,8 +252,17 @@ export function useAntiCheat(options: AntiCheatOptions = {}) {
   onViolationRef.current = options.onViolation
   onReportRef.current = options.onViolationReport
 
+  const [fullscreenSupported, setFullscreenSupported] = useState(true)
+
   // Track fullscreen state
   useEffect(() => {
+    const supported = isFullscreenSupported()
+    setFullscreenSupported(supported)
+    if (!supported) {
+      setFullscreenActive(true)
+      return
+    }
+
     const onFsChange = () => setFullscreenActive(isFullscreen())
     document.addEventListener('fullscreenchange', onFsChange)
     document.addEventListener('webkitfullscreenchange', onFsChange)
@@ -279,6 +315,7 @@ export function useAntiCheat(options: AntiCheatOptions = {}) {
     dismissWarning,
     resetCount,
     fullscreenActive,
+    fullscreenSupported,
     enterFullscreen,
   }
 }
