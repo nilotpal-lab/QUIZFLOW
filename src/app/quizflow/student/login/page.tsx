@@ -73,16 +73,11 @@ function LoginInner() {
     const isAfter = gate.gate_state === 'closed_after'
     return (
       <div className="min-h-screen w-full bg-[var(--paper)] selection:bg-[var(--sun)] flex flex-col items-center justify-center p-4 text-[var(--ink)] overflow-x-hidden">
-        {/* Top nav — same as the login form view, so admins can switch roles even when login is closed. */}
+        {/* Top nav — student-only, no admin switch. */}
         <nav className="sticky top-0 z-40 w-full bg-[var(--paper)] border-b-[3px] border-[var(--ink)]">
           <div className="max-w-[1280px] mx-auto px-3 md:px-6 min-h-[60px] py-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
             <Link href="/quizflow" className="font-display font-[900] text-[20px] md:text-[22px] tracking-tight flex items-center gap-1.5 shrink-0">
               <QuizFlowLogo size={26} alt="QuizFlow" /> QuizFlow
-            </Link>
-            <Link href="/quizflow/auth">
-              <button className="hard bg-white text-[var(--ink)] rounded-full px-4 py-2 text-[11px] sm:text-[12px] font-display font-bold uppercase tracking-wider border-[2px] border-[var(--ink)] btn-press" style={{ minHeight: 36 }}>
-                🛡️ Admin
-              </button>
             </Link>
           </div>
         </nav>
@@ -126,11 +121,6 @@ function LoginInner() {
         <div className="max-w-[1280px] mx-auto px-3 md:px-6 min-h-[60px] py-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
           <Link href="/quizflow" className="font-display font-[900] text-[20px] md:text-[22px] tracking-tight flex items-center gap-1.5 shrink-0">
             <QuizFlowLogo size={26} alt="QuizFlow" /> QuizFlow
-          </Link>
-          <Link href="/quizflow/auth">
-            <button className="hard bg-white text-[var(--ink)] rounded-full px-4 py-2 text-[11px] sm:text-[12px] font-display font-bold uppercase tracking-wider border-[2px] border-[var(--ink)] btn-press" style={{ minHeight: 36 }}>
-              🛡️ Admin
-            </button>
           </Link>
         </div>
       </nav>
