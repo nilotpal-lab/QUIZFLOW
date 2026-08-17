@@ -534,3 +534,21 @@ TO anon, authenticated;` (migration does not enable RLS).
   `process.exit` before the cleanup `finally` — same gotcha as the student flow).
   User's "Phoenix" team untouched.
 
+### 8. Admin/Student role-switch UX gaps (same day) — production review
+- **Report**: "no create-account option in the admin tab" + "no admin switch top-right
+  on the student login page".
+- **Investigation**: both options ALREADY exist in current code AND on the deployed
+  site when rendered fresh. The real gaps were states hiding them:
+  1. `/quizflow/auth` auto-redirected to the dashboard when a session already
+     existed, so the Login/Create Account tabs (and the logged-in card) never
+     showed — reproduced on production with a stored `qf_host_user`.
+  2. The student login GATE screens (login closed/ended) had no top nav at all.
+  3. The student dashboard top-right had no Admin switch (only Logout).
+- **Fixes**: auth page no longer auto-redirects (account hub — logged-in card gains
+  "🔑 Switch / Create Account" that clears the local session and reveals the tabs);
+  gate screens now render the same sticky nav with the 🛡️ Admin button; student
+  dashboard nav gains a 🛡️ Admin link.
+- **Verified**: `npx tsc --noEmit` clean, `npm run build` clean, and a Playwright
+  browser run — 5/5 PASSED (logged-in auth stays on auth + shows switch button +
+  reveals tabs on click; gate screen shows Admin; dashboard shows Admin).
+

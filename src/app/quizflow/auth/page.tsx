@@ -9,6 +9,7 @@ import {
   signUpHostAsync,
   loginHostAsync,
   loginHost,
+  logoutHost,
   resendConfirmationEmailAsync,
   initAuthSync,
   type HostUser
@@ -29,20 +30,22 @@ export default function AdminAuthPage() {
   const [authNotice, setAuthNotice]   = useState('')
 
   useEffect(() => {
+    // Do NOT auto-redirect to the dashboard: this page doubles as the
+    // account hub. When a session already exists we show the logged-in
+    // card with "Go to Dashboard" and "Switch / Create Account" so the
+    // Login / Create Account tabs are always reachable.
     const existing = getHostUser()
     if (existing) {
       setUser(existing)
-      router.push('/quizflow/dashboard')
     }
 
     const unsubscribe = initAuthSync(updatedUser => {
       if (updatedUser) {
         setUser(updatedUser)
-        router.push('/quizflow/dashboard')
       }
     })
     return () => unsubscribe()
-  }, [router])
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -149,9 +152,21 @@ export default function AdminAuthPage() {
           <div className="font-body text-[13px] font-semibold text-[var(--ink)] opacity-70 mb-6">
             {user.email} • {user.school}
           </div>
-          <div className="flex gap-3 justify-center">
+          <div className="flex gap-3 justify-center flex-wrap">
             <button className="hard btn-press bg-[var(--sun)] text-[var(--ink)] font-display font-[900] text-[15px] px-6 py-3 rounded-[12px] border-[2.5px] border-[var(--ink)] shadow-[3px_3px_0px_#10100F] cursor-pointer" onClick={() => router.push('/quizflow/dashboard')}>
               📊 Go to Dashboard →
+            </button>
+            <button
+              className="hard btn-press bg-white text-[var(--ink)] font-display font-[900] text-[15px] px-6 py-3 rounded-[12px] border-[2.5px] border-[var(--ink)] shadow-[3px_3px_0px_#10100F] cursor-pointer"
+              onClick={() => {
+                // Clear the local session so the Login / Create Account tabs show again.
+                logoutHost()
+                setUser(null)
+                setAuthError('')
+                setAuthNotice('')
+              }}
+            >
+              🔑 Switch / Create Account
             </button>
           </div>
         </div>
