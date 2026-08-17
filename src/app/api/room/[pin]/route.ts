@@ -272,7 +272,7 @@ export async function GET(
         .eq('id', 'room_' + pin)
         .maybeSingle()
       const timeoutPromise = new Promise<{ data: any; error: any }>((resolve) =>
-        setTimeout(() => resolve({ data: null, error: new Error('timeout') }), 500)
+        setTimeout(() => resolve({ data: null, error: new Error('timeout') }), 3000)
       )
       const res = await Promise.race([fetchPromise, timeoutPromise])
       const data = res?.data
@@ -334,7 +334,7 @@ export async function POST(
           .eq('id', 'room_' + pin)
           .maybeSingle()
         const timeoutPromise = new Promise<{ data: any; error: any }>((resolve) =>
-          setTimeout(() => resolve({ data: null, error: new Error('timeout') }), 500)
+          setTimeout(() => resolve({ data: null, error: new Error('timeout') }), 3000)
         )
         const res = await Promise.race([fetchPromise, timeoutPromise])
         const data = res?.data

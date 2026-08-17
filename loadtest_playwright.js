@@ -14,28 +14,38 @@ async function joinAndPlayStudent(studentIdx) {
   const studentName = `GamerStudent_${studentIdx}`;
 
   try {
-    // 1. Join room via API
-    const joinRes = await fetch(`${TARGET_URL}/api/room/${ROOM_PIN}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action: 'join',
-        player: {
-          id: playerId,
-          nickname: studentName,
-          avatarSeed: 'Totoro',
-          avatarStyle: 'custom',
-          joinedAt: Date.now(),
-          connected: true,
-          score: 0
-        }
-      })
-    });
+    // 1. Join room via API with auto-retry for cold serverless container warmup
+    let joinedOk = false
+    for (let attempt = 1; attempt <= 5; attempt++) {
+      try {
+        const joinRes = await fetch(`${TARGET_URL}/api/room/${ROOM_PIN}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'join',
+            player: {
+              id: playerId,
+              nickname: studentName,
+              avatarSeed: 'Totoro',
+              avatarStyle: 'custom',
+              joinedAt: Date.now(),
+              connected: true,
+              score: 0
+            }
+          })
+        });
 
-    if (joinRes.ok) {
-      console.log(`✅ Student ${studentIdx} (${studentName}) joined room ${ROOM_PIN}!`);
-    } else {
-      console.warn(`⚠️ Student ${studentIdx} join status: ${joinRes.status}`);
+        if (joinRes.ok) {
+          joinedOk = true
+          console.log(`✅ Student ${studentIdx} (${studentName}) joined room ${ROOM_PIN}!`);
+          break;
+        }
+      } catch {}
+      await new Promise(r => setTimeout(r, 600));
+    }
+
+    if (!joinedOk) {
+      console.warn(`⚠️ Student ${studentIdx} failed to join room ${ROOM_PIN} after 5 retries.`);
     }
 
     // 2. Active Gameplay Polling Loop
