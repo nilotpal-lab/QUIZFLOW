@@ -552,3 +552,21 @@ TO anon, authenticated;` (migration does not enable RLS).
   browser run — 5/5 PASSED (logged-in auth stays on auth + shows switch button +
   reveals tabs on click; gate screen shows Admin; dashboard shows Admin).
 
+### 9. Removal pass (same day) — create account, demo login, student-dashboard admin switch
+- **Request**: remove the Create Account feature from the admin login page, remove
+  the Instant Demo Admin Login, and remove the admin switch from the student area
+  after login (keep the admin switch on the student LOGIN page, per the original ask).
+- **Changes**: `src/app/quizflow/auth/page.tsx` — removed the ✨ Create Account tab,
+  the sign-up branch/fields (`isSignUp`, name/school states, `signUpHostAsync`),
+  and the 🎓 Instant Demo Admin Login button + `handleDemoLogin`; the login card
+  now leads with an ADMIN LOGIN badge, and the logged-in card button is now just
+  "🔑 Switch Account". `src/app/quizflow/student/dashboard/page.tsx` — removed the
+  🛡️ Admin button (Logout only again). Student LOGIN page + gate screens keep the
+  Admin switch.
+- **Note**: an earlier transient "Syntax Error" + stale-webpack-chunk 500 during
+  editing required a dev-server restart (kill + wipe `.next` + `npm run dev`).
+- **Verified**: `tsc` clean, `npm run build` clean, browser run — 6/6 PASSED
+  (no create-account tab, no demo login, ADMIN LOGIN badge + Sign In present,
+  logged-in card shows Switch Account only, student login still shows Admin,
+  real student login → dashboard has Logout but no Admin button).
+

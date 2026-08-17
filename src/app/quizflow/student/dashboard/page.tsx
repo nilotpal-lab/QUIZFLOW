@@ -85,14 +85,6 @@ export default function StudentDashboard() {
                 👥 {me.team.name}
               </span>
             )}
-            <Link href="/quizflow/auth">
-              <button
-                className="hard bg-white text-[var(--ink)] rounded-full px-4 py-2 text-[11px] sm:text-[12px] font-display font-bold uppercase tracking-wider border-[2px] border-[var(--ink)] btn-press shrink-0"
-                style={{ minHeight: 36 }}
-              >
-                🛡️ Admin
-              </button>
-            </Link>
             <button
               onClick={handleLogout}
               className="hard bg-white text-[var(--ink)] rounded-full px-4 py-2 text-[11px] sm:text-[12px] font-display font-bold uppercase tracking-wider border-[2px] border-[var(--ink)] btn-press shrink-0"
