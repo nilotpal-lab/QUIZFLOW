@@ -7,7 +7,11 @@ export default defineConfig({
   expect: {
     timeout: 5000,
   },
-  fullyParallel: true,
+  // Serial + single worker: the Supabase-backed suites share one real DB
+  // (games register sessions for every team; admin-student flips the shared
+  // gate row) and would corrupt each other's assertions if parallelized.
+  fullyParallel: false,
+  workers: 1,
   webServer: {
     command: 'npm run dev',
     url: 'http://localhost:3001',

@@ -117,6 +117,9 @@ async function seedGame(): Promise<Seed> {
 
   cleanup = async () => {
     await db().from('quiz_sessions').delete().eq('game_id', gameId);
+    // Also drop any sessions OTHER (parallel) games registered for our teams,
+    // so the FK below never blocks team deletion.
+    await db().from('quiz_sessions').delete().in('team_id', [alpha.id, beta.id]);
     await db().from('games').delete().eq('id', gameId);
     await db().from('teams').delete().in('id', [alpha.id, beta.id]);
   };
@@ -146,6 +149,10 @@ async function post(request: import('@playwright/test').APIRequestContext, path:
 }
 
 test.describe('Live-play game engine', () => {
+  // qf_create_game registers a quiz_sessions row for EVERY team in the DB,
+  // so parallel tests would register each other's teams (wrong game lookups
+  // + FK-blocked cleanup). Must run serially.
+  test.describe.configure({ mode: 'serial' });
   test.skip(!SUPABASE_CONFIGURED, 'Supabase not configured — apply the migrations and set env vars to run.');
 
   test('answer scoring: correct awards points+coins, wrong awards 0, duplicate rejected, no answer leak', async ({ request }) => {
@@ -154,7 +161,7 @@ test.describe('Live-play game engine', () => {
 
     const correct = await post(request, '/api/quiz/answer', tokenAlpha, { selected_option: 0, client_elapsed_ms: 1500 });
     const correctBody = await correct.json();
-    expect(correct.status).toBe(200);
+    expect(correct.status()).toBe(200);
     expect(correctBody.success).toBe(true);
     expect(correctBody.correct).toBe(true);
     expect(correctBody.points_earned).toBe(100); // easy
@@ -164,7 +171,7 @@ test.describe('Live-play game engine', () => {
     // Duplicate answer for the same question → rejected, no double-credit.
     const dup = await post(request, '/api/quiz/answer', tokenAlpha, { selected_option: 0 });
     const dupBody = await dup.json();
-    expect(dup.status).toBe(200);
+    expect(dup.status()).toBe(200);
     expect(dupBody.success).toBe(false);
     expect(dupBody.reason).toBe('already_answered');
 
@@ -210,12 +217,12 @@ test.describe('Live-play game engine', () => {
 
     // Alpha spends all 50 on bid_4x (cost 50) → exactly 0 left.
     const spend = await post(request, '/api/quiz/shop/buy', tokenAlpha, { item: 'bid_4x' });
-    expect(spend.status).toBe(200);
+    expect(spend.status()).toBe(200);
     expect((await spend.json()).coins_remaining).toBe(0);
 
     // Alpha cannot afford anything now → 402.
     const poor = await post(request, '/api/quiz/shop/buy', tokenAlpha, { item: 'bid_2x' });
-    expect(poor.status).toBe(402);
+    expect(poor.status()).toBe(402);
 
     // Q1 active.
     await db().rpc('qf_advance_game', { p_game_id: gameId, p_action: 'start' });
@@ -225,7 +232,7 @@ test.describe('Live-play game engine', () => {
     // it applies to the NEXT question (Q2).
     const buy = await post(request, '/api/quiz/shop/buy', tokenBeta, { item: 'bid_2x' });
     const buyBody = await buy.json();
-    expect(buy.status).toBe(200);
+    expect(buy.status()).toBe(200);
     expect(buyBody.success).toBe(true);
     expect(buyBody.coins_remaining).toBe(30);
 
@@ -233,10 +240,11 @@ test.describe('Live-play game engine', () => {
     const q1 = await post(request, '/api/quiz/answer', tokenBeta, { selected_option: 0 });
     expect((await q1.json()).points_earned).toBe(100);
 
-    // Q2: bid applies → medium 200 × 2 = 400, then consumed.
+    // Q2: bid applies → medium 200 × 2 (bid) × 1.1 (streak from the
+    // correct Q1) = 440, then consumed.
     await db().rpc('qf_advance_game', { p_game_id: gameId, p_action: 'next' });
     const q2 = await post(request, '/api/quiz/answer', tokenBeta, { selected_option: 2 });
-    expect((await q2.json()).points_earned).toBe(400);
+    expect((await q2.json()).points_earned).toBe(440);
 
     const { data: betaRow } = await db().from('quiz_sessions').select('bid_multiplier').eq('id', await sessionIdOf(gameId, betaId)).single();
     expect(betaRow!.bid_multiplier).toBe(1); // consumed
@@ -249,12 +257,12 @@ test.describe('Live-play game engine', () => {
     // Credit Alpha, then Alpha freezes Beta via the shop.
     await db().from('quiz_sessions').update({ coins: 50 }).eq('id', await sessionIdOf(gameId, alphaId));
     const buy = await post(request, '/api/quiz/shop/buy', tokenAlpha, { item: 'freeze_player', target_team_id: betaId });
-    expect(buy.status).toBe(200);
+    expect(buy.status()).toBe(200);
 
     // Beta answers while frozen → rejected, nothing recorded.
     const frozen = await post(request, '/api/quiz/answer', tokenBeta, { selected_option: 0 });
     const frozenBody = await frozen.json();
-    expect(frozen.status).toBe(200);
+    expect(frozen.status()).toBe(200);
     expect(frozenBody.success).toBe(false);
     expect(frozenBody.reason).toBe('frozen');
     expect(frozenBody.points_earned).toBe(0);

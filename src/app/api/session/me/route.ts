@@ -63,6 +63,7 @@ export async function GET(req: Request) {
       id: team.id,
       name: team.name,
       code: team.code,
+      username: team.username,
       roster: team.roster,
       status: team.status,
       claimed_by: team.claimed_by,

@@ -406,3 +406,57 @@ TO anon, authenticated;` (migration does not enable RLS).
 - [ ] Local Supabase stack is still running — `npx supabase stop` when done with it.
 - [ ] `session-log.md` should be updated at the end of every working session so context
       keeps flowing forward.
+
+---
+
+## 8. Session 6 (2026-08-17) — QuizFlow Brand Logo & Favicon Integration
+
+### 1. User Request
+- Use the image in the `Logo/` folder as the favicon and brand logo for QuizFlow.
+
+### 2. Implementation Plan
+1. Inspect the source asset in `Logo/` (`ChatGPT Image Aug 17, 2026, 10_45_06 AM.png`, 1254x1254 PNG).
+2. Generate all standard web icons and favicons in `public/` (`logo.png`, `quizflow-logo.png`, `favicon.ico`, `favicon.png`, `icon.png`, `apple-icon.png`, `apple-touch-icon.png`).
+3. Add Next.js App Router convention icons into `src/app/` (`icon.png`, `apple-icon.png`, `favicon.ico`).
+4. Update `src/quizflow/QuizFlowLogo.tsx` to display `/logo.png` with clean object containment.
+5. Update `src/quizflow/metadata.ts` icon declarations to reference the new favicon and app icons.
+6. Update `src/app/manifest.ts` PWA icons to point to `/logo.png` and `/icon.png`.
+7. Generate and update `src/quizflow/logoDataUri.ts` with the new PNG base64 Data URI for the edge-rendered OG dynamic card (`src/app/opengraph-image.tsx`).
+
+### 3. Changes Made
+- **Created**:
+  - `public/logo.png`, `public/quizflow-logo.png`, `public/favicon.ico`, `public/favicon.png`, `public/icon.png`, `public/apple-icon.png`, `public/apple-touch-icon.png`
+  - `src/app/icon.png`, `src/app/apple-icon.png`, `src/app/favicon.ico`
+  - `scripts/sync-logo.js` (reusable logo synchronization and data URI generator script)
+- **Modified**:
+  - `src/quizflow/QuizFlowLogo.tsx`: Updated brand logo image reference to `/logo.png`.
+  - `src/quizflow/metadata.ts`: Updated `icons` configuration.
+  - `src/app/manifest.ts`: Updated manifest icon paths and types.
+  - `src/quizflow/logoDataUri.ts`: Re-generated with the new logo data URI.
+
+### 4. Verification
+- Run `npx tsc --noEmit` — PASSED (0 errors).
+- Server verified on `http://localhost:3001` and `http://localhost:3001/quizflow` — PASSED (200 OK).
+
+---
+
+## 9. Session 7 (2026-08-17) — Production Build Check
+
+### 1. User Request
+- Run a production build check (`npm run build`).
+
+### 2. Implementation Plan
+- Run `next build` to compile, lint, type-check, and prerender all routes.
+
+### 3. Changes Made
+- **None.** This was a verification-only session — no files were modified, added, or
+  removed during this session. The uncommitted working-tree changes (backend room-write
+  serialization / answer-key accessor, e2e test hardening, three new Supabase
+  migrations) were already present before this session and are NOT part of it.
+
+### 4. Verification
+- `npm run build` — **PASSED** (exit 0). Compiled successfully; lint + type check clean;
+  34/34 static pages generated; all API routes collected; middleware 27.3 kB.
+- One benign warning: "Using edge runtime on a page currently disables static generation
+  for that page" (known — the edge-rendered OG dynamic card).
+

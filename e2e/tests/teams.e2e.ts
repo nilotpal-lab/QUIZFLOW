@@ -22,6 +22,7 @@ function db() {
 }
 
 let seedCode: string | null = null;
+let seedTeamId: string | null = null;
 
 async function seedTeam(overrides: Record<string, unknown> = {}) {
   const code = 'T' + Date.now().toString(36).toUpperCase() + Math.random().toString(36).slice(2, 6).toUpperCase();
@@ -37,18 +38,23 @@ async function seedTeam(overrides: Record<string, unknown> = {}) {
     .select()
     .single();
   if (error) throw new Error('Seed failed: ' + error.message);
+  seedTeamId = data.id;
   return data;
 }
 
 async function cleanupSeed() {
-  if (seedCode) {
+  if (seedTeamId) {
     try {
-      await db().from('teams').delete().eq('code', seedCode);
+      // Drop any quiz_sessions rows first so the FK never blocks the delete
+      // (qf_create_game in the liveplay suite registers sessions for every team).
+      await db().from('quiz_sessions').delete().eq('team_id', seedTeamId);
+      await db().from('teams').delete().eq('id', seedTeamId);
     } catch {
       // best-effort cleanup
     }
-    seedCode = null;
   }
+  seedCode = null;
+  seedTeamId = null;
 }
 
 test.afterEach(async () => {
@@ -56,6 +62,9 @@ test.afterEach(async () => {
 });
 
 test.describe('Team login backend', () => {
+  // Serial: the liveplay suite's qf_create_game registers quiz_sessions for
+  // every team, so parallel runs would corrupt these tests' DB invariants.
+  test.describe.configure({ mode: 'serial' });
   test.skip(!SUPABASE_CONFIGURED, 'Supabase not configured — apply the migration and set env vars to run.');
 
   test('atomic claim: concurrent claims for the same code — exactly one wins', async ({ request }) => {
@@ -111,17 +120,16 @@ test.describe('Team login backend', () => {
 
   test('reconnect: the claiming device can refresh and resume', async ({ request }) => {
     const team = await seedTeam();
-    const ctx = await request.newContext();
 
-    const first = await ctx.post('/api/teams/claim', {
+    const first = await request.post('/api/teams/claim', {
       data: { code: team.code, member_name: 'Carol', device_id: 'device-C' }
     });
     expect(first.status()).toBe(200);
     const firstBody = await first.json();
     expect(firstBody.reconnect).toBe(false);
 
-    // Same device, refresh → resume.
-    const again = await ctx.post('/api/teams/claim', {
+    // Same device, refresh → resume (same request context keeps the cookie).
+    const again = await request.post('/api/teams/claim', {
       data: { code: team.code, member_name: 'Carol', device_id: 'device-C' }
     });
     expect(again.status()).toBe(200);
@@ -130,46 +138,40 @@ test.describe('Team login backend', () => {
     expect(againBody.team.claimed_by).toBe('Carol');
 
     // Different device → rejected.
-    const other = await ctx.post('/api/teams/claim', {
+    const other = await request.post('/api/teams/claim', {
       data: { code: team.code, member_name: 'Dave', device_id: 'device-D' }
     });
     expect(other.status()).toBe(409);
     const otherBody = await other.json();
     expect(otherBody.claimed_by).toBe('Carol');
-
-    await ctx.dispose();
   });
 
   test('GET /api/session/me returns the team for the cookie holder, 401 without', async ({ request }) => {
     const team = await seedTeam();
-    const ctx = await request.newContext();
 
-    const claim = await ctx.post('/api/teams/claim', {
+    // No cookie → 401 (the request fixture starts each test with a fresh jar).
+    const anon = await request.get('/api/session/me');
+    expect(anon.status()).toBe(401);
+
+    const claim = await request.post('/api/teams/claim', {
       data: { code: team.code, member_name: 'Alice', device_id: 'device-A' }
     });
     expect(claim.status()).toBe(200);
 
-    const me = await ctx.get('/api/session/me');
+    // Same context now carries the qf_session cookie.
+    const me = await request.get('/api/session/me');
     expect(me.status()).toBe(200);
     const meBody = await me.json();
     expect(meBody.success).toBe(true);
     expect(meBody.team.code).toBe(team.code);
     expect(meBody.team.claimed_by).toBe('Alice');
     expect(meBody.member_name).toBe('Alice');
-
-    // No cookie → 401.
-    const anonCtx = await request.newContext();
-    const anon = await anonCtx.get('/api/session/me');
-    expect(anon.status()).toBe(401);
-    await anonCtx.dispose();
-    await ctx.dispose();
   });
 
   test('POST /api/quiz/submit is idempotent and marks the team submitted', async ({ request }) => {
     const team = await seedTeam();
-    const ctx = await request.newContext();
 
-    const claim = await ctx.post('/api/teams/claim', {
+    const claim = await request.post('/api/teams/claim', {
       data: { code: team.code, member_name: 'Bob', device_id: 'device-B' }
     });
     expect(claim.status()).toBe(200);
@@ -180,7 +182,7 @@ test.describe('Team login backend', () => {
       violations: [{ type: 'blur' }]
     };
 
-    const first = await ctx.post('/api/quiz/submit', { data: payload });
+    const first = await request.post('/api/quiz/submit', { data: payload });
     expect(first.status()).toBe(200);
     const firstBody = await first.json();
     expect(firstBody.success).toBe(true);
@@ -189,7 +191,7 @@ test.describe('Team login backend', () => {
     expect(firstBody.session.submitted_at).toBeTruthy();
 
     // Duplicate submit must not re-score.
-    const second = await ctx.post('/api/quiz/submit', {
+    const second = await request.post('/api/quiz/submit', {
       data: { answers: [{ q: 0, selected: 3 }], score: 9999 }
     });
     expect(second.status()).toBe(200);
@@ -212,8 +214,6 @@ test.describe('Team login backend', () => {
       .eq('id', team.id)
       .single();
     expect(teamRow!.status).toBe('submitted');
-
-    await ctx.dispose();
   });
 
   test('admin endpoints reject requests without a valid host session', async ({ request }) => {

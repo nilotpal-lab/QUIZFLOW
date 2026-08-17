@@ -317,15 +317,56 @@ export async function GET(
   return NextResponse.json({ error: 'Room not found', pin }, { status: 404, headers: noCacheHeaders })
 }
 
-export async function POST(
-  req: Request,
-  { params }: { params: { pin: string } }
-) {
-  const pin = params?.pin?.trim().toUpperCase()
-  if (!pin) {
-    return NextResponse.json({ error: 'PIN required' }, { status: 400, headers: noCacheHeaders })
-  }
+/**
+ * Monotonic base-state selection for full-state pushes.
+ *
+ * Mirrors mergeGameStates in src/quizflow/sessionStore.ts: a stale
+ * full-state push (e.g. a student's joinSessionAsync that fetched the
+ * lobby BEFORE the host started and POSTs it AFTER) must never regress
+ * the room's status/timing back to 'lobby'. The winner is decided by
+ * session re-creation, then question-index/timestamp progression, then
+ * phaseEpoch, then causal status weight.
+ */
+const _statusWeight: Record<string, number> = {
+  lobby: 0,
+  question_active: 1,
+  question_reveal: 2,
+  leaderboard: 3,
+  boss_frenzy: 4,
+  ended: 5
+}
 
+function pickBaseState(cur: any, incoming: any): any {
+  const curCreated = cur?.createdAt || 0
+  const inCreated = incoming?.createdAt || 0
+  if (inCreated > curCreated) return incoming
+  if (curCreated > inCreated) return cur
+
+  const curQ = cur?.currentQuestionIndex ?? 0
+  const inQ = incoming?.currentQuestionIndex ?? 0
+  const curStart = cur?.questionStartedAt ?? 0
+  const inStart = incoming?.questionStartedAt ?? 0
+  const curActive = cur?.status === 'question_active' || cur?.status === 'lobby'
+  const inActive = incoming?.status === 'question_active' || incoming?.status === 'lobby'
+
+  const advance = inQ > curQ || (inQ === curQ && inStart > curStart && inActive)
+  const regress = curQ > inQ || (curQ === inQ && curStart > inStart && curActive)
+  if (advance && !regress) return incoming
+  if (regress && !advance) return cur
+
+  const curEpoch = cur?.phaseEpoch ?? 0
+  const inEpoch = incoming?.phaseEpoch ?? 0
+  if (inEpoch > curEpoch && inEpoch > 0) return incoming
+  if (curEpoch > inEpoch && curEpoch > 0) return cur
+
+  const inW = _statusWeight[incoming?.status] ?? 0
+  const curW = _statusWeight[cur?.status] ?? 0
+  if (inW !== curW) return inW > curW ? incoming : cur
+  return incoming
+}
+
+/** Per-PIN room mutation body — see runRoomWrite below. */
+async function processRoomWrite(pin: string, req: Request): Promise<Response> {
   try {
     const body = await req.json()
     const { state, action, player, reaction } = body
@@ -377,10 +418,10 @@ export async function POST(
       if (current) {
         // Monotonically merge players to prevent host from overwriting server-evaluated scores & answers
         const mergedPlayers: Record<string, any> = { ...(current.players || {}) }
-        const isStatusStart = current.status === 'lobby' && (state.status === 'question_active' || state.status === 'boss_frenzy')
-        const isNewQuestion = (state.currentQuestionIndex ?? 0) > (current.currentQuestionIndex ?? 0) ||
-          ((state.currentQuestionIndex ?? 0) === (current.currentQuestionIndex ?? 0) && (state.questionStartedAt ?? 0) > (current.questionStartedAt ?? 0) && state.status === 'question_active') ||
-          isStatusStart
+        // Monotonic base: a stale full-state push (e.g. a join that fetched
+        // the lobby before the host started) must not regress status/timing.
+        const base = pickBaseState(current, state)
+        const isNewQuestion = base === state
 
         const allPids = Array.from(new Set([
           ...Object.keys(current.players || {}),
@@ -481,7 +522,7 @@ export async function POST(
         }
 
         current = {
-          ...state,
+          ...base,
           quiz: {
             ...(state.quiz || current.quiz),
             questions: preservedQuestions || current.quiz?.questions
@@ -790,4 +831,36 @@ export async function POST(
       { status: 500, headers: noCacheHeaders }
     )
   }
+}
+
+/**
+ * Serialize room mutations per PIN.
+ *
+ * Concurrent POSTs (500-player joins, host state pushes, answer
+ * submissions) each read `current` and then write it back; without a
+ * per-pin queue, a slower request computed against the PREVIOUS state
+ * can clobber a newer one — e.g. a join that read the lobby state can
+ * rewrite the host's question_active back to 'lobby' and freeze every
+ * student's lobby. Chaining writers per PIN makes each mutation apply
+ * against the LATEST committed state.
+ */
+const _pinWriters: Record<string, Promise<unknown>> = {}
+
+function runRoomWrite(pin: string, fn: () => Promise<Response>): Promise<Response> {
+  const prev = _pinWriters[pin] || Promise.resolve()
+  const next = prev.then(fn, fn)
+  // Keep the chain alive for the NEXT request even if this one rejects.
+  _pinWriters[pin] = next.then(() => undefined, () => undefined)
+  return next
+}
+
+export async function POST(
+  req: Request,
+  { params }: { params: { pin: string } }
+) {
+  const pin = params?.pin?.trim().toUpperCase()
+  if (!pin) {
+    return NextResponse.json({ error: 'PIN required' }, { status: 400, headers: noCacheHeaders })
+  }
+  return runRoomWrite(pin, () => processRoomWrite(pin, req))
 }

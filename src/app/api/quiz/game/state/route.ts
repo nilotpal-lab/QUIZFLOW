@@ -72,8 +72,22 @@ export async function GET(req: Request) {
     question = questions[idx]
   }
 
-  // Reveal-phase: only include the correct answer once revealed.
+  // Reveal-phase: only include the correct answer once revealed. The
+  // sanitized games.quiz never contains correct_index, so fetch the key
+  // from the server-only store via the SECURITY DEFINER accessor.
   const canReveal = status === 'question_reveal' || status === 'ended'
+  let correctIndex: number | undefined
+  if (canReveal && question) {
+    const keyIdx = isBoss ? questionIndex % questions.length : questionIndex
+    const { data: keyData } = await supabase.rpc('qf_get_answer_key', {
+      p_game_id: game.id,
+      p_question_index: keyIdx
+    })
+    const keyRow = Array.isArray(keyData) ? keyData[0] : keyData
+    if (keyRow && typeof keyRow.correct_index === 'number') {
+      correctIndex = keyRow.correct_index
+    }
+  }
   const activeQuestion = question
     ? {
         index: questionIndex,
@@ -84,8 +98,8 @@ export async function GET(req: Request) {
         bloom_level: question.bloom_level,
         explanation: question.explanation,
         // correct_index ONLY at reveal/ended — never before.
-        ...(canReveal && typeof question.correct_index === 'number'
-          ? { correct_index: question.correct_index }
+        ...(canReveal && typeof correctIndex === 'number'
+          ? { correct_index: correctIndex }
           : {})
       }
     : null

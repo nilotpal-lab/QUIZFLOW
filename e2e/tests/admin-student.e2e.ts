@@ -52,7 +52,7 @@ async function seedTeamWithCredentials(username: string, password: string) {
     .from('teams')
     .insert({
       name: 'E2E Team ' + username,
-      code: 'E2E' + Date.now().toString(36).toUpperCase().slice(-6),
+      code: 'E2E' + Date.now().toString(36).toUpperCase() + Math.random().toString(36).slice(2, 6).toUpperCase(),
       username,
       password_salt: salt,
       password_hash: hash,
@@ -75,7 +75,11 @@ async function setGate(loginOpen: boolean) {
 
 async function cleanup() {
   try {
-    if (seedTeamId) await db().from('teams').delete().eq('id', seedTeamId);
+    if (seedTeamId) {
+      // Drop sessions first so the FK never blocks the team delete.
+      await db().from('quiz_sessions').delete().eq('team_id', seedTeamId);
+      await db().from('teams').delete().eq('id', seedTeamId);
+    }
     await setGate(false);
   } catch {
     // best-effort cleanup
@@ -92,6 +96,9 @@ test.afterEach(async () => {
 });
 
 test.describe('Student credential login', () => {
+  // Serial: these tests flip the shared event_config gate row — parallel runs
+  // race each other's setGate/cleanup and see 403s mid-test.
+  test.describe.configure({ mode: 'serial' });
   test.skip(!SUPABASE_CONFIGURED, 'Supabase not configured — apply the migrations and set env vars to run.');
 
   test('gate rejects login when closed, accepts when open, and issues a session', async ({ request }) => {
@@ -108,24 +115,21 @@ test.describe('Student credential login', () => {
 
     // Open → 200 + cookie.
     await setGate(true);
-    const ctx = await request.newContext();
-    const ok = await ctx.post('/api/student/login', { data: body });
+    const ok = await request.post('/api/student/login', { data: body });
     expect(ok.status()).toBe(200);
     const okBody = await ok.json();
     expect(okBody.success).toBe(true);
     expect(okBody.team.username).toBe(username);
     expect(okBody.reconnect).toBe(false);
 
-    // Session cookie works for /api/session/me.
-    const me = await ctx.get('/api/session/me');
+    // Session cookie works for /api/session/me (same context keeps the jar).
+    const me = await request.get('/api/session/me');
     expect(me.status()).toBe(200);
     const meBody = await me.json();
     expect(meBody.team.username).toBe(username);
-
-    await ctx.dispose();
   });
 
-  test('wrong password is rejected and a second device is blocked', async ({ request }) => {
+  test('wrong password is rejected and a second device is blocked', async ({ request, playwright }) => {
     const username = 'e2e-device-' + Date.now().toString(36);
     const team = await seedTeamWithCredentials(username, 'CorrectPass9!');
     await setGate(true);
@@ -136,15 +140,15 @@ test.describe('Student credential login', () => {
     });
     expect(wrong.status()).toBe(401);
 
-    // First device logs in.
-    const ctxA = await request.newContext();
+    // First device logs in (isolated jar so device-B starts cookie-free).
+    const ctxA = await playwright.request.newContext({ baseURL: 'http://localhost:3001' });
     const first = await ctxA.post('/api/student/login', {
       data: { username, password: 'CorrectPass9!', device_id: 'device-A' }
     });
     expect(first.status()).toBe(200);
 
     // Second device → 409.
-    const ctxB = await request.newContext();
+    const ctxB = await playwright.request.newContext({ baseURL: 'http://localhost:3001' });
     const second = await ctxB.post('/api/student/login', {
       data: { username, password: 'CorrectPass9!', device_id: 'device-B' }
     });
