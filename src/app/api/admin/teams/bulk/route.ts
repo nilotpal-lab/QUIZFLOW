@@ -6,7 +6,8 @@ import { createTeamRecord } from '@/quizflow/teamFactory'
    QuizFlow — Admin Bulk Team Creation (Excel/CSV upload)
    POST /api/admin/teams/bulk  { teams: [{ name, roster?: string[] }] }
    Creates many teams at once, continuing past individual failures so
-   one bad row never blocks the whole import. Each created team's
+   one bad row never blocks the whole import. Credentials per team:
+   username = team name, password = first roster member (leader). Each
    plaintext password is returned once (day-of handout).
    Gated behind the same admin auth as /api/admin/teams.
    ================================================================ */

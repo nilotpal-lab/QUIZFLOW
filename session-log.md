@@ -460,3 +460,38 @@ TO anon, authenticated;` (migration does not enable RLS).
 - One benign warning: "Using edge runtime on a page currently disables static generation
   for that page" (known — the edge-rendered OG dynamic card).
 
+---
+
+## 10. Session 8 (2026-08-17) — Team Credentials = Team Name / Leader Name
+
+### 1. User Request
+- Change team credential generation: the **username** should be the **team name** and
+  the **password** should be the **team leader's name** (first member in the uploaded
+  roster). Applies to both single-team creation and bulk file upload in the admin tab.
+
+### 2. Implementation Plan
+1. Update `createTeamRecord` (shared by single + bulk creation) to derive credentials
+   from the team data instead of random generation: username = team name (with a `-2`,
+   `-3`… suffix only on collision, since `teams.username` is unique), password = first
+   roster entry (falls back to team name when no roster given).
+2. Remove the now-unused random generators (`generatePassword`, `generateUsername`)
+   from `credentials.ts`.
+3. Make `reset-password` re-issue the leader-name password for consistency.
+4. Update the admin dashboard copy + template/error hints so admins know the scheme.
+
+### 3. Changes Made
+- **Modified**:
+  - `src/quizflow/teamFactory.ts`: username = team name, password = first roster member;
+    added `ensureUniqueUsername` (exact name first, suffix on collision).
+  - `src/quizflow/credentials.ts`: removed unused `generatePassword`/`generateUsername`
+    and the password alphabet.
+  - `src/app/api/admin/teams/[id]/reset-password/route.ts`: fetches `name`/`roster` and
+    re-issues the leader-name password instead of a random one.
+  - `src/app/api/admin/teams/route.ts` + `bulk/route.ts`: updated doc comments.
+  - `src/app/quizflow/dashboard/page.tsx`: updated helper text ("Username = team name ·
+    Password = team leader"), roster label ("leader first"), and upload error hint.
+
+### 4. Verification
+- `npx tsc --noEmit` — PASSED (0 errors).
+- `npm run build` — PASSED (exit 0).
+

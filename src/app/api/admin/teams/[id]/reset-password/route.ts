@@ -1,13 +1,14 @@
 import { NextResponse } from 'next/server'
 import { getServerSupabase, getAuthenticatedHost } from '@/quizflow/serverSupabase'
-import { generatePassword, hashPassword } from '@/quizflow/credentials'
+import { hashPassword } from '@/quizflow/credentials'
 
 /* ================================================================
    QuizFlow — Admin Team Password Reset
    POST /api/admin/teams/:id/reset-password
-   Generates a fresh random password (PBKDF2-hashed server-side);
+   Re-issues the team's credential: username is the team name and the
+   password is the team leader's name (first roster member) — matching
+   how credentials are generated at creation. PBKDF2-hashed server-side;
    the plaintext is returned once in the response for handout.
-   The username never changes.
    ================================================================ */
 
 export const dynamic = 'force-dynamic'
@@ -40,7 +41,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
   const { data: team, error: findError } = await supabase
     .from('teams')
-    .select('id, username')
+    .select('id, username, name, roster')
     .eq('id', id)
     .maybeSingle()
 
@@ -48,7 +49,10 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     return NextResponse.json({ success: false, error: 'Team not found.' }, { status: 404, headers: noCacheHeaders })
   }
 
-  const password = generatePassword()
+  const roster = Array.isArray(team.roster) ? team.roster : []
+  // Username is the team name; the password is the leader's name (first
+  // roster member), falling back to the team name when no roster exists.
+  const password = (roster[0] || team.name || team.username || '').trim()
   const { salt, hash } = await hashPassword(password)
 
   const { error } = await supabase

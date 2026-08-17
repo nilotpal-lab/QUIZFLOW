@@ -9,8 +9,9 @@ import { createTeamRecord } from '@/quizflow/teamFactory'
 
    POST /api/admin/teams  { name, roster?: string[] }
    Creates a team and generates its credentials: unique team code,
-   unique username, and a random password (PBKDF2-hashed server-side;
-   the plaintext is returned ONCE in the response for day-of handout).
+   username = team name, password = team leader's name (first roster
+   member) — PBKDF2-hashed server-side; the plaintext is returned ONCE
+   in the response for day-of handout).
    Gated behind a valid Supabase admin session (Bearer token) — the
    app's existing host/admin auth.
    ================================================================ */

@@ -79,7 +79,6 @@ export async function verifyPassword(
 /* ── Random credential generators ─────────────────────────────── */
 
 const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789' // no I/L/O/0/1
-const PASSWORD_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$%'
 
 function randomFromAlphabet(alphabet: string, length: number): string {
   const bytes = new Uint8Array(length)
@@ -94,31 +93,4 @@ function randomFromAlphabet(alphabet: string, length: number): string {
 /** 6-char unambigous team code (matches the `teams.code` column). */
 export function generateTeamCode(): string {
   return randomFromAlphabet(CODE_ALPHABET, 6)
-}
-
-/** 8-char password with at least one digit + one symbol (day-of handout). */
-export function generatePassword(length = 8): string {
-  const base = randomFromAlphabet(PASSWORD_ALPHABET, length)
-  // Guarantee one digit and one symbol so credentials pass any lax
-  // validation humans apply on the day.
-  const digit = randomFromAlphabet('23456789', 1)
-  const symbol = randomFromAlphabet('!@#$%', 1)
-  const mixed = (base.slice(0, length - 2) + digit + symbol).split('')
-  // Fisher–Yates shuffle (crypto randomness is overkill for ordering).
-  for (let i = mixed.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1))
-    ;[mixed[i], mixed[j]] = [mixed[j], mixed[i]]
-  }
-  return mixed.join('')
-}
-
-/** Unique-ish username: `team-<slug>-<4 random alnum>`. */
-export function generateUsername(teamName: string): string {
-  const slug =
-    teamName
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '')
-      .slice(0, 16) || 'team'
-  return `${slug}-${randomFromAlphabet(CODE_ALPHABET.toLowerCase(), 4)}`
 }

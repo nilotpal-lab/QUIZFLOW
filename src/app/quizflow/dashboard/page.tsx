@@ -443,7 +443,7 @@ export default function AdminDashboard() {
       }
       const teams = rowsToTeams(rows)
       if (teams.length === 0) {
-        setUploadError('No teams found. Use a "Team Name" column and an optional "Roster" column (members comma-separated).')
+        setUploadError('No teams found. Use a "Team Name" column and a "Roster" column (team leader first, members comma-separated).')
         return
       }
       setUploadFileName(file.name)
@@ -844,7 +844,7 @@ export default function AdminDashboard() {
                     />
                   </div>
                   <div>
-                    <label style={{ display: 'block', fontSize: 11, fontFamily: 'Space Grotesk', fontWeight: 800, textTransform: 'uppercase', color: '#555', marginBottom: 6 }}>Roster (comma / newline separated)</label>
+                    <label style={{ display: 'block', fontSize: 11, fontFamily: 'Space Grotesk', fontWeight: 800, textTransform: 'uppercase', color: '#555', marginBottom: 6 }}>Roster (leader first — comma / newline separated)</label>
                     <input
                       className="input"
                       value={createRoster}
@@ -855,7 +855,7 @@ export default function AdminDashboard() {
                 </div>
                 <div>
                   <button type="submit" className="btn btn-violet" style={{ color: '#fff' }}>⚡ Create &amp; Generate Credentials</button>
-                  <span style={{ marginLeft: 12, fontSize: 12, color: '#666', fontFamily: 'Inter' }}>Generates a unique username + random password per team.</span>
+                  <span style={{ marginLeft: 12, fontSize: 12, color: '#666', fontFamily: 'Inter' }}>Username = team name · Password = team leader (first name in roster).</span>
                 </div>
               </form>
 
@@ -879,8 +879,8 @@ export default function AdminDashboard() {
               <h3 style={{ fontFamily: 'Space Grotesk', fontSize: 16, fontWeight: 900, marginBottom: 12 }}>📤 Bulk Upload (Excel / CSV)</h3>
               <div style={{ fontSize: 12.5, color: '#555', fontFamily: 'Inter', marginBottom: 12, lineHeight: 1.6 }}>
                 Skip the manual entry — upload a spreadsheet with one row per team. Columns:{' '}
-                <strong>Team Name</strong> (required) and <strong>Roster</strong> (member names comma / semicolon separated, optional).
-                Every team gets a unique username + password automatically.
+                <strong>Team Name</strong> (required) and <strong>Roster</strong> (team leader first, then members — comma / semicolon separated).
+                Credentials: username = team name, password = first name in the roster (the team leader).
                 <button className="btn btn-sm" style={{ marginLeft: 8 }} onClick={downloadTemplate}>⬇️ Download template</button>
               </div>
               <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
