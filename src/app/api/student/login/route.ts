@@ -142,10 +142,13 @@ export async function POST(req: Request) {
     }
 
     // ── Find the team by username ──────────────────────────────────
+    // Usernames are the team name (e.g. "Phoenix Squad") while the input
+    // is lowercased above — match case-insensitively so the exact team
+    // name typed by the student always resolves.
     const { data: team, error: teamError } = await supabase
       .from('teams')
       .select('*')
-      .eq('username', username)
+      .ilike('username', username)
       .maybeSingle()
 
     if (teamError || !team) {

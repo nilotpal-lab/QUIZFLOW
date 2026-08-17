@@ -495,3 +495,11 @@ TO anon, authenticated;` (migration does not enable RLS).
 - `npx tsc --noEmit` — PASSED (0 errors).
 - `npm run build` — PASSED (exit 0).
 
+### 5. Follow-up fix (same day) — "Invalid team username or password"
+- **Bug**: `POST /api/student/login` lowercased the typed username and looked it up
+  with an exact `eq` match, but usernames are now the team name (e.g. `Phoenix Squad`)
+  — so `phoenix squad` never matched the stored casing and every login returned 401.
+- **Fix**: `src/app/api/student/login/route.ts` now uses `.ilike('username', …)` for a
+  case-insensitive lookup, so the team name as typed always resolves.
+- **Verified**: `npx tsc --noEmit` — PASSED.
+
