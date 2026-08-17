@@ -666,7 +666,24 @@ export async function POST(
         current = { ...current, players: { ...current.players, [playerId]: updatedPlayer } }
       }
 
-    } else if (action === 'join' && player && current) {
+    } else if (action === 'join' && player) {
+      if (!current) {
+        current = {
+          pin,
+          status: 'lobby',
+          gameMode: 'classic',
+          bossHealth: 100,
+          bossMaxHealth: 100,
+          quiz: { title: 'Live Room ' + pin, questions: [] },
+          currentQuestionIndex: 0,
+          questionStartedAt: 0,
+          questionEndsAt: 0,
+          players: {},
+          hostId: 'host_live',
+          createdAt: Date.now()
+        }
+      }
+
       // Reject new joins if room has already ended to protect database and server load
       if (current.status === 'ended') {
         return NextResponse.json({

@@ -875,7 +875,7 @@ export function createSession(quiz: AIGeneratedQuiz, hostId: string, gameMode: G
   // Store host credentials on creator device
   safeSetSessionStorage('qf_host_token_' + pin, effectiveHostId)
   safeSetLocalStorage('qf_host_token_' + pin, effectiveHostId)
-  saveState(state)
+  saveState(state, { immediate: true })
   return state
 }
 
