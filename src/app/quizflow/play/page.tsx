@@ -489,25 +489,58 @@ function StudentPlayScreen() {
         })
       : Object.values(gameState.players).sort((a,b) => b.score - a.score)
 
+    const myRankIdx = sorted.findIndex(p => p.id === playerId)
+    const myRank = myRankIdx >= 0 ? myRankIdx + 1 : 0
+    const topScore = sorted[0]?.score || 0
+    const myScore = me?.score || 0
+    const scoreGap = topScore > myScore ? topScore - myScore : 0
+
     return (
       <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 20, background: 'var(--paper)' }}>
         <div style={{ width: '100%', maxWidth: 480 }}>
-          <div className="card anim-scale-in" style={{ padding: '28px 24px' }}>
-            <div style={{ textAlign: 'center', fontFamily: 'Space Grotesk', fontSize: 24, fontWeight: 800, marginBottom: 4, color: 'var(--ink)' }}>
-              🏆 Leaderboard
+          <div className="card anim-scale-in" style={{ padding: '24px 20px' }}>
+            <div style={{ textAlign: 'center', fontFamily: 'Space Grotesk', fontSize: 24, fontWeight: 900, marginBottom: 4, color: 'var(--ink)' }}>
+              🏆 Round Standings
             </div>
-            <div style={{ textAlign: 'center', color: 'var(--ink)', fontSize: 13, marginBottom: 16, fontFamily: 'Inter', opacity: 0.55 }}>
-              Q{gameState.currentQuestionIndex + 1} of {gameState.quiz.questions.length} complete
+            <div style={{ textAlign: 'center', color: 'var(--ink)', fontSize: 13, marginBottom: 16, fontFamily: 'Inter', opacity: 0.6, fontWeight: 600 }}>
+              Question {gameState.currentQuestionIndex + 1} of {gameState.quiz.questions.length} Complete
+            </div>
+
+            {/* 👑 Personal Performance Hero Card */}
+            <div style={{
+              padding: '16px 18px',
+              background: '#FEF08A',
+              border: '3px solid var(--ink)',
+              borderRadius: 14,
+              boxShadow: '4px 4px 0 var(--ink)',
+              marginBottom: 18,
+              textAlign: 'center'
+            }}>
+              <div style={{ fontFamily: 'Space Grotesk', fontSize: 11, fontWeight: 900, textTransform: 'uppercase', color: 'var(--ink)', letterSpacing: 1 }}>
+                YOUR ARENA STANDING
+              </div>
+              <div style={{ fontFamily: 'Space Grotesk', fontSize: 32, fontWeight: 900, color: 'var(--ink)', margin: '2px 0' }}>
+                RANK #{myRank || '?'} <span style={{ fontSize: 15, opacity: 0.7 }}>OF {sorted.length}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 10, fontSize: 12, fontWeight: 800, fontFamily: 'Space Grotesk', flexWrap: 'wrap' }}>
+                <span>⚡ {myScore.toLocaleString()} pts</span>
+                {me?.streak && me.streak > 1 ? <span>🔥 {me.streak} Streak</span> : null}
+                {myRank > 1 && scoreGap > 0 ? (
+                  <span style={{ color: 'var(--cherry)' }}>• Gap to #1: -{scoreGap.toLocaleString()} pts</span>
+                ) : myRank === 1 ? (
+                  <span style={{ color: '#856404' }}>👑 1ST PLACE LEADER!</span>
+                ) : null}
+              </div>
             </div>
 
             {/* Dual Leaderboard Toggle Button */}
-            <div style={{ display: 'flex', justifyContent: 'center', gap: 6, marginBottom: 20 }}>
+            <div style={{ display: 'flex', justifyContent: 'center', gap: 6, marginBottom: 18 }}>
               <button
                 onClick={() => setActiveBoard('tactics')}
                 style={{
-                  fontSize: 12, fontFamily: 'Space Grotesk', fontWeight: 700, padding: '5px 12px', borderRadius: 6, cursor: 'pointer',
+                  fontSize: 12, fontFamily: 'Space Grotesk', fontWeight: 800, padding: '6px 14px', borderRadius: 8, cursor: 'pointer',
                   background: activeBoard === 'tactics' ? 'var(--sun)' : 'var(--paper-2)',
-                  color: 'var(--ink)', border: '1.5px solid var(--ink)',
+                  color: 'var(--ink)', border: '2px solid var(--ink)',
                   boxShadow: activeBoard === 'tactics' ? '2px 2px 0 var(--ink)' : 'none'
                 }}
               >
@@ -516,9 +549,9 @@ function StudentPlayScreen() {
               <button
                 onClick={() => setActiveBoard('mastery')}
                 style={{
-                  fontSize: 12, fontFamily: 'Space Grotesk', fontWeight: 700, padding: '5px 12px', borderRadius: 6, cursor: 'pointer',
+                  fontSize: 12, fontFamily: 'Space Grotesk', fontWeight: 800, padding: '6px 14px', borderRadius: 8, cursor: 'pointer',
                   background: activeBoard === 'mastery' ? 'var(--mint)' : 'var(--paper-2)',
-                  color: 'var(--ink)', border: '1.5px solid var(--ink)',
+                  color: 'var(--ink)', border: '2px solid var(--ink)',
                   boxShadow: activeBoard === 'mastery' ? '2px 2px 0 var(--ink)' : 'none'
                 }}
               >
@@ -528,21 +561,28 @@ function StudentPlayScreen() {
 
             {sorted.slice(0, 8).map((p, i) => {
               const pAcc = p.totalAnswered ? Math.round(((p.totalCorrect || 0) / p.totalAnswered) * 100) : 0
+              const isMe = p.id === playerId
               return (
                 <div key={p.id} className="lb-row" style={{
                   padding: '10px 14px', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 12,
-                  background: p.id === playerId ? 'var(--violet)' : undefined,
+                  background: isMe ? '#FEF08A' : '#fff',
+                  border: isMe ? '2.5px solid var(--ink)' : '1.5px solid var(--ink)',
+                  borderRadius: 10,
+                  boxShadow: isMe ? '3px 3px 0 var(--ink)' : 'none'
                 }}>
-                  <div style={{ fontFamily: 'Space Grotesk', fontWeight: 800, fontSize: 18, minWidth: 28, color: i === 0 ? 'var(--sun)' : i === 1 ? '#94A3B8' : i === 2 ? '#B47C3C' : 'var(--ink)' }}>
+                  <div style={{ fontFamily: 'Space Grotesk', fontWeight: 900, fontSize: 18, minWidth: 28, color: i === 0 ? '#B8860B' : i === 1 ? '#64748B' : i === 2 ? '#B47C3C' : 'var(--ink)' }}>
                     {i === 0 ? '👑' : `#${i+1}`}
                   </div>
-                  <div className="avatar-ring" style={{ width: 36, height: 36 }}>
+                  <div className="avatar-ring" style={{ width: 36, height: 36, flexShrink: 0 }}>
                     <img src={buildAvatarUrl(p.avatarSeed, p.avatarStyle as any, 36)} alt="" width={36} height={36} />
                   </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontFamily: 'Space Grotesk', fontSize: 14, fontWeight: 700, color: p.id === playerId ? 'var(--paper)' : 'var(--ink)' }}>{p.nickname}{p.id === playerId && ' (You)'}</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontFamily: 'Space Grotesk', fontSize: 14, fontWeight: 800, color: 'var(--ink)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span className="truncate">{p.nickname}</span>
+                      {isMe && <span className="badge badge-ink" style={{ fontSize: 9, padding: '1px 5px' }}>YOU</span>}
+                    </div>
                   </div>
-                  <div style={{ fontFamily: 'Space Grotesk', fontSize: 15, fontWeight: 800, color: p.id === playerId ? 'var(--sun)' : 'var(--ink)' }}>
+                  <div style={{ fontFamily: 'Space Grotesk', fontSize: 15, fontWeight: 900, color: isMe ? 'var(--violet)' : 'var(--ink)' }}>
                     {activeBoard === 'mastery' ? `${pAcc}% Acc` : p.score.toLocaleString()}
                   </div>
                   {p.lastAnswerCorrect !== null && (
@@ -551,8 +591,8 @@ function StudentPlayScreen() {
                 </div>
               )
             })}
-            <div style={{ textAlign: 'center', color: 'var(--ink)', fontSize: 12, marginTop: 12, fontFamily: 'Inter', opacity: 0.5 }}>
-              Next question loading…
+            <div style={{ textAlign: 'center', color: 'var(--ink)', fontSize: 12, marginTop: 14, fontFamily: 'Inter', opacity: 0.6, fontWeight: 600 }}>
+              ⏳ Waiting for Host to launch next question…
             </div>
           </div>
         </div>
@@ -1161,7 +1201,7 @@ function StudentPlayScreen() {
         {/* Question Card with Mobile Anti-Selection Shield & Hero Typography */}
         {q && (
           <div
-            className={`card anim-scale-in ${doubleActive ? 'star-aura' : ''}`}
+            className={`card anim-scale-in ${doubleActive ? 'star-aura' : ''} ${streakCount >= 7 ? 'aura-streak-7' : streakCount >= 5 ? 'aura-streak-5' : streakCount >= 3 ? 'aura-streak-3' : ''}`}
             onContextMenu={e => e.preventDefault()}
             style={{
               padding: '24px 22px', background: 'var(--surface-1)',
