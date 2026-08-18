@@ -41,13 +41,46 @@ export async function GET(req: Request) {
     return NextResponse.json({ success: false, error: 'Supabase is not configured.' }, { status: 503, headers: noCacheHeaders })
   }
 
-  const { data: session, error: sessionError } = await supabase
+  let { data: session, error: sessionError } = await supabase
     .from('quiz_sessions')
     .select('id, game_id, points, coins, streak, max_streak, total_correct, total_answered, frozen_until, bid_multiplier, frenzy_correct_count, violation_count')
     .eq('team_id', claims.team_id)
     .maybeSingle()
 
-  if (sessionError || !session || !session.game_id) {
+  if (!session || !session.game_id) {
+    // Auto-link to active game in event_config if available
+    const { data: config } = await supabase
+      .from('event_config')
+      .select('active_game_id')
+      .eq('id', 1)
+      .maybeSingle()
+
+    if (config?.active_game_id) {
+      const token = 'sess_' + claims.team_id
+      const { data: newSession } = await supabase
+        .from('quiz_sessions')
+        .upsert({
+          team_id: claims.team_id,
+          game_id: config.active_game_id,
+          token: token,
+          points: 0,
+          coins: 0,
+          streak: 0,
+          max_streak: 0,
+          total_correct: 0,
+          total_answered: 0,
+          total_response_time_ms: 0,
+          last_answered_question_index: -1,
+          updated_at: new Date().toISOString()
+        })
+        .select('id, game_id, points, coins, streak, max_streak, total_correct, total_answered, frozen_until, bid_multiplier, frenzy_correct_count, violation_count')
+        .single()
+
+      session = newSession
+    }
+  }
+
+  if (!session || !session.game_id) {
     return NextResponse.json({ success: false, error: 'No live game for this team.' }, { status: 404, headers: noCacheHeaders })
   }
 

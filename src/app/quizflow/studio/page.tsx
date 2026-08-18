@@ -10,6 +10,7 @@ import { parseQuizFromSpreadsheet } from '@/quizflow/excelQuizParser'
 import { saveQuizDraft } from '@/quizflow/quizStore'
 import { publishQuizToCommunity } from '@/quizflow/communityStore'
 import { getHostUser } from '@/quizflow/authStore'
+import { adminFetch } from '@/quizflow/adminFetch'
 
 const LANGUAGES = [
   { code: 'Hindi', flag: '🇮🇳', label: 'Hindi (हिंदी)' },
@@ -495,9 +496,8 @@ export default function AIQuizStudio() {
                 // Save quiz draft first
                 const savedItem = saveQuizDraft(quiz, false, editingQuizId || undefined)
                 // Register as the active competition game
-                const res = await fetch('/api/quiz/game', {
+                const res = await adminFetch('/api/quiz/game', {
                   method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({ game_id: 'EVENT', quiz, mode: 'classic' })
                 })
                 if (res.ok) {

@@ -10,6 +10,8 @@ import { createSession } from '@/quizflow/sessionStore'
 import { publishQuizToCommunity } from '@/quizflow/communityStore'
 import { getSupabase } from '@/quizflow/supabaseClient'
 import { parseQuizFromSpreadsheet } from '@/quizflow/excelQuizParser'
+import { exportLeaderboardToCSV } from '@/quizflow/exportCsv'
+import { adminFetch } from '@/quizflow/adminFetch'
 import * as XLSX from 'xlsx'
 
 type Tab = 'quizzes' | 'teams' | 'leaderboard' | 'controls' | 'game' | 'history' | 'profile'
@@ -23,28 +25,6 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'history', label: '📊 Hosted Sessions' },
   { id: 'profile', label: '👤 Profile' }
 ]
-
-/* ── Admin API helper: attaches the Supabase host Bearer token ── */
-async function getAdminBearer(): Promise<string | null> {
-  const client = getSupabase()
-  if (!client) return null
-  try {
-    const { data } = await client.auth.getSession()
-    return data.session?.access_token || null
-  } catch {
-    return null
-  }
-}
-
-async function adminFetch(path: string, init?: RequestInit): Promise<{ ok: boolean; status: number; body: any }> {
-  const token = await getAdminBearer()
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-  if (token) headers['Authorization'] = `Bearer ${token}`
-  const res = await fetch(path, { ...init, headers })
-  let body: any = null
-  try { body = await res.json() } catch { /* no body */ }
-  return { ok: res.ok, status: res.status, body }
-}
 
 function formatExactTime(ts?: number) {
   if (!ts) return 'N/A'
@@ -87,11 +67,15 @@ function normalizeHeader(h: any): string {
 }
 function isNameColumn(h: any): boolean {
   const n = normalizeHeader(h)
-  return n === 'team' || n === 'name' || n === 'team name' || n === 'teamname' || n === 'group' || n === 'class' || (n.includes('team') && n.includes('name'))
+  return n === 'team' || n === 'name' || n === 'team name' || n === 'teamname' || n === 'group' || n === 'group name' || n === 'class' || (n.includes('team') && n.includes('name')) || n === 'username'
+}
+function isLeaderColumn(h: any): boolean {
+  const n = normalizeHeader(h)
+  return n === 'leader' || n === 'team leader' || n === 'teamleader' || n === 'captain' || n === 'leader name' || n === 'head' || n === 'lead' || n.includes('leader') || n.includes('captain')
 }
 function isRosterColumn(h: any): boolean {
   const n = normalizeHeader(h)
-  return n === 'roster' || n === 'members' || n === 'member' || n === 'member names' || n === 'members names' || n === 'team members' || n === 'students' || n === 'student names' || n === 'names' || n === 'players' || n.includes('member') || n.includes('roster') || n.includes('student')
+  return n === 'roster' || n === 'members' || n === 'member' || n === 'member names' || n === 'members names' || n === 'team members' || n === 'students' || n === 'student names' || n === 'names' || n === 'players' || n === 'teammates' || n.includes('member') || n.includes('roster') || n.includes('student') || n.includes('teammate')
 }
 
 /** Minimal RFC-4180-ish CSV parser (handles quoted fields). */
@@ -122,29 +106,78 @@ function parseCsvText(text: string): string[][] {
   return rows
 }
 
-/** Map spreadsheet rows → teams, auto-detecting the header row. */
-function rowsToTeams(rows: string[][]): { name: string; roster: string[] }[] {
+function isPasswordColumn(h: any): boolean {
+  const n = normalizeHeader(h)
+  return n === 'password' || n === 'pass' || n === 'team password' || n === 'leader password' || n === 'pin'
+}
+
+/** Map spreadsheet rows → teams, auto-detecting Google Form headers & columns. */
+function rowsToTeams(rows: string[][]): { name: string; roster: string[]; password?: string }[] {
   let headerIdx = -1
   let nameCol = -1
-  let rosterCol = -1
+  let leaderCol = -1
+  let passwordCol = -1
+  let rosterCols: number[] = []
+
   for (let r = 0; r < rows.length; r++) {
     const ni = rows[r].findIndex(isNameColumn)
     if (ni >= 0) {
       headerIdx = r
       nameCol = ni
-      rosterCol = rows[r].findIndex((c, i) => i !== ni && isRosterColumn(c))
+      leaderCol = rows[r].findIndex((c, i) => i !== ni && isLeaderColumn(c))
+      passwordCol = rows[r].findIndex((c, i) => i !== ni && i !== leaderCol && isPasswordColumn(c))
+      rosterCols = rows[r].map((c, i) => (i !== ni && i !== leaderCol && i !== passwordCol && isRosterColumn(c)) ? i : -1).filter(i => i >= 0)
       break
     }
   }
+
   if (headerIdx < 0) return []
-  const teams: { name: string; roster: string[] }[] = []
+  const teams: { name: string; roster: string[]; password?: string }[] = []
   for (let r = headerIdx + 1; r < rows.length; r++) {
     const row = rows[r]
     const name = String(row[nameCol] ?? '').trim()
     if (!name) continue
-    const rosterCell = rosterCol >= 0 ? String(row[rosterCol] ?? '') : ''
-    const roster = rosterCell.split(/[\n,;|]+/).map(s => s.trim()).filter(Boolean)
-    teams.push({ name, roster })
+
+    const customPass = passwordCol >= 0 ? String(row[passwordCol] ?? '').trim() : undefined
+    const roster: string[] = []
+
+    if (customPass) {
+      roster.push(customPass)
+    } else if (leaderCol >= 0) {
+      const leader = String(row[leaderCol] ?? '').trim()
+      if (leader) roster.push(leader)
+    }
+
+    if (rosterCols.length > 0) {
+      for (const col of rosterCols) {
+        const cell = String(row[col] ?? '').trim()
+        if (!cell) continue
+        const members = cell.split(/[\n,;|]+/).map(s => s.trim()).filter(Boolean)
+        for (const m of members) {
+          if (!roster.includes(m)) roster.push(m)
+        }
+      }
+    } else if (leaderCol < 0 && passwordCol < 0) {
+      // Fallback: search remaining columns if no explicit leader/password/roster columns matched
+      for (let i = 0; i < row.length; i++) {
+        if (i !== nameCol) {
+          const cell = String(row[i] ?? '').trim()
+          if (cell && !cell.includes('@') && !cell.match(/^\d{4}-\d{2}-\d{2}/)) {
+            const members = cell.split(/[\n,;|]+/).map(s => s.trim()).filter(Boolean)
+            for (const m of members) {
+              if (!roster.includes(m)) roster.push(m)
+            }
+          }
+        }
+      }
+    }
+
+    // Default roster to [name] if empty
+    if (roster.length === 0) {
+      roster.push(name)
+    }
+
+    teams.push({ name, roster, password: customPass })
   }
   return teams
 }
@@ -196,10 +229,17 @@ export default function AdminDashboard() {
   const [liveGame, setLiveGame] = useState<any>(null)
   const [teamsInGame, setTeamsInGame] = useState(0)
   const [totalRegisteredTeams, setTotalRegisteredTeams] = useState(0)
+  const [claimedTeamsCount, setClaimedTeamsCount] = useState(0)
   const [answeredCount, setAnsweredCount] = useState(0)
+  const [waitingTeams, setWaitingTeams] = useState<any[]>([])
+  const [offlineTeams, setOfflineTeams] = useState<any[]>([])
   const [teamsStatus, setTeamsStatus] = useState<any[]>([])
   const [isProjectorMode, setIsProjectorMode] = useState(false)
+  const [isFullscreenLeaderboard, setIsFullscreenLeaderboard] = useState(false)
   const [unhideHostKey, setUnhideHostKey] = useState(false)
+  const [showGameSetup, setShowGameSetup] = useState(false)
+  const [printPassesModal, setPrintPassesModal] = useState(false)
+  const [teamFilterStatus, setTeamFilterStatus] = useState<'all' | 'arena' | 'lobby' | 'offline'>('all')
   const [busy, setBusy] = useState('')
 
   const showToast = (msg: string) => {
@@ -274,18 +314,17 @@ export default function AdminDashboard() {
     const res = await adminFetch('/api/event/config')
     if (res.ok && res.body?.config) {
       setEventCfg(res.body.config)
-      setOpensInput(toLocalInput(res.body.config.opens_at))
-      setClosesInput(toLocalInput(res.body.config.closes_at))
+      setOpensInput(res.body.config.opens_at ? toLocalInput(res.body.config.opens_at) : '')
+      setClosesInput(res.body.config.closes_at ? toLocalInput(res.body.config.closes_at) : '')
     }
   }, [])
 
   useEffect(() => {
-    if (activeTab === 'teams') loadTeams()
-  }, [activeTab, loadTeams])
-
-  useEffect(() => {
-    if (activeTab === 'controls') loadEventConfig()
-  }, [activeTab, loadEventConfig])
+    if (activeTab === 'teams' || activeTab === 'controls' || activeTab === 'game') {
+      loadTeams()
+      loadEventConfig()
+    }
+  }, [activeTab, loadTeams, loadEventConfig])
 
   /* Live leaderboard poll */
   useEffect(() => {
@@ -307,7 +346,7 @@ export default function AdminDashboard() {
 
   /* Active game poll (via authenticated admin API) */
   useEffect(() => {
-    if (activeTab !== 'game') return
+    if (activeTab !== 'game' && activeTab !== 'teams') return
     const id = gameId.trim().toUpperCase()
     if (!id) return
     let cancelled = false
@@ -317,7 +356,10 @@ export default function AdminDashboard() {
         setLiveGame(res.body.game || null)
         setTeamsInGame(res.body.active_sessions_count || 0)
         setTotalRegisteredTeams(res.body.total_registered_teams || 0)
+        setClaimedTeamsCount(res.body.claimed_teams_count || 0)
         setAnsweredCount(res.body.answered_count || 0)
+        setWaitingTeams(res.body.waiting_teams || [])
+        setOfflineTeams(res.body.offline_teams || [])
         setTeamsStatus(res.body.teams_status || [])
       }
     }
@@ -326,12 +368,11 @@ export default function AdminDashboard() {
     return () => { cancelled = true; clearInterval(t) }
   }, [activeTab, gameId])
 
-  /* Host keyboard shortcuts ([Space] -> Next Action, [M] -> Projector Mode) */
+  /* Host keyboard shortcuts ([Space] -> Next Action, [M] -> Projector Mode, [F] -> Fullscreen Leaderboard) */
   useEffect(() => {
-    if (activeTab !== 'game') return
     const handleKeyDown = (e: KeyboardEvent) => {
       if (['INPUT', 'TEXTAREA', 'SELECT'].includes((e.target as HTMLElement)?.tagName)) return
-      if (e.code === 'Space') {
+      if (e.code === 'Space' && activeTab === 'game') {
         e.preventDefault()
         if (!liveGame) return
         if (liveGame.status === 'lobby') handleAdvance('start')
@@ -339,7 +380,12 @@ export default function AdminDashboard() {
         else if (liveGame.status === 'question_reveal') handleAdvance('leaderboard')
         else if (liveGame.status === 'leaderboard') handleAdvance('next')
       } else if (e.key === 'm' || e.key === 'M') {
-        setIsProjectorMode(v => !v)
+        if (activeTab === 'game') setIsProjectorMode(v => !v)
+      } else if (e.key === 'f' || e.key === 'F') {
+        setIsFullscreenLeaderboard(v => !v)
+      } else if (e.key === 'Escape') {
+        setIsProjectorMode(false)
+        setIsFullscreenLeaderboard(false)
       }
     }
     window.addEventListener('keydown', handleKeyDown)
@@ -655,28 +701,14 @@ export default function AdminDashboard() {
   }
 
   const handleExportCSV = () => {
-    if (!teamsStatus || teamsStatus.length === 0) {
+    const data = teamsStatus && teamsStatus.length > 0 ? teamsStatus : lbData
+    if (!data || data.length === 0) {
       showToast('No team records to export.')
       return
     }
-    const headers = ['Rank', 'Team Name', 'Team Code', 'Points', 'Streak', 'Answered Current']
-    const rows = teamsStatus.map((t, i) => [
-      i + 1,
-      `"${(t.name || '').replace(/"/g, '""')}"`,
-      `"${t.code || ''}"`,
-      t.points || 0,
-      t.streak || 0,
-      t.has_answered ? 'Yes' : 'No'
-    ])
-    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n')
-    const encodedUri = encodeURI(csvContent)
-    const link = document.createElement('a')
-    link.setAttribute('href', encodedUri)
-    link.setAttribute('download', `quizflow_standings_${gameId || 'EVENT'}.csv`)
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    showToast('📥 Standings CSV downloaded!')
+    const success = exportLeaderboardToCSV(data, `quizflow_standings_${gameId || 'EVENT'}.csv`)
+    if (success) showToast('📥 Full standings CSV downloaded!')
+    else showToast('No records to export.')
   }
 
   const handleBoss = async (action: 'start' | 'finalize') => {
@@ -1128,12 +1160,13 @@ export default function AdminDashboard() {
             </div>
 
             {/* Teams search & table toolbar */}
+            {/* Teams search & table toolbar */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, flexWrap: 'wrap', gap: 10 }}>
               <div style={{ display: 'flex', gap: 10, alignItems: 'center', flex: 1, minWidth: 260, maxWidth: 450 }}>
                 <input
                   className="input"
                   style={{ width: '100%' }}
-                  placeholder="🔍 Search teams by name, username, or code…"
+                  placeholder="🔍 Search teams by name, username, code, or leader…"
                   value={teamSearch}
                   onChange={e => setTeamSearch(e.target.value)}
                 />
@@ -1141,17 +1174,55 @@ export default function AdminDashboard() {
                   <button className="btn btn-sm" onClick={() => setTeamSearch('')}>✕</button>
                 )}
               </div>
+
+              {/* Status Filter Tabs */}
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                <button
+                  className="btn btn-sm"
+                  style={{ background: teamFilterStatus === 'all' ? 'var(--ink)' : '#fff', color: teamFilterStatus === 'all' ? '#fff' : 'var(--ink)', border: '2px solid var(--ink)', fontWeight: 800 }}
+                  onClick={() => setTeamFilterStatus('all')}
+                >
+                  All ({teams.length})
+                </button>
+                <button
+                  className="btn btn-sm"
+                  style={{ background: teamFilterStatus === 'arena' ? 'var(--mint)' : '#fff', border: '2px solid var(--ink)', fontWeight: 800 }}
+                  onClick={() => setTeamFilterStatus('arena')}
+                >
+                  🟢 In Arena ({teamsInGame})
+                </button>
+                <button
+                  className="btn btn-sm"
+                  style={{ background: teamFilterStatus === 'lobby' ? 'var(--sun)' : '#fff', border: '2px solid var(--ink)', fontWeight: 800 }}
+                  onClick={() => setTeamFilterStatus('lobby')}
+                >
+                  🟡 Bound ({claimedTeamsCount})
+                </button>
+                <button
+                  className="btn btn-sm"
+                  style={{ background: teamFilterStatus === 'offline' ? 'var(--paper-2)' : '#fff', border: '2px solid var(--ink)', fontWeight: 800 }}
+                  onClick={() => setTeamFilterStatus('offline')}
+                >
+                  🔴 Offline ({Math.max(0, teams.length - claimedTeamsCount)})
+                </button>
+              </div>
+
               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                <span style={{ fontSize: 13, color: '#555', fontFamily: 'Inter' }}>
-                  Showing {teams.filter(t => !teamSearch || t.name?.toLowerCase().includes(teamSearch.toLowerCase()) || t.username?.toLowerCase().includes(teamSearch.toLowerCase()) || t.code?.toLowerCase().includes(teamSearch.toLowerCase())).length} of {teams.length} teams
-                </span>
+                <button
+                  className="btn btn-sm btn-sun"
+                  style={{ border: '2px solid var(--ink)', fontWeight: 800 }}
+                  onClick={() => setPrintPassesModal(true)}
+                  title="Generate printable cut-out credential passes for team distribution"
+                >
+                  🖨️ Print Passes
+                </button>
                 <button
                   className="btn btn-sm"
                   style={{ background: 'var(--paper-2)', border: '2px solid var(--ink)', fontWeight: 800 }}
                   onClick={handleReleaseAllDevices}
                   title="Unlock all teams so students can switch or re-login from new devices"
                 >
-                  🔓 Release All Devices ({teams.filter(t => t.device_id).length} bound)
+                  🔓 Release All ({teams.filter(t => t.device_id).length})
                 </button>
               </div>
             </div>
@@ -1171,54 +1242,94 @@ export default function AdminDashboard() {
                       <th style={{ padding: 10 }}>Team</th>
                       <th style={{ padding: 10 }}>Code</th>
                       <th style={{ padding: 10 }}>Username</th>
-                      <th style={{ padding: 10 }}>Roster</th>
-                      <th style={{ padding: 10 }}>Status</th>
+                      <th style={{ padding: 10 }}>Roster &amp; Leader</th>
+                      <th style={{ padding: 10 }}>Live Presence</th>
                       <th style={{ padding: 10 }}>Device Binding</th>
                       <th style={{ padding: 10, textAlign: 'right' }}>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {teams
-                      .filter(t =>
-                        !teamSearch ||
-                        t.name?.toLowerCase().includes(teamSearch.toLowerCase()) ||
-                        t.username?.toLowerCase().includes(teamSearch.toLowerCase()) ||
-                        t.code?.toLowerCase().includes(teamSearch.toLowerCase())
-                      )
-                      .map(t => (
-                        <tr key={t.id} style={{ borderBottom: '1px solid #eee', fontSize: 13, fontFamily: 'Inter' }}>
-                          <td style={{ padding: 10, fontWeight: 800, fontFamily: 'Space Grotesk' }}>{t.name}</td>
-                          <td style={{ padding: 10 }}><span className="badge badge-sun">{t.code}</span></td>
-                          <td style={{ padding: 10, fontWeight: 600 }}>{t.username || '—'}</td>
-                          <td style={{ padding: 10, fontSize: 12 }}>{(t.roster || []).join(', ')}</td>
-                          <td style={{ padding: 10 }}>
-                            <span className={`badge ${t.status === 'submitted' ? 'badge-violet' : t.status === 'waiting' ? 'badge-ink' : 'badge-mint'}`}>{t.status}</span>
-                          </td>
-                          <td style={{ padding: 10, fontSize: 12 }}>
-                            {t.device_id ? (
-                              <span className="badge badge-cherry" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                                📱 Bound ({t.device_id.slice(0, 10)}…)
-                              </span>
-                            ) : (
-                              <span style={{ color: '#888' }}>Unlocked</span>
-                            )}
-                          </td>
-                          <td style={{ padding: 10, textAlign: 'right', whiteSpace: 'nowrap' }}>
-                            {t.device_id && (
-                              <button
-                                className="btn btn-sm btn-mint"
-                                style={{ marginRight: 6, fontWeight: 800 }}
-                                onClick={() => handleReleaseTeam(t)}
-                                title="Click to cut out old device login so student can log in on their new device"
-                              >
-                                🔓 Cut / Release Device
-                              </button>
-                            )}
-                            <button className="btn btn-sm btn-sun" style={{ marginRight: 6 }} onClick={() => handleResetPassword(t)}>🔑 Reset</button>
-                            <button className="btn btn-sm" style={{ background: 'var(--paper)', color: 'var(--cherry)', border: '1.5px solid var(--cherry)' }} onClick={() => handleDeleteTeam(t)}>🗑️</button>
-                          </td>
-                        </tr>
-                      ))}
+                      .filter(t => {
+                        const matchesSearch = !teamSearch ||
+                          t.name?.toLowerCase().includes(teamSearch.toLowerCase()) ||
+                          t.username?.toLowerCase().includes(teamSearch.toLowerCase()) ||
+                          t.code?.toLowerCase().includes(teamSearch.toLowerCase()) ||
+                          (Array.isArray(t.roster) && t.roster.some((m: string) => m.toLowerCase().includes(teamSearch.toLowerCase())))
+                        
+                        if (!matchesSearch) return false
+                        
+                        const isInArena = teamsStatus.some(s => s.team_id === t.id)
+                        const isBound = !!t.device_id || t.status === 'claimed'
+                        
+                        if (teamFilterStatus === 'arena') return isInArena
+                        if (teamFilterStatus === 'lobby') return isBound
+                        if (teamFilterStatus === 'offline') return !isBound
+                        return true
+                      })
+                      .map(t => {
+                        const isInArena = teamsStatus.some(s => s.team_id === t.id)
+                        const isBound = !!t.device_id || t.status === 'claimed'
+                        const leaderName = Array.isArray(t.roster) && t.roster.length > 0 ? t.roster[0] : null
+                        const memberNames = Array.isArray(t.roster) ? t.roster.slice(1) : []
+
+                        return (
+                          <tr key={t.id} style={{ borderBottom: '1px solid #eee', fontSize: 13, fontFamily: 'Inter' }}>
+                            <td style={{ padding: 10, fontWeight: 800, fontFamily: 'Space Grotesk' }}>
+                              <div>{t.name}</div>
+                              {isInArena && <span className="badge badge-mint" style={{ fontSize: 9, padding: '1px 5px', marginTop: 2 }}>● IN ARENA</span>}
+                            </td>
+                            <td style={{ padding: 10 }}><span className="badge badge-sun">{t.code}</span></td>
+                            <td style={{ padding: 10, fontWeight: 600 }}>{t.username || '—'}</td>
+                            <td style={{ padding: 10, fontSize: 12 }}>
+                              {leaderName ? (
+                                <div>
+                                  <span style={{ fontWeight: 800, color: 'var(--violet)' }}>👑 {leaderName}</span>
+                                  {memberNames.length > 0 && (
+                                    <span style={{ color: '#666', marginLeft: 4 }}>
+                                      ({memberNames.join(', ')})
+                                    </span>
+                                  )}
+                                </div>
+                              ) : (
+                                <span style={{ color: '#999' }}>—</span>
+                              )}
+                            </td>
+                            <td style={{ padding: 10 }}>
+                              {isInArena ? (
+                                <span className="badge badge-mint">🟢 In Arena</span>
+                              ) : isBound ? (
+                                <span className="badge badge-sun">🟡 Logged In</span>
+                              ) : (
+                                <span className="badge badge-ink">⚪ Unclaimed</span>
+                              )}
+                            </td>
+                            <td style={{ padding: 10, fontSize: 12 }}>
+                              {t.device_id ? (
+                                <span className="badge badge-cherry" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                                  📱 Bound ({t.device_id.slice(0, 10)}…)
+                                </span>
+                              ) : (
+                                <span style={{ color: '#888' }}>Unlocked</span>
+                              )}
+                            </td>
+                            <td style={{ padding: 10, textAlign: 'right', whiteSpace: 'nowrap' }}>
+                              {t.device_id && (
+                                <button
+                                  className="btn btn-sm btn-mint"
+                                  style={{ marginRight: 6, fontWeight: 800 }}
+                                  onClick={() => handleReleaseTeam(t)}
+                                  title="Click to cut out old device login so student can log in on their new device"
+                                >
+                                  🔓 Release Device
+                                </button>
+                              )}
+                              <button className="btn btn-sm btn-sun" style={{ marginRight: 6 }} onClick={() => handleResetPassword(t)}>🔑 Reset</button>
+                              <button className="btn btn-sm" style={{ background: 'var(--paper)', color: 'var(--cherry)', border: '1.5px solid var(--cherry)' }} onClick={() => handleDeleteTeam(t)}>🗑️</button>
+                            </td>
+                          </tr>
+                        )
+                      })}
                   </tbody>
                 </table>
               </div>
@@ -1238,7 +1349,22 @@ export default function AdminDashboard() {
                   Real-time standings for the active competition game (auto-refreshes every 2s).
                 </div>
               </div>
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                <button
+                  onClick={() => setIsFullscreenLeaderboard(true)}
+                  className="btn btn-sm btn-violet"
+                  style={{ color: '#fff', border: '2px solid var(--ink)', fontWeight: 900, boxShadow: '2px 2px 0 var(--ink)' }}
+                  title="Launch full-screen cinema-grade Live Leaderboard for auditorium projector [F]"
+                >
+                  📺 Fullscreen Projector Stage [F]
+                </button>
+                <button
+                  onClick={handleExportCSV}
+                  className="btn btn-sm btn-sun"
+                  style={{ border: '2px solid var(--ink)', fontWeight: 800 }}
+                >
+                  📥 Export Standings (.csv)
+                </button>
                 <label style={{ fontSize: 12, fontFamily: 'Space Grotesk', fontWeight: 800, color: '#555' }}>GAME ID</label>
                 <input
                   className="input"
@@ -1362,54 +1488,122 @@ export default function AdminDashboard() {
             </p>
 
             {/* Game setup */}
-            <div className="card" style={{ padding: 20, marginBottom: 20 }}>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12, marginBottom: 14 }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: 11, fontFamily: 'Space Grotesk', fontWeight: 800, textTransform: 'uppercase', color: '#555', marginBottom: 6 }}>Quiz</label>
-                  <select className="input" value={selectedQuizId} onChange={e => setSelectedQuizId(e.target.value)}>
-                    {allQuizzes.map(q => (
-                      <option key={q.id} value={q.id}>{q.title} ({q.quiz.questions?.length || q.questionCount} Q)</option>
-                    ))}
-                  </select>
+            {/* Collapsible Game Setup */}
+            {liveGame && !showGameSetup ? (
+              <div style={{ marginBottom: 16, padding: '10px 16px', background: 'var(--paper-2)', border: '2px solid var(--ink)', borderRadius: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+                <div style={{ fontSize: 13, fontFamily: 'Space Grotesk', fontWeight: 800 }}>
+                  ⚙️ Active Arena: <span className="badge badge-ink">{liveGame.id}</span> · Mode: <span className="badge badge-sun">{liveGame.mode}</span> · Quiz: <strong>{liveGame.quiz?.title || 'Loaded Quiz'}</strong>
                 </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: 11, fontFamily: 'Space Grotesk', fontWeight: 800, textTransform: 'uppercase', color: '#555', marginBottom: 6 }}>Mode</label>
-                  <select className="input" value={gameMode} onChange={e => setGameMode(e.target.value)}>
-                    <option value="classic">🎯 Classic</option>
-                    <option value="boss_raid">🐉 Boss Raid</option>
-                    <option value="tournament">🏆 Tournament</option>
-                  </select>
-                </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: 11, fontFamily: 'Space Grotesk', fontWeight: 800, textTransform: 'uppercase', color: '#555', marginBottom: 6 }}>Game ID</label>
-                  <input className="input" style={{ textTransform: 'uppercase' }} value={gameId} onChange={e => setGameId(e.target.value.toUpperCase())} placeholder="EVENT" />
-                </div>
+                <button
+                  onClick={() => setShowGameSetup(true)}
+                  className="btn btn-sm"
+                  style={{ background: '#fff', border: '1.5px solid var(--ink)', fontSize: 11, fontWeight: 800 }}
+                >
+                  ✏️ Modify Setup
+                </button>
               </div>
-              <button className="btn btn-violet" style={{ color: '#fff', fontWeight: 800 }} onClick={handleCreateGame}>⚡ Create / Replace Game</button>
-            </div>
+            ) : (
+              <div className="card" style={{ padding: 20, marginBottom: 20 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                  <h3 style={{ fontFamily: 'Space Grotesk', fontSize: 15, fontWeight: 900, textTransform: 'uppercase' }}>
+                    🎮 Arena Game Provisioning
+                  </h3>
+                  {liveGame && (
+                    <button
+                      onClick={() => setShowGameSetup(false)}
+                      className="btn btn-sm"
+                      style={{ background: 'var(--paper-2)', border: '1.5px solid var(--ink)', fontSize: 11 }}
+                    >
+                      ▲ Collapse
+                    </button>
+                  )}
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12, marginBottom: 14 }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 11, fontFamily: 'Space Grotesk', fontWeight: 800, textTransform: 'uppercase', color: '#555', marginBottom: 6 }}>Quiz</label>
+                    <select className="input" value={selectedQuizId} onChange={e => setSelectedQuizId(e.target.value)}>
+                      {allQuizzes.map(q => (
+                        <option key={q.id} value={q.id}>{q.title} ({q.quiz.questions?.length || q.questionCount} Q)</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 11, fontFamily: 'Space Grotesk', fontWeight: 800, textTransform: 'uppercase', color: '#555', marginBottom: 6 }}>Mode</label>
+                    <select className="input" value={gameMode} onChange={e => setGameMode(e.target.value)}>
+                      <option value="classic">🎯 Classic</option>
+                      <option value="boss_raid">🐉 Boss Raid</option>
+                      <option value="tournament">🏆 Tournament</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 11, fontFamily: 'Space Grotesk', fontWeight: 800, textTransform: 'uppercase', color: '#555', marginBottom: 6 }}>Game ID</label>
+                    <input className="input" style={{ textTransform: 'uppercase' }} value={gameId} onChange={e => setGameId(e.target.value.toUpperCase())} placeholder="EVENT" />
+                  </div>
+                </div>
+                <button className="btn btn-violet" style={{ color: '#fff', fontWeight: 800 }} onClick={handleCreateGame}>⚡ Create / Replace Game</button>
+              </div>
+            )}
 
             {/* Live game status */}
             {liveGame ? (
               <div className="card" style={{ padding: 20 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, flexWrap: 'wrap', gap: 10 }}>
-                  <div>
-                    <h3 style={{ fontFamily: 'Space Grotesk', fontSize: 18, fontWeight: 900, color: 'var(--ink)' }}>
-                      {liveGame.id} <span className="badge badge-ink">{liveGame.mode}</span>
-                    </h3>
-                    <div style={{ fontSize: 12, color: '#555', fontFamily: 'Inter', marginTop: 4 }}>
-                      {totalRegisteredTeams} registered teams · {teamsInGame} active in arena · Question {liveGame.quiz?.questions?.length ? `${Math.max(0, liveGame.current_question_index) + 1} / ${liveGame.quiz.questions.length}` : '0 / 0'}
+                {/* 🚀 ADAPTIVE HERO CTA BAR */}
+                <div style={{ marginBottom: 18, padding: 14, background: '#fff', border: '3px solid var(--ink)', borderRadius: 14, boxShadow: '4px 4px 0 var(--ink)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{ fontSize: 28 }}>
+                      {liveGame.status === 'lobby' ? '🎮' : liveGame.status === 'question_active' ? '⏱️' : liveGame.status === 'question_reveal' ? '✅' : liveGame.status === 'leaderboard' ? '🏆' : '🏁'}
+                    </span>
+                    <div>
+                      <div style={{ fontSize: 11, fontFamily: 'Space Grotesk', fontWeight: 900, textTransform: 'uppercase', color: 'var(--violet)' }}>
+                        Current Match Stage: {liveGame.status.toUpperCase()}
+                      </div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: '#333' }}>
+                        {liveGame.status === 'lobby' ? `${teamsInGame} teams ready in arena lobby` :
+                         liveGame.status === 'question_active' ? `${answeredCount} / ${teamsInGame} teams answered (${teamsInGame > 0 ? Math.round((answeredCount/teamsInGame)*100) : 0}%)` :
+                         liveGame.status === 'question_reveal' ? 'Correct answer revealed to class' :
+                         liveGame.status === 'leaderboard' ? `Standings displayed (Next: Question ${Math.max(0, liveGame.current_question_index) + 2})` : 'Championship match finished'}
+                      </div>
                     </div>
                   </div>
-                  <span className={`badge ${liveGame.status === 'question_active' || liveGame.status === 'boss_frenzy' ? 'badge-cherry' : liveGame.status === 'ended' ? 'badge-violet' : 'badge-sun'}`} style={{ fontSize: 13 }}>
-                    {liveGame.status.toUpperCase()}
-                  </span>
+
+                  {/* Hero Primary Action Button */}
+                  <button
+                    onClick={() => {
+                      if (liveGame.status === 'lobby') handleAdvance('start')
+                      else if (liveGame.status === 'question_active') handleAdvance('reveal')
+                      else if (liveGame.status === 'question_reveal') handleAdvance('leaderboard')
+                      else if (liveGame.status === 'leaderboard') handleAdvance('next')
+                      else if (liveGame.status === 'ended') handleExportCSV()
+                    }}
+                    className="btn btn-lg"
+                    style={{
+                      background: liveGame.status === 'lobby' ? 'var(--mint)' :
+                                  liveGame.status === 'question_active' ? 'var(--sun)' :
+                                  liveGame.status === 'question_reveal' ? 'var(--sky)' :
+                                  liveGame.status === 'leaderboard' ? 'var(--violet)' : '#E0E0E0',
+                      color: liveGame.status === 'leaderboard' ? '#fff' : 'var(--ink)',
+                      border: '3px solid var(--ink)',
+                      boxShadow: '3px 3px 0 var(--ink)',
+                      fontWeight: 900,
+                      fontSize: 16,
+                      padding: '12px 24px',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    {liveGame.status === 'lobby' ? '▶ START MATCH [Space]' :
+                     liveGame.status === 'question_active' ? '👁️ REVEAL ANSWER [Space]' :
+                     liveGame.status === 'question_reveal' ? '🏆 SHOW STANDINGS [Space]' :
+                     liveGame.status === 'leaderboard' ? '⏭️ NEXT QUESTION [Space]' : '📥 EXPORT STANDINGS'}
+                  </button>
                 </div>
 
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 12, alignItems: 'center' }}>
+                {/* Secondary Action Toolbar */}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16, alignItems: 'center' }}>
                   {['start', 'next', 'reveal', 'leaderboard', 'end'].map(action => (
-                    <button key={action} className="btn btn-sm" style={{ background: action === 'reveal' ? 'var(--sun)' : action === 'start' ? 'var(--mint)' : action === 'next' ? 'var(--sky)' : 'var(--paper-2)', border: '2px solid var(--ink)', boxShadow: '2px 2px 0 var(--ink)', fontWeight: 800 }}
+                    <button key={action} className="btn btn-sm" style={{ background: '#fff', border: '1.5px solid var(--ink)', fontWeight: 800 }}
                       onClick={() => handleAdvance(action)}>
-                      {action === 'start' ? '▶ Start' : action === 'next' ? '⏭ Next Question' : action === 'reveal' ? '👁 Reveal Answer' : action === 'leaderboard' ? '🏆 Standings' : '🏁 End Game'}
+                      {action === 'start' ? '▶ Start' : action === 'next' ? '⏭ Next' : action === 'reveal' ? '👁 Reveal' : action === 'leaderboard' ? '🏆 Standings' : '🏁 End'}
                     </button>
                   ))}
                   <button
@@ -1422,8 +1616,8 @@ export default function AdminDashboard() {
                   </button>
                   <button
                     onClick={handleExportCSV}
-                    className="btn btn-sm"
-                    style={{ background: '#fff', border: '2px solid var(--ink)', boxShadow: '2px 2px 0 var(--ink)', fontWeight: 800 }}
+                    className="btn btn-sm btn-sun"
+                    style={{ border: '2px solid var(--ink)', fontWeight: 800 }}
                     title="Export live standings to CSV"
                   >
                     📥 Export CSV
@@ -1438,39 +1632,55 @@ export default function AdminDashboard() {
                   </button>
                 </div>
 
-                {/* 📡 Live Team Response Radar & Submission Progress */}
-                {teamsInGame > 0 && (
-                  <div style={{ marginTop: 16, padding: 14, background: '#fff', border: '2px solid var(--ink)', borderRadius: 12 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, flexWrap: 'wrap', gap: 6 }}>
+                {/* 📡 Live Presence & Response Cluster Radar */}
+                <div style={{ padding: 14, background: '#fff', border: '2px solid var(--ink)', borderRadius: 12, marginBottom: 16 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, flexWrap: 'wrap', gap: 6 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <span style={{ fontFamily: 'Space Grotesk', fontSize: 13, fontWeight: 900, color: 'var(--ink)' }}>
-                        📡 Live Team Response Radar
+                        📡 Real-Time Arena Presence Matrix
                       </span>
-                      <span style={{ fontFamily: 'Space Grotesk', fontSize: 12, fontWeight: 800, color: 'var(--violet)' }}>
-                        {answeredCount} / {teamsInGame} Teams Answered ({teamsInGame > 0 ? Math.round((answeredCount / teamsInGame) * 100) : 0}%)
+                      <span className="badge badge-ink" style={{ fontSize: 10 }}>
+                        {liveGame.quiz?.questions?.length ? `Question ${Math.max(0, liveGame.current_question_index) + 1} of ${liveGame.quiz.questions.length}` : '0 / 0'}
                       </span>
                     </div>
 
-                    {/* Progress Bar */}
-                    <div style={{ width: '100%', height: 10, background: 'var(--paper-2)', borderRadius: 6, border: '1.5px solid var(--ink)', overflow: 'hidden' }}>
-                      <div style={{ width: `${teamsInGame > 0 ? (answeredCount / teamsInGame) * 100 : 0}%`, height: '100%', background: 'var(--mint)', transition: 'width 0.3s ease' }} />
-                    </div>
-
-                    {/* Team Radar Chips */}
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
-                      {teamsStatus.map((t: any) => (
-                        <span
-                          key={t.team_id}
-                          className={`badge ${t.has_answered ? 'badge-mint' : 'badge-sun'}`}
-                          style={{ fontSize: 11, padding: '3px 8px', border: '1.5px solid var(--ink)', display: 'flex', alignItems: 'center', gap: 5 }}
-                        >
-                          <span>{t.has_answered ? '✓' : '⏳'}</span>
-                          <span style={{ fontWeight: 800 }}>{t.name}</span>
-                          <span style={{ opacity: 0.6, fontSize: 10 }}>⚡{t.points}</span>
-                        </span>
-                      ))}
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', fontSize: 11, fontWeight: 800, fontFamily: 'Space Grotesk' }}>
+                      <span className="badge badge-ink" title="Total teams in database">👥 {totalRegisteredTeams} Registered</span>
+                      <span className="badge badge-mint" title="Teams connected to a device">🟢 {claimedTeamsCount} Online</span>
+                      <span className="badge badge-sky" title="Teams in this game arena">🏟️ {teamsInGame} In Arena</span>
+                      <span className="badge badge-sun" title="Teams answered current question">⚡ {answeredCount} Answered</span>
+                      {waitingTeams.length > 0 && <span className="badge badge-cherry" title="Teams still thinking">⏳ {waitingTeams.length} Thinking</span>}
+                      {offlineTeams.length > 0 && <span className="badge" style={{ background: 'var(--paper-2)', border: '1px solid var(--ink)' }} title="Registered teams not yet connected">🔴 {offlineTeams.length} Offline</span>}
                     </div>
                   </div>
-                )}
+
+                  {/* Progress Bar */}
+                  <div style={{ width: '100%', height: 10, background: 'var(--paper-2)', borderRadius: 6, border: '1.5px solid var(--ink)', overflow: 'hidden', marginBottom: 10 }}>
+                    <div style={{ width: `${teamsInGame > 0 ? (answeredCount / teamsInGame) * 100 : 0}%`, height: '100%', background: 'var(--mint)', transition: 'width 0.3s ease' }} />
+                  </div>
+
+                  {/* Targeted Thinking/Waiting Callout during active question */}
+                  {liveGame.status === 'question_active' && (
+                    waitingTeams.length > 0 ? (
+                      <div style={{ padding: '8px 12px', background: '#FFFDE7', border: '1.5px solid #FFD54F', borderRadius: 8, fontSize: 12 }}>
+                        <div style={{ fontWeight: 800, color: '#856404', marginBottom: 4 }}>
+                          ⏳ Still Deliberating ({waitingTeams.length} Team{waitingTeams.length === 1 ? '' : 's'}):
+                        </div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+                          {waitingTeams.map((t: any) => (
+                            <span key={t.team_id} className="badge badge-sun" style={{ fontSize: 11, padding: '2px 7px' }}>
+                              ⏳ {t.name} ({t.code})
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    ) : teamsInGame > 0 ? (
+                      <div style={{ padding: '8px 12px', background: '#E8F8F5', border: '1.5px solid #2ECC71', borderRadius: 8, fontSize: 12, color: '#1B5E20', fontWeight: 800, display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span>🎉</span> All {teamsInGame} teams have submitted! Ready to reveal the answer.
+                      </div>
+                    ) : null
+                  )}
+                </div>
 
                 {/* 🥇 3D Olympic Standings Podium (Leaderboard / Ended) */}
                 {(liveGame.status === 'leaderboard' || liveGame.status === 'ended') && teamsStatus.length > 0 && (
@@ -1670,8 +1880,8 @@ export default function AdminDashboard() {
                   </div>
                 </div>
 
-                {/* Projector Question Content */}
-                {liveGame.quiz?.questions && liveGame.current_question_index >= 0 && liveGame.quiz.questions[liveGame.current_question_index] && (
+                {/* Projector Question Content (when in question_active or question_reveal) */}
+                {liveGame.status !== 'leaderboard' && liveGame.status !== 'ended' && liveGame.quiz?.questions && liveGame.current_question_index >= 0 && liveGame.quiz.questions[liveGame.current_question_index] && (
                   <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', maxWidth: 1100, margin: '0 auto', width: '100%' }}>
                     <div style={{ fontSize: 14, fontWeight: 900, fontFamily: 'Space Grotesk', textTransform: 'uppercase', color: 'var(--violet)', marginBottom: 8 }}>
                       Question {liveGame.current_question_index + 1} of {liveGame.quiz.questions.length}
@@ -1722,6 +1932,79 @@ export default function AdminDashboard() {
                         <div style={{ width: `${teamsInGame > 0 ? (answeredCount / teamsInGame) * 100 : 0}%`, height: '100%', background: 'var(--mint)', transition: 'width 0.3s ease' }} />
                       </div>
                     </div>
+                  </div>
+                )}
+
+                {/* Projector Standings (when in leaderboard or ended) */}
+                {(liveGame.status === 'leaderboard' || liveGame.status === 'ended') && (
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', maxWidth: 1100, margin: '0 auto', width: '100%', justifyContent: 'center' }}>
+                    <div style={{ textAlign: 'center', marginBottom: 20 }}>
+                      <div style={{ fontSize: 44, marginBottom: 4 }}>🏆</div>
+                      <h1 style={{ fontFamily: 'Space Grotesk', fontSize: 'clamp(28px, 4vw, 48px)', fontWeight: 900, textTransform: 'uppercase', color: 'var(--ink)' }}>
+                        {liveGame.status === 'ended' ? 'Championship Final Standings' : 'Live Arena Standings'}
+                      </h1>
+                      <div style={{ fontSize: 15, fontFamily: 'Inter', color: '#555', fontWeight: 700 }}>
+                        {teamsStatus.length} Teams Registered &amp; Active
+                      </div>
+                    </div>
+
+                    {/* Grand 3D Olympic Podium */}
+                    {teamsStatus.length > 0 && (
+                      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'flex-end', gap: 16, margin: '20px auto 30px', maxWidth: 700, width: '100%' }}>
+                        {/* 2nd Place */}
+                        {teamsStatus[1] && (
+                          <div style={{ flex: 1, textAlign: 'center' }}>
+                            <div style={{ fontSize: 28, marginBottom: 4 }}>🥈</div>
+                            <div className="truncate" style={{ fontFamily: 'Space Grotesk', fontWeight: 900, fontSize: 'clamp(14px, 1.8vw, 20px)' }}>{teamsStatus[1].name}</div>
+                            <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--violet)' }}>⚡ {teamsStatus[1].points.toLocaleString()} pts</div>
+                            <div style={{ height: 100, background: '#E0E0E0', border: '3px solid var(--ink)', borderRadius: '12px 12px 0 0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: 32, marginTop: 8, boxShadow: '4px 4px 0 var(--ink)' }}>
+                              2
+                            </div>
+                          </div>
+                        )}
+
+                        {/* 1st Place */}
+                        {teamsStatus[0] && (
+                          <div style={{ flex: 1.3, textAlign: 'center' }}>
+                            <div style={{ fontSize: 38, marginBottom: 2 }}>👑</div>
+                            <div className="truncate" style={{ fontFamily: 'Space Grotesk', fontWeight: 900, fontSize: 'clamp(16px, 2.2vw, 24px)' }}>{teamsStatus[0].name}</div>
+                            <div style={{ fontSize: 16, fontWeight: 900, color: 'var(--violet)' }}>⚡ {teamsStatus[0].points.toLocaleString()} pts</div>
+                            <div style={{ height: 140, background: '#FFD700', border: '3.5px solid var(--ink)', borderRadius: '14px 14px 0 0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: 44, marginTop: 8, boxShadow: '5px 5px 0 var(--ink)' }}>
+                              1
+                            </div>
+                          </div>
+                        )}
+
+                        {/* 3rd Place */}
+                        {teamsStatus[2] && (
+                          <div style={{ flex: 1, textAlign: 'center' }}>
+                            <div style={{ fontSize: 28, marginBottom: 4 }}>🥉</div>
+                            <div className="truncate" style={{ fontFamily: 'Space Grotesk', fontWeight: 900, fontSize: 'clamp(14px, 1.8vw, 20px)' }}>{teamsStatus[2].name}</div>
+                            <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--violet)' }}>⚡ {teamsStatus[2].points.toLocaleString()} pts</div>
+                            <div style={{ height: 75, background: '#CD7F32', color: '#fff', border: '3px solid var(--ink)', borderRadius: '12px 12px 0 0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: 28, marginTop: 8, boxShadow: '4px 4px 0 var(--ink)' }}>
+                              3
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Table for remaining teams */}
+                    {teamsStatus.length > 3 && (
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 8, maxHeight: 220, overflowY: 'auto', padding: 8 }}>
+                        {teamsStatus.slice(3).map((t: any, idx: number) => (
+                          <div key={t.team_id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: '#fff', border: '2px solid var(--ink)', borderRadius: 10 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <span style={{ fontWeight: 900, width: 28 }}>#{idx + 4}</span>
+                              <span style={{ fontWeight: 800, fontSize: 14 }}>{t.name}</span>
+                            </div>
+                            <span style={{ fontFamily: 'Space Grotesk', fontWeight: 900, fontSize: 14, color: 'var(--violet)' }}>
+                              ⚡ {t.points.toLocaleString()}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -2168,6 +2451,248 @@ export default function AdminDashboard() {
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ═══ PRINTABLE CREDENTIAL PASSES MODAL ═══ */}
+      {printPassesModal && (
+        <div className="fixed inset-0 z-[300] bg-[rgba(16,16,15,0.7)] flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
+          <div className="bg-[var(--paper)] border-[3px] border-[var(--ink)] rounded-[16px] w-full max-w-[900px] max-h-[90vh] flex flex-col shadow-[8px_8px_0px_#10100F] animate-scale-in">
+            {/* Header (hidden in print) */}
+            <div className="p-4 border-b-[3px] border-[var(--ink)] bg-[var(--paper-2)] flex items-center justify-between gap-3 shrink-0 print:hidden">
+              <div>
+                <h2 className="font-display font-[900] text-[20px] text-[var(--ink)]">
+                  🖨️ Team Credential Passes ({teams.length} Teams)
+                </h2>
+                <div className="text-[12px] text-[#555] font-sans">
+                  Print or save as PDF. Hand out each cut-out slip to the respective team leader.
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => window.print()}
+                  className="btn btn-sun btn-sm"
+                  style={{ fontWeight: 900 }}
+                >
+                  🖨️ Print Now
+                </button>
+                <button
+                  onClick={() => setPrintPassesModal(false)}
+                  className="w-9 h-9 rounded-full border-[2px] border-[var(--ink)] bg-white font-bold text-[16px] flex items-center justify-center hover:bg-[var(--cherry)] hover:text-white transition-colors shrink-0"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            {/* Passes Content Grid */}
+            <div className="p-6 overflow-y-auto flex-1 bg-white">
+              {teams.length === 0 ? (
+                <div className="text-center py-10 text-gray-500 font-medium">
+                  No registered teams found. Create or upload teams first.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {teams.map((t, idx) => {
+                    const leaderName = Array.isArray(t.roster) && t.roster.length > 0 ? t.roster[0] : t.name
+                    const rosterStr = Array.isArray(t.roster) ? t.roster.join(', ') : 'Team Roster'
+                    const initialPassword = leaderName
+
+                    return (
+                      <div
+                        key={t.id || idx}
+                        style={{
+                          border: '2.5px dashed var(--ink)',
+                          borderRadius: 12,
+                          padding: 16,
+                          background: 'var(--paper)',
+                          pageBreakInside: 'avoid',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: 6
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid var(--ink)', paddingBottom: 6 }}>
+                          <span style={{ fontFamily: 'Space Grotesk', fontWeight: 900, fontSize: 13, textTransform: 'uppercase', color: 'var(--violet)' }}>
+                            ⚡ QUIZFLOW ARENA PASS
+                          </span>
+                          <span className="badge badge-sun" style={{ fontSize: 11 }}>
+                            CODE: {t.code}
+                          </span>
+                        </div>
+
+                        <div style={{ marginTop: 4 }}>
+                          <div style={{ fontFamily: 'Space Grotesk', fontWeight: 900, fontSize: 16, color: 'var(--ink)' }}>
+                            {t.name}
+                          </div>
+                          <div style={{ fontSize: 11, color: '#555', fontFamily: 'Inter' }}>
+                            Roster: {rosterStr}
+                          </div>
+                        </div>
+
+                        <div style={{ marginTop: 6, padding: 8, background: '#fff', border: '1.5px solid var(--ink)', borderRadius: 8, fontSize: 12 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
+                            <span style={{ fontWeight: 700, color: '#555' }}>Username:</span>
+                            <span style={{ fontFamily: 'monospace', fontWeight: 800 }}>{t.username || t.name}</span>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                            <span style={{ fontWeight: 700, color: '#555' }}>Leader Password:</span>
+                            <span style={{ fontFamily: 'monospace', fontWeight: 800, color: 'var(--cherry)' }}>{initialPassword}</span>
+                          </div>
+                        </div>
+
+                        <div style={{ fontSize: 10, color: '#777', textAlign: 'center', marginTop: 4 }}>
+                          Login at: <strong>{typeof window !== 'undefined' ? `${window.location.origin}/quizflow/student/login` : '/quizflow/student/login'}</strong>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══ 🏆 FULLSCREEN AUDITORIUM LIVE LEADERBOARD STAGE ═══ */}
+      {isFullscreenLeaderboard && (
+        <div className="fixed inset-0 z-[250] bg-[var(--paper)] flex flex-col p-4 sm:p-8 overflow-y-auto memphis-bg animate-scale-in">
+          {/* Top Stage Bar */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '3px solid var(--ink)', paddingBottom: 14, marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+              <span className="badge badge-cherry" style={{ fontSize: 13, padding: '6px 14px', fontWeight: 900, animation: 'pulse 1.5s infinite' }}>
+                🔴 LIVE ARENA STANDINGS
+              </span>
+              <span className="badge badge-ink" style={{ fontSize: 13, padding: '6px 12px' }}>
+                GAME ID: {lbGameId || gameId || 'EVENT'}
+              </span>
+              <span style={{ fontSize: 13, color: '#555', fontFamily: 'Space Grotesk', fontWeight: 800 }}>
+                {(lbData.length > 0 ? lbData : teamsStatus).length} Teams Competing · Live Synchronized (2s)
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <button
+                onClick={handleExportCSV}
+                className="btn btn-sm btn-sun"
+                style={{ border: '2px solid var(--ink)', fontWeight: 800, padding: '8px 16px' }}
+              >
+                📥 Export CSV
+              </button>
+              <button
+                onClick={() => setIsFullscreenLeaderboard(false)}
+                className="btn btn-sm"
+                style={{ background: '#fff', border: '2px solid var(--ink)', fontWeight: 900, fontSize: 13, padding: '8px 16px' }}
+              >
+                ✕ Exit Fullscreen [Esc / F]
+              </button>
+            </div>
+          </div>
+
+          {/* Fullscreen Stage Content */}
+          {(() => {
+            const data = lbData.length > 0 ? lbData : teamsStatus
+            if (data.length === 0) {
+              return (
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
+                  <div style={{ fontSize: 64, marginBottom: 16 }}>🏆</div>
+                  <h2 style={{ fontFamily: 'Space Grotesk', fontSize: 28, fontWeight: 900 }}>No Active Standings Yet</h2>
+                  <p style={{ color: '#666', fontSize: 15, marginTop: 6 }}>Create and launch a match to populate live auditorium standings.</p>
+                </div>
+              )
+            }
+
+            return (
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', maxWidth: 1200, margin: '0 auto', width: '100%' }}>
+                {/* 🥇 Grand 3D Olympic Podium */}
+                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'flex-end', gap: 16, margin: '10px auto 28px', maxWidth: 780, width: '100%' }}>
+                  {/* 2nd Place */}
+                  {data[1] && (
+                    <div style={{ flex: 1, textAlign: 'center' }}>
+                      <div style={{ fontSize: 32, marginBottom: 4 }}>🥈</div>
+                      <div className="truncate" style={{ fontFamily: 'Space Grotesk', fontWeight: 900, fontSize: 'clamp(15px, 2vw, 22px)' }}>{data[1].name || data[1].code}</div>
+                      <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--violet)', marginTop: 2 }}>⚡ {(data[1].points || 0).toLocaleString()} pts</div>
+                      {data[1].streak > 1 && <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--cherry)' }}>🔥 {data[1].streak} Streak</div>}
+                      <div style={{ height: 110, background: '#E0E0E0', border: '3.5px solid var(--ink)', borderRadius: '14px 14px 0 0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: 36, marginTop: 8, boxShadow: '4px 4px 0 var(--ink)' }}>
+                        2
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 1st Place (Elevated Gold) */}
+                  {data[0] && (
+                    <div style={{ flex: 1.35, textAlign: 'center' }}>
+                      <div style={{ fontSize: 44, marginBottom: 2 }}>👑</div>
+                      <div className="truncate" style={{ fontFamily: 'Space Grotesk', fontWeight: 900, fontSize: 'clamp(18px, 2.5vw, 26px)', color: 'var(--ink)' }}>{data[0].name || data[0].code}</div>
+                      <div style={{ fontSize: 18, fontWeight: 900, color: 'var(--violet)', marginTop: 2 }}>⚡ {(data[0].points || 0).toLocaleString()} pts</div>
+                      {data[0].streak > 1 && <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--cherry)' }}>🔥 {data[0].streak} Streak</div>}
+                      <div style={{ height: 160, background: '#FFD700', border: '4px solid var(--ink)', borderRadius: '16px 16px 0 0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: 52, marginTop: 8, boxShadow: '6px 6px 0 var(--ink)' }}>
+                        1
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 3rd Place */}
+                  {data[2] && (
+                    <div style={{ flex: 1, textAlign: 'center' }}>
+                      <div style={{ fontSize: 32, marginBottom: 4 }}>🥉</div>
+                      <div className="truncate" style={{ fontFamily: 'Space Grotesk', fontWeight: 900, fontSize: 'clamp(15px, 2vw, 22px)' }}>{data[2].name || data[2].code}</div>
+                      <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--violet)', marginTop: 2 }}>⚡ {(data[2].points || 0).toLocaleString()} pts</div>
+                      {data[2].streak > 1 && <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--cherry)' }}>🔥 {data[2].streak} Streak</div>}
+                      <div style={{ height: 80, background: '#CD7F32', color: '#fff', border: '3.5px solid var(--ink)', borderRadius: '14px 14px 0 0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: 32, marginTop: 8, boxShadow: '4px 4px 0 var(--ink)' }}>
+                        3
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Ranked Standings Grid for 4th+ */}
+                {data.length > 3 && (
+                  <div style={{ marginTop: 10, background: 'rgba(255,255,255,0.85)', border: '3px solid var(--ink)', borderRadius: 16, padding: 16, boxShadow: '5px 5px 0 var(--ink)' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 10, maxHeight: '38vh', overflowY: 'auto', paddingRight: 6 }}>
+                      {data.slice(3).map((row: any, idx: number) => (
+                        <div
+                          key={row.team_id || idx}
+                          style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            padding: '12px 16px',
+                            background: '#fff',
+                            border: '2px solid var(--ink)',
+                            borderRadius: 12,
+                            boxShadow: '2px 2px 0 var(--ink)'
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                            <span style={{ fontFamily: 'Space Grotesk', fontWeight: 900, fontSize: 16, width: 34, color: '#555' }}>
+                              #{idx + 4}
+                            </span>
+                            <div className="truncate">
+                              <div style={{ fontFamily: 'Space Grotesk', fontWeight: 800, fontSize: 15, color: 'var(--ink)' }} className="truncate">
+                                {row.name || row.code}
+                              </div>
+                              <div style={{ fontSize: 11, color: '#777', fontFamily: 'Inter' }}>
+                                Code: {row.code || '—'} {row.roster && row.roster.length > 0 ? `· Leader: ${row.roster[0]}` : ''}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
+                            {row.streak > 1 && <span style={{ fontSize: 12, fontWeight: 800 }}>🔥{row.streak}</span>}
+                            {row.coins > 0 && <span style={{ fontSize: 12, fontWeight: 800 }}>🪙{row.coins}</span>}
+                            <span style={{ fontFamily: 'Space Grotesk', fontWeight: 900, fontSize: 16, color: 'var(--violet)' }}>
+                              ⚡ {(row.points || 0).toLocaleString()}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )
+          })()}
         </div>
       )}
     </div>

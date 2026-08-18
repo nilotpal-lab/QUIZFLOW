@@ -88,35 +88,67 @@ export async function GET(req: Request) {
     }
   }
 
-  // 3. Count total registered teams
-  const { count: totalTeams } = await supabase
+  // 3. Count total registered teams and presence status
+  const { data: allTeams } = await supabase
     .from('teams')
-    .select('id', { count: 'exact', head: true })
+    .select('id, name, code, status, device_id, roster')
+    .order('created_at', { ascending: true })
+
+  const totalRegistered = allTeams?.length || 0
+  const claimedCount = (allTeams || []).filter(t => t.device_id !== null || t.status === 'claimed').length
 
   // 4. Fetch live student sessions with submission radar status
   const { data: sessionRows } = await supabase
     .from('quiz_sessions')
-    .select('team_id, points, coins, streak, total_answered, teams(name, code)')
+    .select('team_id, points, coins, streak, max_streak, total_correct, total_answered, last_answered_question_index, total_response_time_ms, violation_count, teams(name, code, status, device_id, roster)')
     .eq('game_id', gameId)
     .order('points', { ascending: false })
 
   const currentQIdx = game.current_question_index ?? -1
-  const teamsStatus = (sessionRows || []).map((s: any) => ({
+  const teamsStatus = (sessionRows || []).map((s: any, idx: number) => ({
+    rank: idx + 1,
     team_id: s.team_id,
     name: s.teams?.name || s.teams?.code || 'Team',
     code: s.teams?.code || '',
+    roster: s.teams?.roster || null,
     points: s.points || 0,
+    coins: s.coins || 0,
     streak: s.streak || 0,
-    has_answered: currentQIdx >= 0 ? (s.total_answered > currentQIdx) : false
+    max_streak: s.max_streak || 0,
+    total_correct: s.total_correct || 0,
+    total_answered: s.total_answered || 0,
+    total_response_time_ms: s.total_response_time_ms || 0,
+    violation_count: s.violation_count || 0,
+    device_id: s.teams?.device_id || null,
+    status: s.teams?.status || 'active',
+    has_answered: currentQIdx >= 0 ? (s.last_answered_question_index === currentQIdx) : false
   }))
+
   const answeredCount = teamsStatus.filter(t => t.has_answered).length
+  const waitingTeams = teamsStatus.filter(t => !t.has_answered)
+  
+  // Identify registered teams who haven't entered the arena session yet
+  const arenaTeamIds = new Set(teamsStatus.map(t => t.team_id))
+  const offlineTeams = (allTeams || [])
+    .filter(t => !arenaTeamIds.has(t.id))
+    .map(t => ({
+      id: t.id,
+      name: t.name,
+      code: t.code,
+      roster: t.roster,
+      is_claimed: t.device_id !== null,
+      device_id: t.device_id
+    }))
 
   return NextResponse.json({
     success: true,
     game: hostGame,
-    total_registered_teams: totalTeams || 0,
+    total_registered_teams: totalRegistered,
+    claimed_teams_count: claimedCount,
     active_sessions_count: teamsStatus.length,
     answered_count: answeredCount,
+    waiting_teams: waitingTeams,
+    offline_teams: offlineTeams,
     teams_status: teamsStatus
   }, { headers: noCacheHeaders })
 }
