@@ -1728,7 +1728,7 @@ export default function AdminDashboard() {
                                   border: '2px solid #10100F',
                                   display: 'flex',
                                   alignItems: 'center',
-                                  justify: 'center',
+                                  justifyContent: 'center',
                                   fontSize: 14,
                                   fontWeight: 900,
                                   flexShrink: 0
