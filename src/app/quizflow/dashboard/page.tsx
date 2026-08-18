@@ -1489,96 +1489,110 @@ export default function AdminDashboard() {
           </div>
         )}
 
-        {/* ═══ TAB: ACTIVE GAME (new) ═══ */}
+        {/* ═══ TAB: ACTIVE GAME (Simplified & Logical Command Center) ═══ */}
         {activeTab === 'game' && (
           <div>
-            <h2 style={{ fontFamily: 'Space Grotesk', fontSize: 24, fontWeight: 900, color: 'var(--ink)', marginBottom: 6 }}>
-              🎮 Active Game Control
-            </h2>
-            <p style={{ fontSize: 13, color: '#555', fontFamily: 'Inter', marginBottom: 20 }}>
-              Create the competition game — every team's session is registered automatically and students land in the lobby.
-            </p>
-
-            {/* Game setup */}
-            {/* Collapsible Game Setup */}
-            {liveGame && !showGameSetup ? (
-              <div style={{ marginBottom: 16, padding: '10px 16px', background: 'var(--paper-2)', border: '2px solid var(--ink)', borderRadius: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
-                <div style={{ fontSize: 13, fontFamily: 'Space Grotesk', fontWeight: 800 }}>
-                  ⚙️ Active Arena: <span className="badge badge-ink">{liveGame.id}</span> · Mode: <span className="badge badge-sun">{liveGame.mode}</span> · Quiz: <strong>{liveGame.quiz?.title || 'Loaded Quiz'}</strong>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
+              <div>
+                <h2 style={{ fontFamily: 'Space Grotesk', fontSize: 24, fontWeight: 900, color: 'var(--ink)' }}>
+                  🎮 Active Game Command Center
+                </h2>
+                <div style={{ fontSize: 13, color: '#555', fontFamily: 'Inter' }}>
+                  {liveGame ? `Currently hosting: "${liveGame.quiz?.title || 'Loaded Quiz'}"` : 'No live room active right now. Select a quiz below to launch.'}
                 </div>
-                <button
-                  onClick={() => setShowGameSetup(true)}
-                  className="btn btn-sm"
-                  style={{ background: '#fff', border: '1.5px solid var(--ink)', fontSize: 11, fontWeight: 800 }}
-                >
-                  ✏️ Modify Setup
-                </button>
               </div>
-            ) : (
-              <div className="card" style={{ padding: 20, marginBottom: 20 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                  <h3 style={{ fontFamily: 'Space Grotesk', fontSize: 15, fontWeight: 900, textTransform: 'uppercase' }}>
-                    🎮 Arena Game Provisioning
-                  </h3>
-                  {liveGame && (
-                    <button
-                      onClick={() => setShowGameSetup(false)}
-                      className="btn btn-sm"
-                      style={{ background: 'var(--paper-2)', border: '1.5px solid var(--ink)', fontSize: 11 }}
-                    >
-                      ▲ Collapse
-                    </button>
-                  )}
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12, marginBottom: 14 }}>
+
+              {liveGame && (
+                <button
+                  onClick={handleClearGame}
+                  className="btn btn-sm"
+                  style={{
+                    background: '#FFE4E7',
+                    color: 'var(--cherry)',
+                    border: '2px solid var(--cherry)',
+                    boxShadow: '2px 2px 0 var(--ink)',
+                    fontWeight: 800,
+                    padding: '8px 14px'
+                  }}
+                  title="Stop live arena session without deleting your quiz from My Quizzes"
+                >
+                  ⏹️ Close &amp; Un-Host Game
+                </button>
+              )}
+            </div>
+
+            {/* 1. PROVISIONING CARD (When NO game is active) */}
+            {!liveGame ? (
+              <div className="card anim-scale-in" style={{ padding: 28, background: '#fff', border: '3px solid var(--ink)', boxShadow: '6px 6px 0 var(--ink)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+                  <span style={{ fontSize: 32 }}>🚀</span>
                   <div>
-                    <label style={{ display: 'block', fontSize: 11, fontFamily: 'Space Grotesk', fontWeight: 800, textTransform: 'uppercase', color: '#555', marginBottom: 6 }}>Quiz</label>
-                    <select className="input" value={selectedQuizId} onChange={e => setSelectedQuizId(e.target.value)}>
+                    <h3 style={{ fontFamily: 'Space Grotesk', fontSize: 20, fontWeight: 900, color: 'var(--ink)' }}>
+                      Launch a Live Quiz Room
+                    </h3>
+                    <div style={{ fontSize: 13, color: '#666', fontFamily: 'Inter' }}>
+                      Pick a quiz to start. Your saved quiz in &quot;My Quizzes&quot; will stay 100% safe.
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 16, marginBottom: 20 }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 11, fontFamily: 'Space Grotesk', fontWeight: 800, textTransform: 'uppercase', color: '#555', marginBottom: 6 }}>
+                      1. Select Quiz to Host
+                    </label>
+                    <select className="input" style={{ fontWeight: 700 }} value={selectedQuizId} onChange={e => setSelectedQuizId(e.target.value)}>
                       {allQuizzes.map(q => (
                         <option key={q.id} value={q.id}>{q.title} ({q.quiz.questions?.length || q.questionCount} Q)</option>
                       ))}
                     </select>
                   </div>
                   <div>
-                    <label style={{ display: 'block', fontSize: 11, fontFamily: 'Space Grotesk', fontWeight: 800, textTransform: 'uppercase', color: '#555', marginBottom: 6 }}>Mode</label>
-                    <select className="input" value={gameMode} onChange={e => setGameMode(e.target.value)}>
-                      <option value="classic">🎯 Classic</option>
-                      <option value="boss_raid">🐉 Boss Raid</option>
-                      <option value="tournament">🏆 Tournament</option>
+                    <label style={{ display: 'block', fontSize: 11, fontFamily: 'Space Grotesk', fontWeight: 800, textTransform: 'uppercase', color: '#555', marginBottom: 6 }}>
+                      2. Match Game Mode
+                    </label>
+                    <select className="input" style={{ fontWeight: 700 }} value={gameMode} onChange={e => setGameMode(e.target.value)}>
+                      <option value="classic">🎯 Classic Speed Quiz</option>
+                      <option value="boss_raid">🐉 Boss Raid Finale</option>
+                      <option value="tournament">🏆 Tournament Elimination</option>
                     </select>
                   </div>
                   <div>
-                    <label style={{ display: 'block', fontSize: 11, fontFamily: 'Space Grotesk', fontWeight: 800, textTransform: 'uppercase', color: '#555', marginBottom: 6 }}>Game ID</label>
-                    <input className="input" style={{ textTransform: 'uppercase' }} value={gameId} onChange={e => setGameId(e.target.value.toUpperCase())} placeholder="EVENT" />
+                    <label style={{ display: 'block', fontSize: 11, fontFamily: 'Space Grotesk', fontWeight: 800, textTransform: 'uppercase', color: '#555', marginBottom: 6 }}>
+                      3. Arena Room ID
+                    </label>
+                    <input className="input" style={{ textTransform: 'uppercase', fontWeight: 700 }} value={gameId} onChange={e => setGameId(e.target.value.toUpperCase())} placeholder="EVENT" />
                   </div>
                 </div>
-                <button className="btn btn-violet" style={{ color: '#fff', fontWeight: 800 }} onClick={handleCreateGame}>⚡ Create / Replace Game</button>
-              </div>
-            )}
 
-            {/* Live game status */}
-            {liveGame ? (
-              <div className="card" style={{ padding: 20 }}>
-                {/* 🚀 ADAPTIVE HERO CTA BAR */}
-                <div style={{ marginBottom: 18, padding: 14, background: '#fff', border: '3px solid var(--ink)', borderRadius: 14, boxShadow: '4px 4px 0 var(--ink)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <span style={{ fontSize: 28 }}>
+                <button
+                  className="btn btn-mint btn-lg"
+                  style={{ width: '100%', fontWeight: 900, fontSize: 16, border: '3px solid var(--ink)', boxShadow: '4px 4px 0 var(--ink)' }}
+                  onClick={handleCreateGame}
+                >
+                  🚀 Host Quiz in Arena Now
+                </button>
+              </div>
+            ) : (
+              /* 2. ACTIVE GAME HERO CONTROLLER */
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                {/* Active Match Banner & Primary Action Button */}
+                <div style={{ padding: 18, background: '#fff', border: '3px solid var(--ink)', borderRadius: 16, boxShadow: '5px 5px 0 var(--ink)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 14 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <span style={{ fontSize: 32 }}>
                       {liveGame.status === 'lobby' ? '🎮' : liveGame.status === 'question_active' ? '⏱️' : liveGame.status === 'question_reveal' ? '✅' : liveGame.status === 'leaderboard' ? '🏆' : '🏁'}
                     </span>
                     <div>
                       <div style={{ fontSize: 11, fontFamily: 'Space Grotesk', fontWeight: 900, textTransform: 'uppercase', color: 'var(--violet)' }}>
-                        Current Match Stage: {liveGame.status.toUpperCase()}
+                        STAGE: {liveGame.status.toUpperCase().replace('_', ' ')}
                       </div>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: '#333' }}>
-                        {liveGame.status === 'lobby' ? `${teamsInGame} teams ready in arena lobby` :
-                         liveGame.status === 'question_active' ? `${answeredCount} / ${teamsInGame} teams answered (${teamsInGame > 0 ? Math.round((answeredCount/teamsInGame)*100) : 0}%)` :
-                         liveGame.status === 'question_reveal' ? 'Correct answer revealed to class' :
-                         liveGame.status === 'leaderboard' ? `Standings displayed (Next: Question ${Math.max(0, liveGame.current_question_index) + 2})` : 'Championship match finished'}
+                      <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--ink)', fontFamily: 'Space Grotesk' }}>
+                        {liveGame.quiz?.title || 'Loaded Quiz'}
                       </div>
                     </div>
                   </div>
 
-                  {/* Hero Primary Action Button */}
+                  {/* ONE GIANT HERO BUTTON */}
                   <button
                     onClick={() => {
                       if (liveGame.status === 'lobby') handleAdvance('start')
@@ -1595,12 +1609,11 @@ export default function AdminDashboard() {
                                   liveGame.status === 'leaderboard' ? 'var(--violet)' : '#E0E0E0',
                       color: liveGame.status === 'leaderboard' ? '#fff' : 'var(--ink)',
                       border: '3px solid var(--ink)',
-                      boxShadow: '3px 3px 0 var(--ink)',
+                      boxShadow: '4px 4px 0 var(--ink)',
                       fontWeight: 900,
                       fontSize: 16,
-                      padding: '12px 24px',
-                      cursor: 'pointer',
-                      transition: 'all 0.15s ease'
+                      padding: '14px 28px',
+                      cursor: 'pointer'
                     }}
                   >
                     {liveGame.status === 'lobby' ? '▶ START MATCH [Space]' :
@@ -1610,193 +1623,111 @@ export default function AdminDashboard() {
                   </button>
                 </div>
 
-                {/* Secondary Action Toolbar */}
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16, alignItems: 'center' }}>
-                  {['start', 'next', 'reveal', 'leaderboard', 'end'].map(action => (
-                    <button key={action} className="btn btn-sm" style={{ background: '#fff', border: '1.5px solid var(--ink)', fontWeight: 800 }}
-                      onClick={() => handleAdvance(action)}>
-                      {action === 'start' ? '▶ Start' : action === 'next' ? '⏭ Next' : action === 'reveal' ? '👁 Reveal' : action === 'leaderboard' ? '🏆 Standings' : '🏁 End'}
-                    </button>
-                  ))}
+                {/* Host Quick Toolbar */}
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                   <button
                     onClick={() => setIsProjectorMode(true)}
-                    className="btn btn-sm"
-                    style={{ background: 'var(--violet)', color: '#fff', border: '2px solid var(--ink)', boxShadow: '2px 2px 0 var(--ink)', fontWeight: 800 }}
-                    title="Open giant full-screen projector view for auditorium/classroom"
+                    className="btn btn-sm btn-violet"
+                    style={{ color: '#fff', border: '2px solid var(--ink)', fontWeight: 800, boxShadow: '2px 2px 0 var(--ink)' }}
+                    title="Open full-screen projector view for classroom/auditorium"
                   >
-                    📺 Projector View [M]
+                    📺 Projector Mode [M]
                   </button>
                   <button
                     onClick={handleExportCSV}
                     className="btn btn-sm btn-sun"
                     style={{ border: '2px solid var(--ink)', fontWeight: 800 }}
-                    title="Export live standings to CSV"
                   >
-                    📥 Export CSV
+                    📥 Export Standings CSV
                   </button>
                   <button
                     onClick={handleClearGame}
                     className="btn btn-sm"
-                    style={{ background: '#fff', color: 'var(--cherry)', border: '2px solid var(--cherry)', boxShadow: '2px 2px 0 var(--ink)', fontWeight: 800, marginLeft: 'auto' }}
-                    title="Clear and reset arena"
+                    style={{ background: '#FFE4E7', color: 'var(--cherry)', border: '2px solid var(--cherry)', fontWeight: 800, marginLeft: 'auto' }}
+                    title="Stop hosting this game (Quiz in My Quizzes remains completely safe)"
                   >
-                    🧹 Reset Arena
+                    ⏹️ Close &amp; Un-Host Game
                   </button>
                 </div>
 
-                {/* 📡 Live Presence & Response Cluster Radar */}
-                <div style={{ padding: 14, background: '#fff', border: '2px solid var(--ink)', borderRadius: 12, marginBottom: 16 }}>
+                {/* Real-time Presence Bar */}
+                <div style={{ padding: 14, background: '#fff', border: '2px solid var(--ink)', borderRadius: 12 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, flexWrap: 'wrap', gap: 6 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <span style={{ fontFamily: 'Space Grotesk', fontSize: 13, fontWeight: 900, color: 'var(--ink)' }}>
-                        📡 Real-Time Arena Presence Matrix
-                      </span>
-                      <span className="badge badge-ink" style={{ fontSize: 10 }}>
-                        {liveGame.quiz?.questions?.length ? `Question ${Math.max(0, liveGame.current_question_index) + 1} of ${liveGame.quiz.questions.length}` : '0 / 0'}
-                      </span>
-                    </div>
-
+                    <span style={{ fontFamily: 'Space Grotesk', fontSize: 13, fontWeight: 900, color: 'var(--ink)' }}>
+                      📡 Arena Real-Time Presence
+                    </span>
                     <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', fontSize: 11, fontWeight: 800, fontFamily: 'Space Grotesk' }}>
-                      <span className="badge badge-ink" title="Total teams in database">👥 {totalRegisteredTeams} Registered</span>
-                      <span className="badge badge-mint" title="Teams connected to a device">🟢 {claimedTeamsCount} Online</span>
-                      <span className="badge badge-sky" title="Teams in this game arena">🏟️ {teamsInGame} In Arena</span>
-                      <span className="badge badge-sun" title="Teams answered current question">⚡ {answeredCount} Answered</span>
-                      {waitingTeams.length > 0 && <span className="badge badge-cherry" title="Teams still thinking">⏳ {waitingTeams.length} Thinking</span>}
-                      {offlineTeams.length > 0 && <span className="badge" style={{ background: 'var(--paper-2)', border: '1px solid var(--ink)' }} title="Registered teams not yet connected">🔴 {offlineTeams.length} Offline</span>}
+                      <span className="badge badge-ink">👥 {totalRegisteredTeams} Registered</span>
+                      <span className="badge badge-mint">🟢 {claimedTeamsCount} Online</span>
+                      <span className="badge badge-sky">🏟️ {teamsInGame} In Arena</span>
+                      <span className="badge badge-sun">⚡ {answeredCount} Answered</span>
+                      {waitingTeams.length > 0 && <span className="badge badge-cherry">⏳ {waitingTeams.length} Thinking</span>}
                     </div>
                   </div>
 
-                  {/* Progress Bar */}
-                  <div style={{ width: '100%', height: 10, background: 'var(--paper-2)', borderRadius: 6, border: '1.5px solid var(--ink)', overflow: 'hidden', marginBottom: 10 }}>
+                  {/* Submission Progress Bar */}
+                  <div style={{ width: '100%', height: 10, background: 'var(--paper-2)', borderRadius: 6, border: '1.5px solid var(--ink)', overflow: 'hidden' }}>
                     <div style={{ width: `${teamsInGame > 0 ? (answeredCount / teamsInGame) * 100 : 0}%`, height: '100%', background: 'var(--mint)', transition: 'width 0.3s ease' }} />
                   </div>
-
-                  {/* Targeted Thinking/Waiting Callout during active question */}
-                  {liveGame.status === 'question_active' && (
-                    waitingTeams.length > 0 ? (
-                      <div style={{ padding: '8px 12px', background: '#FFFDE7', border: '1.5px solid #FFD54F', borderRadius: 8, fontSize: 12 }}>
-                        <div style={{ fontWeight: 800, color: '#856404', marginBottom: 4 }}>
-                          ⏳ Still Deliberating ({waitingTeams.length} Team{waitingTeams.length === 1 ? '' : 's'}):
-                        </div>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
-                          {waitingTeams.map((t: any) => (
-                            <span key={t.team_id} className="badge badge-sun" style={{ fontSize: 11, padding: '2px 7px' }}>
-                              ⏳ {t.name} ({t.code})
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    ) : teamsInGame > 0 ? (
-                      <div style={{ padding: '8px 12px', background: '#E8F8F5', border: '1.5px solid #2ECC71', borderRadius: 8, fontSize: 12, color: '#1B5E20', fontWeight: 800, display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <span>🎉</span> All {teamsInGame} teams have submitted! Ready to reveal the answer.
-                      </div>
-                    ) : null
-                  )}
                 </div>
 
-                {/* 🥇 3D Olympic Standings Podium (Leaderboard / Ended) */}
+                {/* 🥇 3D Standings Podium (Leaderboard or Ended) */}
                 {(liveGame.status === 'leaderboard' || liveGame.status === 'ended') && teamsStatus.length > 0 && (
-                  <div style={{ marginTop: 16, padding: 20, background: 'var(--paper-2)', border: '2px solid var(--ink)', borderRadius: 12 }}>
-                    <div style={{ textAlign: 'center', marginBottom: 16 }}>
+                  <div style={{ padding: 20, background: 'var(--paper-2)', border: '2px solid var(--ink)', borderRadius: 12 }}>
+                    <div style={{ textAlign: 'center', marginBottom: 14 }}>
                       <div style={{ fontSize: 32 }}>🏆</div>
-                      <h3 style={{ fontFamily: 'Space Grotesk', fontSize: 20, fontWeight: 900, textTransform: 'uppercase' }}>
+                      <h3 style={{ fontFamily: 'Space Grotesk', fontSize: 20, fontWeight: 900 }}>
                         {liveGame.status === 'ended' ? 'Championship Final Standings' : 'Live Round Standings'}
                       </h3>
                     </div>
 
-                    {/* 3D Olympic Podium */}
-                    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'flex-end', gap: 12, margin: '20px auto 24px', maxWidth: 500 }}>
-                      {/* 2nd Place (Left) */}
+                    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'flex-end', gap: 12, margin: '16px auto 20px', maxWidth: 480 }}>
                       {teamsStatus[1] && (
                         <div style={{ flex: 1, textAlign: 'center' }}>
-                          <div style={{ fontSize: 18, marginBottom: 4 }}>🥈</div>
-                          <div className="truncate" style={{ fontFamily: 'Space Grotesk', fontWeight: 800, fontSize: 13 }}>{teamsStatus[1].name}</div>
+                          <div style={{ fontSize: 18, marginBottom: 2 }}>🥈</div>
+                          <div className="truncate" style={{ fontFamily: 'Space Grotesk', fontWeight: 800, fontSize: 12 }}>{teamsStatus[1].name}</div>
                           <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--violet)' }}>⚡{teamsStatus[1].points.toLocaleString()}</div>
-                          <div style={{ height: 60, background: '#E0E0E0', border: '2px solid var(--ink)', borderRadius: '8px 8px 0 0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: 20, marginTop: 6, boxShadow: '2px 2px 0 var(--ink)' }}>
-                            2
-                          </div>
+                          <div style={{ height: 55, background: '#E0E0E0', border: '2px solid var(--ink)', borderRadius: '8px 8px 0 0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: 18, marginTop: 4, boxShadow: '2px 2px 0 var(--ink)' }}>2</div>
                         </div>
                       )}
-
-                      {/* 1st Place (Center Elevated) */}
                       {teamsStatus[0] && (
                         <div style={{ flex: 1.2, textAlign: 'center' }}>
                           <div style={{ fontSize: 24, marginBottom: 2 }}>👑</div>
-                          <div className="truncate" style={{ fontFamily: 'Space Grotesk', fontWeight: 900, fontSize: 15 }}>{teamsStatus[0].name}</div>
-                          <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--violet)' }}>⚡{teamsStatus[0].points.toLocaleString()}</div>
-                          <div style={{ height: 90, background: '#FFD700', border: '2.5px solid var(--ink)', borderRadius: '10px 10px 0 0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: 28, marginTop: 6, boxShadow: '3px 3px 0 var(--ink)' }}>
-                            1
-                          </div>
+                          <div className="truncate" style={{ fontFamily: 'Space Grotesk', fontWeight: 900, fontSize: 14 }}>{teamsStatus[0].name}</div>
+                          <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--violet)' }}>⚡{teamsStatus[0].points.toLocaleString()}</div>
+                          <div style={{ height: 80, background: '#FFD700', border: '2.5px solid var(--ink)', borderRadius: '10px 10px 0 0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: 24, marginTop: 4, boxShadow: '3px 3px 0 var(--ink)' }}>1</div>
                         </div>
                       )}
-
-                      {/* 3rd Place (Right) */}
                       {teamsStatus[2] && (
                         <div style={{ flex: 1, textAlign: 'center' }}>
-                          <div style={{ fontSize: 18, marginBottom: 4 }}>🥉</div>
-                          <div className="truncate" style={{ fontFamily: 'Space Grotesk', fontWeight: 800, fontSize: 13 }}>{teamsStatus[2].name}</div>
+                          <div style={{ fontSize: 18, marginBottom: 2 }}>🥉</div>
+                          <div className="truncate" style={{ fontFamily: 'Space Grotesk', fontWeight: 800, fontSize: 12 }}>{teamsStatus[2].name}</div>
                           <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--violet)' }}>⚡{teamsStatus[2].points.toLocaleString()}</div>
-                          <div style={{ height: 45, background: '#CD7F32', color: '#fff', border: '2px solid var(--ink)', borderRadius: '8px 8px 0 0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: 18, marginTop: 6, boxShadow: '2px 2px 0 var(--ink)' }}>
-                            3
-                          </div>
+                          <div style={{ height: 40, background: '#CD7F32', color: '#fff', border: '2px solid var(--ink)', borderRadius: '8px 8px 0 0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: 16, marginTop: 4, boxShadow: '2px 2px 0 var(--ink)' }}>3</div>
                         </div>
                       )}
-                    </div>
-
-                    {/* Full Table */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                      {teamsStatus.map((t: any, i: number) => (
-                        <div key={t.team_id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: '#fff', border: '1.5px solid var(--ink)', borderRadius: 8 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <span style={{ fontWeight: 900, width: 24 }}>#{i + 1}</span>
-                            <span style={{ fontWeight: 800, fontSize: 13 }}>{t.name}</span>
-                          </div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                            {t.streak > 1 && <span style={{ fontSize: 11, fontWeight: 800 }}>🔥{t.streak}</span>}
-                            <span style={{ fontFamily: 'Space Grotesk', fontWeight: 900, fontSize: 14, color: 'var(--violet)' }}>⚡ {t.points.toLocaleString()}</span>
-                          </div>
-                        </div>
-                      ))}
                     </div>
                   </div>
                 )}
 
-                {/* Live Question Display for Host */}
+                {/* Question Display for Host */}
                 {liveGame.status !== 'leaderboard' && liveGame.status !== 'ended' && liveGame.quiz?.questions && liveGame.current_question_index >= 0 && liveGame.quiz.questions[liveGame.current_question_index] && (
-                  <div style={{ marginTop: 16, padding: 16, background: 'var(--paper-2)', border: '2px solid var(--ink)', borderRadius: 12 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                        <span className="badge badge-ink" style={{ fontSize: 11 }}>
-                          Question {liveGame.current_question_index + 1} of {liveGame.quiz.questions.length}
-                        </span>
-                        <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--violet)', fontFamily: 'Space Grotesk' }}>
-                          {liveGame.status === 'question_active' ? '⏱ Question in progress…' : liveGame.status === 'question_reveal' ? '✅ Answer Revealed to Class' : '🏆 Standings / Break'}
-                        </span>
-                      </div>
-                      
-                      {/* Host-only Unhide Answer Key Toggle */}
+                  <div style={{ padding: 16, background: 'var(--paper-2)', border: '2px solid var(--ink)', borderRadius: 12 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, flexWrap: 'wrap', gap: 8 }}>
+                      <span className="badge badge-ink" style={{ fontSize: 11 }}>
+                        Question {liveGame.current_question_index + 1} of {liveGame.quiz.questions.length}
+                      </span>
                       <button
                         type="button"
                         onClick={() => setUnhideHostKey(v => !v)}
                         className="btn btn-sm"
-                        style={{
-                          background: unhideHostKey ? 'var(--sun)' : '#fff',
-                          border: '2px solid var(--ink)',
-                          fontSize: 11,
-                          fontWeight: 800,
-                          padding: '4px 10px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 5,
-                          cursor: 'pointer'
-                        }}
-                        title="Toggle answer key visibility for host"
+                        style={{ background: unhideHostKey ? 'var(--sun)' : '#fff', border: '2px solid var(--ink)', fontSize: 11, fontWeight: 800, padding: '4px 10px' }}
                       >
                         {unhideHostKey ? '🙈 Hide Answer Key' : '👁️ Unhide Answer Key'}
                       </button>
                     </div>
 
-                    <div style={{ fontFamily: 'Space Grotesk', fontWeight: 800, fontSize: 16, marginBottom: 12, color: 'var(--ink)' }}>
+                    <div style={{ fontFamily: 'Space Grotesk', fontWeight: 800, fontSize: 16, marginBottom: 10, color: 'var(--ink)' }}>
                       {liveGame.quiz.questions[liveGame.current_question_index].prompt}
                     </div>
 
@@ -1808,17 +1739,11 @@ export default function AdminDashboard() {
                           <div 
                             key={ci} 
                             style={{
-                              padding: 10,
-                              borderRadius: 8,
-                              fontSize: 13,
-                              fontWeight: 700,
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 8,
+                              padding: 10, borderRadius: 8, fontSize: 13, fontWeight: 700,
+                              display: 'flex', alignItems: 'center', gap: 8,
                               border: showKey && isCorrect ? '2px solid var(--ink)' : '1.5px solid rgba(16,16,15,0.25)',
                               background: showKey && isCorrect ? 'var(--mint)' : '#fff',
-                              boxShadow: showKey && isCorrect ? '2px 2px 0 var(--ink)' : 'none',
-                              transition: 'all 0.15s ease'
+                              boxShadow: showKey && isCorrect ? '2px 2px 0 var(--ink)' : 'none'
                             }}
                           >
                             <span style={{ width: 22, height: 22, borderRadius: '50%', background: '#fff', border: '1.5px solid var(--ink)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 900, flexShrink: 0 }}>
@@ -1839,20 +1764,9 @@ export default function AdminDashboard() {
                           <span>{liveGame.quiz.questions[liveGame.current_question_index].explanation}</span>
                         </div>
                       ) : null
-                    ) : (
-                      <div style={{ marginTop: 10, fontSize: 11, color: '#777', fontStyle: 'italic', display: 'flex', alignItems: 'center', gap: 5 }}>
-                        <span>🔒</span>
-                        <span>Answer key is kept secret (safe for classroom projector). Click <strong>&quot;👁️ Unhide Answer Key&quot;</strong> above to show it.</span>
-                      </div>
-                    )}
+                    ) : null}
                   </div>
                 )}
-              </div>
-            ) : (
-              <div className="card" style={{ padding: 40, textAlign: 'center' }}>
-                <div style={{ fontSize: 36, marginBottom: 10 }}>🎮</div>
-                <h3 style={{ fontFamily: 'Space Grotesk', fontSize: 18, fontWeight: 800 }}>No Active Game in Arena</h3>
-                <p style={{ fontSize: 14, color: '#666', marginTop: 4 }}>Select a quiz above and click &quot;⚡ Create / Replace Game&quot; or &quot;🚀 Host Game&quot; from your quiz cards.</p>
               </div>
             )}
 
