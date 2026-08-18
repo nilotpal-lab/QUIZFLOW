@@ -153,7 +153,7 @@ export async function parseQuizFromSpreadsheet(file: File): Promise<ParsedExcelQ
     )
 
     const explanation = explanationIdx !== -1 ? String(row[explanationIdx] || '').trim() : ''
-    let timeLimitMs = 20000
+    let timeLimitMs = 30000
     if (timeLimitIdx !== -1) {
       const parsedSec = Number(row[timeLimitIdx])
       if (!isNaN(parsedSec) && parsedSec >= 5 && parsedSec <= 120) {

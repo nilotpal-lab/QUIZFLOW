@@ -126,7 +126,7 @@ export default function AIQuizStudio() {
                 difficulty: 'medium',
                 explanation: 'Explanation for the correct choice...',
                 misconceptions: ['', '', '', ''],
-                time_limit_ms: 20000
+                time_limit_ms: 30000
               }
             ]
           })
@@ -327,7 +327,7 @@ export default function AIQuizStudio() {
       difficulty: 'medium',
       bloom_level: bloomLevel,
       misconceptions: ['', 'Distractor B misconception', 'Distractor C misconception', 'Distractor D misconception'],
-      time_limit_ms: 20000
+      time_limit_ms: 30000
     }
     setQuiz({ ...quiz, questions: [...quiz.questions, newQ] })
   }

@@ -23,6 +23,9 @@ export const DIFFICULTY_COINS: Record<Difficulty, number> = {
   hard: 20,
 }
 
+/** Default time limit per question (30 seconds). */
+export const DEFAULT_QUESTION_TIME_LIMIT_MS = 30000
+
 /** Answers under this server-computed elapsed time count as "fast". */
 export const FAST_ANSWER_THRESHOLD_MS = 5000
 

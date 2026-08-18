@@ -93,7 +93,7 @@ JSON Output Schema:
         "",
         "Diagnostic 1-sentence misconception explanation for Choice D in ${targetLanguage}"
       ],
-      "time_limit_ms": 20000
+      "time_limit_ms": 30000
     }
   ]
 }
@@ -537,7 +537,7 @@ JSON Output Schema:
         "Diagnostic misconception for Choice C",
         "Diagnostic misconception for Choice D"
       ],
-      "time_limit_ms": 20000
+      "time_limit_ms": 30000
     }
   ]
 }`

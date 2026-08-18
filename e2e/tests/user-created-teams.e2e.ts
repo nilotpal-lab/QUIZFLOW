@@ -55,7 +55,7 @@ test('25 Teams Join Live Lobby, Answer Questions & Compete on Leaderboard', asyn
         prompt: 'What does CPU stand for in computer systems?',
         choices: ['Central Processing Unit', 'Computer Power Unit', 'Core Programming Utility', 'Central Protocol User'],
         correct_index: 0,
-        time_limit_ms: 20000,
+        time_limit_ms: 30000,
         difficulty: 'medium',
         bloom_level: 'understand',
         explanation: 'CPU stands for Central Processing Unit.'
@@ -64,7 +64,7 @@ test('25 Teams Join Live Lobby, Answer Questions & Compete on Leaderboard', asyn
         prompt: 'Which data structure follows the First In First Out (FIFO) principle?',
         choices: ['Stack', 'Queue', 'Binary Search Tree', 'Graph'],
         correct_index: 1,
-        time_limit_ms: 20000,
+        time_limit_ms: 30000,
         difficulty: 'easy',
         bloom_level: 'remember',
         explanation: 'Queues operate strictly on First-In-First-Out.'
