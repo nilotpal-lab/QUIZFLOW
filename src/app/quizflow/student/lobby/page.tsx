@@ -31,6 +31,7 @@ interface GameStateResponse {
     max_streak: number
     total_correct: number
     total_answered: number
+    last_answered_question_index?: number
     frozen_until: string | null
     bid_multiplier: number
     frenzy_correct_count: number
@@ -106,6 +107,9 @@ export default function StudentLobby() {
           setAnsweredIndex(null)
           setSelected(null)
           setResult(null)
+        } else if (newQIdx !== null && data.me?.last_answered_question_index === newQIdx) {
+          // If student refreshed after answering, restore their locked-in state
+          setAnsweredIndex(newQIdx)
         }
         lastQuestionIdxRef.current = newQIdx
       } else if (res.status === 404) {
@@ -172,10 +176,18 @@ export default function StudentLobby() {
     setBuyingItem(itemType)
     setShopMsg(null)
     try {
+      let finalTarget = targetTeamId
+      if (itemType === 'freeze_player' && !finalTarget && board.length > 0) {
+        const opponents = board.filter(b => b.team_id)
+        if (opponents.length > 0) {
+          finalTarget = opponents[Math.floor(Math.random() * opponents.length)].team_id
+        }
+      }
+
       const res = await fetch('/api/quiz/shop/buy', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ item: itemType, target_team_id: targetTeamId })
+        body: JSON.stringify({ item: itemType, target_team_id: finalTarget })
       })
       const data = await res.json()
       if (data?.success) {

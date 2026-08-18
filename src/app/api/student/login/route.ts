@@ -76,7 +76,7 @@ export async function POST(req: Request) {
     }
 
     const username = typeof body?.username === 'string' ? body.username.trim().toLowerCase() : ''
-    const password = typeof body?.password === 'string' ? body.password : ''
+    const password = typeof body?.password === 'string' ? body.password.trim() : ''
     const deviceId = typeof body?.device_id === 'string' ? body.device_id.trim() : ''
 
     if (!username) {

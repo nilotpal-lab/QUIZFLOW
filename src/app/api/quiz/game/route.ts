@@ -91,7 +91,7 @@ export async function GET(req: Request) {
   // 3. Count total registered teams and presence status
   const { data: allTeams } = await supabase
     .from('teams')
-    .select('id, name, code, status, device_id, roster')
+    .select('id, name, code, status, device_id, roster, claimed_by')
     .order('created_at', { ascending: true })
 
   const totalRegistered = allTeams?.length || 0
@@ -100,12 +100,16 @@ export async function GET(req: Request) {
   // 4. Fetch live student sessions with submission radar status
   const { data: sessionRows } = await supabase
     .from('quiz_sessions')
-    .select('team_id, points, coins, streak, max_streak, total_correct, total_answered, last_answered_question_index, total_response_time_ms, violation_count, teams(name, code, status, device_id, roster)')
+    .select('team_id, points, coins, streak, max_streak, total_correct, total_answered, last_answered_question_index, total_response_time_ms, violation_count, teams(name, code, status, device_id, roster, claimed_by)')
     .eq('game_id', gameId)
     .order('points', { ascending: false })
 
   const currentQIdx = game.current_question_index ?? -1
-  const teamsStatus = (sessionRows || []).map((s: any, idx: number) => ({
+  
+  // Only teams that are actually claimed / bound to a device are considered active participants
+  const liveSessionRows = (sessionRows || []).filter((s: any) => s.teams?.device_id !== null || s.teams?.status === 'claimed' || s.teams?.claimed_by !== null)
+
+  const teamsStatus = liveSessionRows.map((s: any, idx: number) => ({
     rank: idx + 1,
     team_id: s.team_id,
     name: s.teams?.name || s.teams?.code || 'Team',
@@ -127,7 +131,7 @@ export async function GET(req: Request) {
   const answeredCount = teamsStatus.filter(t => t.has_answered).length
   const waitingTeams = teamsStatus.filter(t => !t.has_answered)
   
-  // Identify registered teams who haven't entered the arena session yet
+  // Identify registered teams who haven't logged in on a device / entered arena yet
   const arenaTeamIds = new Set(teamsStatus.map(t => t.team_id))
   const offlineTeams = (allTeams || [])
     .filter(t => !arenaTeamIds.has(t.id))
@@ -209,6 +213,17 @@ export async function POST(req: Request) {
   if (error) {
     console.warn('[Quiz Game] create failed:', error.message)
     return NextResponse.json({ success: false, error: 'Failed to create game.' }, { status: 500, headers: noCacheHeaders })
+  }
+
+  // Purge pre-allocated phantom sessions for teams that are not yet bound/claimed on a device
+  try {
+    const { data: unclaimedTeams } = await supabase.from('teams').select('id').is('device_id', null)
+    if (unclaimedTeams && unclaimedTeams.length > 0) {
+      const unclaimedIds = unclaimedTeams.map(t => t.id)
+      await supabase.from('quiz_sessions').delete().eq('game_id', gameId).in('team_id', unclaimedIds)
+    }
+  } catch (cleanUnclaimedErr) {
+    console.warn('[Quiz Game] Clean unclaimed sessions notice:', cleanUnclaimedErr)
   }
 
   // Automatically ungate student logins & set active_game_id in event_config

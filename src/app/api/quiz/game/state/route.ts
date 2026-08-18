@@ -53,9 +53,8 @@ export async function GET(req: Request) {
   // 2. Fetch student's session row
   let { data: session } = await supabase
     .from('quiz_sessions')
-    .select('id, game_id, points, coins, streak, max_streak, total_correct, total_answered, frozen_until, bid_multiplier, frenzy_correct_count, violation_count')
+    .select('id, game_id, points, coins, streak, max_streak, total_correct, total_answered, last_answered_question_index, frozen_until, bid_multiplier, frenzy_correct_count, violation_count')
     .eq('team_id', claims.team_id)
-    .order('updated_at', { ascending: false })
     .limit(1)
     .maybeSingle()
 
@@ -75,10 +74,9 @@ export async function GET(req: Request) {
         total_correct: session?.total_correct || 0,
         total_answered: session?.total_answered || 0,
         total_response_time_ms: 0,
-        last_answered_question_index: -1,
-        updated_at: new Date().toISOString()
-      }, { onConflict: 'team_id' })
-      .select('id, game_id, points, coins, streak, max_streak, total_correct, total_answered, frozen_until, bid_multiplier, frenzy_correct_count, violation_count')
+        last_answered_question_index: -1
+      }, { onConflict: 'token' })
+      .select('id, game_id, points, coins, streak, max_streak, total_correct, total_answered, last_answered_question_index, frozen_until, bid_multiplier, frenzy_correct_count, violation_count')
       .maybeSingle()
 
     if (newSession) session = newSession
@@ -159,6 +157,7 @@ export async function GET(req: Request) {
       max_streak: session.max_streak,
       total_correct: session.total_correct,
       total_answered: session.total_answered,
+      last_answered_question_index: session.last_answered_question_index ?? -1,
       frozen_until: session.frozen_until,
       bid_multiplier: session.bid_multiplier,
       frenzy_correct_count: session.frenzy_correct_count,

@@ -671,6 +671,11 @@ export default function AdminDashboard() {
   const handleAdvance = async (action: string) => {
     const id = gameId.trim().toUpperCase()
     if (!id) return
+    if (action === 'start' && teamsInGame === 0) {
+      if (!confirm('No teams have logged into the arena lobby yet. Are you sure you want to start the game now?')) {
+        return
+      }
+    }
     if (action === 'next') {
       setUnhideHostKey(false)
     }
@@ -1888,7 +1893,7 @@ export default function AdminDashboard() {
                     </span>
                     <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', fontSize: 11, fontWeight: 800, fontFamily: 'Space Grotesk' }}>
                       <span className="badge badge-ink">👥 {totalRegisteredTeams} Registered</span>
-                      <span className="badge badge-mint">🟢 {claimedTeamsCount} Online</span>
+                      <span className="badge badge-mint">📱 {claimedTeamsCount} Bound to Device</span>
                       <span className="badge badge-sky">🏟️ {teamsInGame} In Arena</span>
                       <span className="badge badge-sun">⚡ {answeredCount} Answered</span>
                       {waitingTeams.length > 0 && <span className="badge badge-cherry">⏳ {waitingTeams.length} Thinking</span>}
