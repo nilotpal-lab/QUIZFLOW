@@ -1573,8 +1573,238 @@ export default function AdminDashboard() {
                   🚀 Host Quiz in Arena Now
                 </button>
               </div>
+            ) : liveGame.status === 'lobby' ? (
+              /* 2. NEO-BRUTALIST ARCADE HOST LOBBY SCREEN (Matches user design) */
+              <div className="card anim-scale-in" style={{ padding: 0, overflow: 'hidden', background: '#FFFCF5', border: '3px solid var(--ink)', boxShadow: '8px 8px 0 var(--ink)' }}>
+                {/* A. TOP BLACK NAVIGATION BAR */}
+                <div style={{ background: '#10100F', color: '#FFF', padding: '14px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <span style={{ fontFamily: 'Space Grotesk', fontSize: 18, fontWeight: 900, color: '#FFF', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      ⚡ QuizFlow
+                    </span>
+                    <span className="badge badge-sun" style={{ fontSize: 11, fontWeight: 900, padding: '4px 10px' }}>
+                      HOST LOBBY
+                    </span>
+                  </div>
+
+                  {/* ROOM CODE BADGE & COPY LINK */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#FFD60A', color: '#10100F', padding: '6px 14px', borderRadius: 10, border: '2px solid #10100F', fontWeight: 900, fontFamily: 'Space Grotesk', fontSize: 14 }}>
+                    <span>GAME CODE</span>
+                    <span style={{ fontSize: 20, letterSpacing: '0.1em' }}>{gameId || 'EVENT'}</span>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(`${window.location.origin}/quizflow/student/login`)
+                        showToast('📋 Student login link copied!')
+                      }}
+                      className="btn btn-sm"
+                      style={{ background: '#10100F', color: '#FFF', fontSize: 10, padding: '3px 8px', borderRadius: 6, marginLeft: 6 }}
+                    >
+                      📋 Copy Link
+                    </button>
+                  </div>
+
+                  {/* MODE SWITCHER & START GAME HERO BUTTON */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', background: '#222', padding: 4, borderRadius: 10, border: '1.5px solid #444', gap: 4 }}>
+                      <button
+                        onClick={() => setGameMode('classic')}
+                        style={{
+                          background: gameMode === 'classic' ? '#FFD60A' : 'transparent',
+                          color: gameMode === 'classic' ? '#10100F' : '#FFF',
+                          border: 'none', borderRadius: 6, padding: '4px 10px',
+                          fontFamily: 'Space Grotesk', fontSize: 11, fontWeight: 800, cursor: 'pointer'
+                        }}
+                      >
+                        🎯 Classic Mode
+                      </button>
+                      <button
+                        onClick={() => setGameMode('boss_raid')}
+                        style={{
+                          background: gameMode === 'boss_raid' ? '#FFD60A' : 'transparent',
+                          color: gameMode === 'boss_raid' ? '#10100F' : '#FFF',
+                          border: 'none', borderRadius: 6, padding: '4px 10px',
+                          fontFamily: 'Space Grotesk', fontSize: 11, fontWeight: 800, cursor: 'pointer'
+                        }}
+                      >
+                        🐉 Boss Raid
+                      </button>
+                    </div>
+
+                    <button
+                      onClick={() => handleAdvance('start')}
+                      className="btn btn-mint btn-lg"
+                      style={{
+                        border: '2.5px solid #10100F',
+                        boxShadow: '3px 3px 0 #10100F',
+                        fontWeight: 900,
+                        fontSize: 15,
+                        padding: '10px 22px'
+                      }}
+                    >
+                      🎮 START GAME ({teamsInGame} joined) [Space]
+                    </button>
+                  </div>
+                </div>
+
+                {/* B. CENTER GIANT YELLOW DISPLAY BANNER */}
+                <div style={{ padding: '36px 20px 24px', textAlign: 'center', background: '#FFFCF5' }}>
+                  <div style={{ fontFamily: 'Space Grotesk', fontSize: 14, fontWeight: 800, color: '#444', marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <span>📡 Students log in with Team Username at</span>
+                    <span style={{ background: '#FFF', border: '1.5px solid #10100F', padding: '3px 10px', borderRadius: 6, fontWeight: 900, color: 'var(--violet)' }}>
+                      /quizflow/student/login
+                    </span>
+                    <span>or enter Game Code:</span>
+                  </div>
+
+                  {/* HUGE YELLOW ROOM CODE BANNER BOX */}
+                  <div
+                    style={{
+                      display: 'inline-block',
+                      background: '#FFD60A',
+                      border: '4px solid #10100F',
+                      borderRadius: 20,
+                      padding: '24px 64px',
+                      boxShadow: '8px 8px 0 #10100F',
+                      marginBottom: 16
+                    }}
+                  >
+                    <div style={{ fontFamily: 'Space Grotesk', fontSize: 'clamp(36px, 8vw, 68px)', fontWeight: 900, letterSpacing: '0.12em', color: '#10100F', lineHeight: 1 }}>
+                      {gameId || 'EVENT'}
+                    </div>
+                  </div>
+
+                  <div style={{ fontSize: 14, fontWeight: 800, fontFamily: 'Space Grotesk', color: '#555' }}>
+                    📖 {liveGame.quiz?.title || 'Loaded Quiz'} — {liveGame.quiz?.questions?.length || 0} questions
+                  </div>
+                </div>
+
+                {/* C. LIVE PLAYERS JOINED ROSTER GRID CARD */}
+                <div style={{ padding: '24px', background: '#FFF', borderTop: '3px solid #10100F' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 8 }}>
+                    <div style={{ fontFamily: 'Space Grotesk', fontSize: 15, fontWeight: 900, textTransform: 'uppercase', color: '#10100F' }}>
+                      PLAYERS / TEAMS JOINED ({teamsInGame})
+                    </div>
+                    <div style={{ fontSize: 12, fontFamily: 'Inter', color: '#777', fontWeight: 600 }}>
+                      Click ✕ to disconnect any team
+                    </div>
+                  </div>
+
+                  {teamsInGame === 0 ? (
+                    <div style={{ padding: 40, textAlign: 'center', border: '2px dashed #CCC', borderRadius: 14, background: '#FAFAFA' }}>
+                      <div style={{ fontSize: 36, marginBottom: 8 }}>⏳</div>
+                      <div style={{ fontFamily: 'Space Grotesk', fontSize: 16, fontWeight: 800, color: '#333' }}>
+                        Waiting for Teams to Log In...
+                      </div>
+                      <div style={{ fontSize: 13, color: '#666', marginTop: 4 }}>
+                        Tell students to log in on their devices with their Team Username &amp; Password.
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12 }}>
+                      {teamsStatus.map((team: any) => {
+                        const leaderName = Array.isArray(team.roster) && team.roster.length > 0 ? team.roster[0] : null
+                        return (
+                          <div
+                            key={team.team_id}
+                            style={{
+                              padding: '10px 14px',
+                              background: '#FFF',
+                              border: '2.5px solid #10100F',
+                              borderRadius: 14,
+                              boxShadow: '3px 3px 0 #10100F',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justify: 'space-between',
+                              gap: 10
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10, overflow: 'hidden' }}>
+                              <div
+                                style={{
+                                  width: 34,
+                                  height: 34,
+                                  borderRadius: '50%',
+                                  background: 'var(--sun)',
+                                  border: '2px solid #10100F',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justify: 'center',
+                                  fontSize: 14,
+                                  fontWeight: 900,
+                                  flexShrink: 0
+                                }}
+                              >
+                                {team.name.charAt(0).toUpperCase()}
+                              </div>
+                              <div style={{ overflow: 'hidden' }}>
+                                <div className="truncate" style={{ fontFamily: 'Space Grotesk', fontWeight: 900, fontSize: 14, color: '#10100F' }}>
+                                  {leaderName ? `👑 ${leaderName}` : team.name}
+                                </div>
+                                <div className="truncate" style={{ fontSize: 11, fontWeight: 700, color: '#666' }}>
+                                  Team: {team.name} ({team.code})
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Red Kick ✕ Button */}
+                            <button
+                              onClick={() => {
+                                const fullTeam = teams.find(t => t.id === team.team_id) || { id: team.team_id, name: team.name }
+                                handleReleaseTeam(fullTeam)
+                              }}
+                              style={{
+                                background: '#FFF',
+                                color: 'var(--cherry)',
+                                border: '1.5px solid var(--cherry)',
+                                borderRadius: '50%',
+                                width: 24,
+                                height: 24,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontSize: 12,
+                                fontWeight: 900,
+                                cursor: 'pointer',
+                                flexShrink: 0
+                              }}
+                              title={`Disconnect ${team.name}`}
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Host Quick Toolbar Footer */}
+                <div style={{ padding: '12px 24px', background: '#F2EEE6', borderTop: '2px solid #10100F', display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <button
+                    onClick={() => setIsProjectorMode(true)}
+                    className="btn btn-sm btn-violet"
+                    style={{ color: '#fff', border: '2px solid var(--ink)', fontWeight: 800 }}
+                  >
+                    📺 Projector Mode [M]
+                  </button>
+                  <button
+                    onClick={handleExportCSV}
+                    className="btn btn-sm btn-sun"
+                    style={{ border: '2px solid var(--ink)', fontWeight: 800 }}
+                  >
+                    📥 Export CSV
+                  </button>
+                  <button
+                    onClick={handleClearGame}
+                    className="btn btn-sm"
+                    style={{ background: '#FFE4E7', color: 'var(--cherry)', border: '2px solid var(--cherry)', fontWeight: 800, marginLeft: 'auto' }}
+                  >
+                    ⏹️ Close &amp; Un-Host Game
+                  </button>
+                </div>
+              </div>
             ) : (
-              /* 2. ACTIVE GAME HERO CONTROLLER */
+              /* 3. ACTIVE GAME CONTROLLER (In Question / Reveal / Leaderboard) */
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                 {/* Active Match Banner & Primary Action Button */}
                 <div style={{ padding: 18, background: '#fff', border: '3px solid var(--ink)', borderRadius: 16, boxShadow: '5px 5px 0 var(--ink)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 14 }}>

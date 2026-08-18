@@ -291,21 +291,40 @@ export default function StudentLobby() {
 
         {/* ═══ LOBBY ═══ */}
         {loadState === 'ready' && status === 'lobby' && (
-          <div className="flex-1 flex flex-col items-center justify-center text-center py-16">
-            <div className="flex gap-2 mb-6">
-              {[0, 1, 2].map(i => (
-                <span key={i} className="w-3 h-3 rounded-full bg-[var(--violet)] border-[1.5px] border-[var(--ink)]" style={{ animation: `pulse-dot 1.2s ease-in-out ${i * 0.2}s infinite` }} />
-              ))}
-            </div>
-            <h1 className="font-display font-[900] text-[28px] uppercase tracking-tight mb-3">Waiting for the Admin</h1>
-            <p className="font-body text-[14px] font-semibold opacity-70 mb-2">
-              You're in the lobby of <strong>{state?.game?.id}</strong> ({state?.game?.mode} mode).
-            </p>
-            <p className="font-body text-[14px] font-semibold opacity-70 mb-6">
-              The game will start automatically when the admin presses start.
-            </p>
-            <div className="hard bg-[var(--paper-2)] border-[2.5px] border-[var(--ink)] rounded-[12px] px-5 py-3 font-display font-[800] text-[14px]">
-              👥 {state?.game?.question_count || 0} questions · {state?.game?.mode.toUpperCase()}
+          <div className="flex-1 flex flex-col items-center justify-center text-center py-8">
+            <div className="card anim-scale-in w-full max-w-[560px] p-6 md:p-8 bg-white border-[3px] border-[var(--ink)] shadow-[6px_6px_0px_#10100F]">
+              <div className="flex justify-center gap-2 mb-4">
+                {[0, 1, 2].map(i => (
+                  <span key={i} className="w-3.5 h-3.5 rounded-full bg-[var(--sun)] border-[2px] border-[var(--ink)]" style={{ animation: `pulse-dot 1.2s ease-in-out ${i * 0.2}s infinite` }} />
+                ))}
+              </div>
+              <h1 className="font-display font-[900] text-[26px] md:text-[32px] uppercase tracking-tight mb-2 text-[var(--ink)]">
+                YOU&apos;RE IN THE ARENA LOBBY! 🚀
+              </h1>
+              <p className="font-body text-[14px] font-bold text-[#555] mb-6">
+                Connected to Game Code:
+              </p>
+
+              {/* HUGE YELLOW GAME CODE BOX */}
+              <div className="inline-block bg-[var(--sun)] border-[3.5px] border-[var(--ink)] rounded-[16px] px-8 py-4 shadow-[5px_5px_0px_#10100F] mb-6">
+                <div className="font-display font-[900] text-[36px] md:text-[48px] tracking-[0.14em] text-[var(--ink)] leading-none">
+                  {state?.game?.id || 'EVENT'}
+                </div>
+              </div>
+
+              <div className="bg-[var(--paper-2)] border-[2px] border-[var(--ink)] rounded-[12px] p-4 mb-6 text-left">
+                <div className="font-display font-[800] text-[13px] uppercase tracking-wider text-[var(--violet)] mb-1">
+                  MATCH DETAILS
+                </div>
+                <div className="font-display font-[900] text-[16px] text-[var(--ink)]">
+                  {state?.game?.question_count || 0} Questions · Mode: {state?.game?.mode.toUpperCase()}
+                </div>
+              </div>
+
+              <div className="flex items-center justify-center gap-2 font-display font-[800] text-[13px] text-[var(--ink)] bg-[#E8F8F5] border-[2px] border-[#2ECC71] rounded-[10px] py-3 px-4">
+                <span className="animate-spin text-[16px]">⏳</span>
+                <span>Waiting for host to press START GAME...</span>
+              </div>
             </div>
           </div>
         )}
