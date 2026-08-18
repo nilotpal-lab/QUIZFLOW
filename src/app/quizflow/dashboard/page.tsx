@@ -1714,7 +1714,7 @@ export default function AdminDashboard() {
                               boxShadow: '3px 3px 0 #10100F',
                               display: 'flex',
                               alignItems: 'center',
-                              justify: 'space-between',
+                              justifyContent: 'space-between',
                               gap: 10
                             }}
                           >
