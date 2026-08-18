@@ -9,6 +9,7 @@ import { getSessionHistory, type SessionHistoryRecord } from '@/quizflow/history
 import { createSession } from '@/quizflow/sessionStore'
 import { publishQuizToCommunity } from '@/quizflow/communityStore'
 import { getSupabase } from '@/quizflow/supabaseClient'
+import { parseQuizFromSpreadsheet } from '@/quizflow/excelQuizParser'
 import * as XLSX from 'xlsx'
 
 type Tab = 'quizzes' | 'teams' | 'leaderboard' | 'controls' | 'game' | 'history' | 'profile'
@@ -162,6 +163,7 @@ export default function AdminDashboard() {
   const [selectedHistory, setSelectedHistory] = useState<SessionHistoryRecord | null>(null)
   const [historyViewMode, setHistoryViewMode] = useState<'timeline' | 'grouped'>('timeline')
   const [expandedQuizTitle, setExpandedQuizTitle] = useState<string | null>(null)
+  const [previewQuiz, setPreviewQuiz] = useState<SavedQuizItem | null>(null)
   const [toastMsg, setToastMsg] = useState<string | null>(null)
 
   // Profile Form state (existing)
@@ -175,6 +177,7 @@ export default function AdminDashboard() {
   // Event / teams / game state (new)
   const [adminNotice, setAdminNotice] = useState('')
   const [teams, setTeams] = useState<any[]>([])
+  const [teamSearch, setTeamSearch] = useState('')
   const [createName, setCreateName] = useState('')
   const [createRoster, setCreateRoster] = useState('')
   const [credentialCard, setCredentialCard] = useState<{ teamName: string; username: string; password: string } | null>(null)
@@ -192,6 +195,11 @@ export default function AdminDashboard() {
   const [selectedQuizId, setSelectedQuizId] = useState('')
   const [liveGame, setLiveGame] = useState<any>(null)
   const [teamsInGame, setTeamsInGame] = useState(0)
+  const [totalRegisteredTeams, setTotalRegisteredTeams] = useState(0)
+  const [answeredCount, setAnsweredCount] = useState(0)
+  const [teamsStatus, setTeamsStatus] = useState<any[]>([])
+  const [isProjectorMode, setIsProjectorMode] = useState(false)
+  const [unhideHostKey, setUnhideHostKey] = useState(false)
   const [busy, setBusy] = useState('')
 
   const showToast = (msg: string) => {
@@ -200,6 +208,12 @@ export default function AdminDashboard() {
   }
 
   useEffect(() => {
+    const searchParams = new URLSearchParams(window.location.search)
+    const tabParam = searchParams.get('tab') as Tab | null
+    if (tabParam && ['quizzes', 'teams', 'leaderboard', 'controls', 'game', 'history', 'profile'].includes(tabParam)) {
+      setActiveTab(tabParam)
+    }
+
     const hasOAuthParams = typeof window !== 'undefined' && (
       window.location.search.includes('code=') ||
       window.location.hash.includes('access_token=') ||
@@ -291,26 +305,46 @@ export default function AdminDashboard() {
     return () => { cancelled = true; clearInterval(t) }
   }, [activeTab, lbGameId])
 
-  /* Active game poll (games table is anon-readable + sanitized) */
+  /* Active game poll (via authenticated admin API) */
   useEffect(() => {
     if (activeTab !== 'game') return
     const id = gameId.trim().toUpperCase()
     if (!id) return
     let cancelled = false
     const tick = async () => {
-      const client = getSupabase()
-      if (!client) return
-      const { data: game } = await client.from('games').select('*').eq('id', id).maybeSingle()
-      const { count } = await client.from('quiz_sessions').select('team_id', { count: 'exact', head: true }).eq('game_id', id)
-      if (!cancelled) {
-        setLiveGame(game || null)
-        setTeamsInGame(count || 0)
+      const res = await adminFetch(`/api/quiz/game?game_id=${encodeURIComponent(id)}`)
+      if (!cancelled && res.ok && res.body?.success) {
+        setLiveGame(res.body.game || null)
+        setTeamsInGame(res.body.active_sessions_count || 0)
+        setTotalRegisteredTeams(res.body.total_registered_teams || 0)
+        setAnsweredCount(res.body.answered_count || 0)
+        setTeamsStatus(res.body.teams_status || [])
       }
     }
     tick()
-    const t = setInterval(tick, 2000)
+    const t = setInterval(tick, 1500)
     return () => { cancelled = true; clearInterval(t) }
   }, [activeTab, gameId])
+
+  /* Host keyboard shortcuts ([Space] -> Next Action, [M] -> Projector Mode) */
+  useEffect(() => {
+    if (activeTab !== 'game') return
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes((e.target as HTMLElement)?.tagName)) return
+      if (e.code === 'Space') {
+        e.preventDefault()
+        if (!liveGame) return
+        if (liveGame.status === 'lobby') handleAdvance('start')
+        else if (liveGame.status === 'question_active') handleAdvance('reveal')
+        else if (liveGame.status === 'question_reveal') handleAdvance('leaderboard')
+        else if (liveGame.status === 'leaderboard') handleAdvance('next')
+      } else if (e.key === 'm' || e.key === 'M') {
+        setIsProjectorMode(v => !v)
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [activeTab, liveGame])
 
   useEffect(() => {
     if (allQuizzes.length > 0 && !selectedQuizId) {
@@ -332,14 +366,27 @@ export default function AdminDashboard() {
     }
   }
 
-  const handleHostSavedQuiz = (item: SavedQuizItem) => {
-    const state = createSession(item.quiz, 'host-' + Date.now())
-    router.push(`/quizflow/host?pin=${state.pin}`)
+  const handleHostSavedQuiz = async (item: SavedQuizItem) => {
+    setSelectedQuizId(item.id)
+    const id = (gameId.trim() || 'EVENT').toUpperCase()
+    setBusy('Creating game…')
+    const res = await adminFetch('/api/quiz/game', {
+      method: 'POST',
+      body: JSON.stringify({ game_id: id, quiz: item.quiz, mode: gameMode })
+    })
+    setBusy('')
+    if (res.ok) {
+      showToast(`✅ Game ${id} created — ${res.body.question_count} questions. Students can now join the lobby.`)
+      setActiveTab('game')
+    } else {
+      showToast(`❌ ${res.body?.error || 'Failed to create game.'}`)
+    }
   }
 
   const handleEditQuizInStudio = (item: SavedQuizItem) => {
     localStorage.setItem('qf_saved_quiz', JSON.stringify(item.quiz))
-    router.push('/quizflow/studio')
+    localStorage.setItem('qf_editing_quiz_id', item.id)
+    router.push('/quizflow/studio?mode=edit')
   }
 
   const handlePublishGlobal = (item: SavedQuizItem) => {
@@ -399,8 +446,26 @@ export default function AdminDashboard() {
     setBusy('Releasing…')
     const res = await adminFetch(`/api/admin/teams/${team.id}/release`, { method: 'POST' })
     setBusy('')
-    if (res.ok) showToast(`✅ ${team.name} released.`)
+    if (res.ok) showToast(`✅ ${team.name} released from device. They can now log in anywhere!`)
     else showToast(`❌ ${res.body?.error || 'Failed to release.'}`)
+    loadTeams()
+  }
+
+  const handleReleaseAllDevices = async () => {
+    const boundTeams = teams.filter(t => t.device_id)
+    if (boundTeams.length === 0) {
+      showToast('ℹ️ No teams are currently bound to devices.')
+      return
+    }
+    if (!confirm(`Release device binding for all ${boundTeams.length} bound teams? All teams will be allowed to log in on new devices.`)) return
+    setBusy('Releasing all devices…')
+    let releasedCount = 0
+    for (const t of boundTeams) {
+      const res = await adminFetch(`/api/admin/teams/${t.id}/release`, { method: 'POST' })
+      if (res.ok) releasedCount++
+    }
+    setBusy('')
+    showToast(`✅ Released ${releasedCount} team device bindings!`)
     loadTeams()
   }
 
@@ -560,6 +625,9 @@ export default function AdminDashboard() {
   const handleAdvance = async (action: string) => {
     const id = gameId.trim().toUpperCase()
     if (!id) return
+    if (action === 'next') {
+      setUnhideHostKey(false)
+    }
     setBusy(`Advancing: ${action}…`)
     const res = await adminFetch('/api/quiz/game/advance', {
       method: 'POST',
@@ -567,6 +635,48 @@ export default function AdminDashboard() {
     })
     setBusy('')
     if (!res.ok) showToast(`❌ ${res.body?.error || 'Failed to advance.'}`)
+  }
+
+  const handleClearGame = async () => {
+    const id = gameId.trim().toUpperCase()
+    if (!id || !confirm(`Reset and clear the live game "${id}" from the arena?`)) return
+    setBusy('Resetting arena…')
+    const res = await adminFetch(`/api/quiz/game?game_id=${encodeURIComponent(id)}`, { method: 'DELETE' })
+    setBusy('')
+    if (res.ok) {
+      setLiveGame(null)
+      setTeamsInGame(0)
+      setAnsweredCount(0)
+      setTeamsStatus([])
+      showToast(`🧹 Live arena reset. Ready for next quiz.`)
+    } else {
+      showToast(`❌ ${res.body?.error || 'Failed to clear game.'}`)
+    }
+  }
+
+  const handleExportCSV = () => {
+    if (!teamsStatus || teamsStatus.length === 0) {
+      showToast('No team records to export.')
+      return
+    }
+    const headers = ['Rank', 'Team Name', 'Team Code', 'Points', 'Streak', 'Answered Current']
+    const rows = teamsStatus.map((t, i) => [
+      i + 1,
+      `"${(t.name || '').replace(/"/g, '""')}"`,
+      `"${t.code || ''}"`,
+      t.points || 0,
+      t.streak || 0,
+      t.has_answered ? 'Yes' : 'No'
+    ])
+    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n')
+    const encodedUri = encodeURI(csvContent)
+    const link = document.createElement('a')
+    link.setAttribute('href', encodedUri)
+    link.setAttribute('download', `quizflow_standings_${gameId || 'EVENT'}.csv`)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    showToast('📥 Standings CSV downloaded!')
   }
 
   const handleBoss = async (action: 'start' | 'finalize') => {
@@ -704,27 +814,91 @@ export default function AdminDashboard() {
         {/* ═══ TAB: MY QUIZZES (existing) ═══ */}
         {activeTab === 'quizzes' && (
           <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
               <div>
                 <h2 style={{ fontFamily: 'Space Grotesk', fontSize: 24, fontWeight: 900, color: 'var(--ink)' }}>
                   📝 My Quizzes
                 </h2>
                 <div style={{ fontSize: 13, color: '#555', fontFamily: 'Inter' }}>
-                  All quizzes saved in Studio. Click 🌐 Publish Global to share any quiz to the global library.
+                  Create via AI Studio, upload directly from Excel / CSV, or host games instantly.
                 </div>
               </div>
-              <div style={{ display: 'flex', gap: 10 }}>
-                <Link href="/quizflow/practice"><button className="btn btn-violet btn-md">🌐 Browse Community Library</button></Link>
-                <Link href="/quizflow/studio"><button className="btn btn-sun btn-md">✨ Create in Studio →</button></Link>
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+                <label className="btn btn-mint btn-md" style={{ cursor: 'pointer', margin: 0, fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                  📊 Import Excel / CSV Quiz
+                  <input
+                    type="file"
+                    accept=".xlsx,.xls,.csv"
+                    style={{ display: 'none' }}
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0]
+                      if (!file) return
+                      setBusy('Importing questions from spreadsheet…')
+                      try {
+                        const parsed = await parseQuizFromSpreadsheet(file)
+                        const saved = saveQuizDraft({
+                          title: parsed.title || file.name.replace(/\.[^/.]+$/, ''),
+                          description: `Imported from Excel (${parsed.questions.length} questions)`,
+                          language: 'English',
+                          bloomLevel: 'Recall',
+                          questions: parsed.questions
+                        }, false)
+                        setAllQuizzes(getSavedQuizzes())
+                        setBusy('')
+                        showToast(`✅ Successfully imported "${saved.title}" (${parsed.questions.length} Qs)!`)
+                      } catch (err: any) {
+                        setBusy('')
+                        showToast(`❌ ${err?.message || 'Failed to parse Excel file.'}`)
+                      }
+                      e.target.value = ''
+                    }}
+                  />
+                </label>
+                <Link href="/quizflow/practice"><button className="btn btn-violet btn-md">🌐 Community</button></Link>
+                <Link href="/quizflow/studio"><button className="btn btn-sun btn-md">✨ AI Studio →</button></Link>
               </div>
             </div>
 
             {allQuizzes.length === 0 ? (
               <div className="card" style={{ padding: 40, textAlign: 'center' }}>
-                <div style={{ fontSize: 36, marginBottom: 10 }}>📝</div>
-                <h3 style={{ fontFamily: 'Space Grotesk', fontSize: 18, fontWeight: 800 }}>No Quizzes Found</h3>
-                <p style={{ fontSize: 14, color: '#666', marginBottom: 16 }}>Quizzes you save in AI Studio will appear here automatically.</p>
-                <Link href="/quizflow/studio"><button className="btn btn-violet">✨ Open AI Studio</button></Link>
+                <div style={{ fontSize: 44, marginBottom: 10 }}>📊</div>
+                <h3 style={{ fontFamily: 'Space Grotesk', fontSize: 20, fontWeight: 800 }}>No Quizzes Found</h3>
+                <p style={{ fontSize: 14, color: '#666', marginBottom: 20, maxWidth: 500, margin: '0 auto 20px auto' }}>
+                  Upload an Excel spreadsheet / Google Form CSV export, or generate one in seconds using AI Studio.
+                </p>
+                <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
+                  <label className="btn btn-mint btn-lg" style={{ cursor: 'pointer', margin: 0, fontWeight: 800 }}>
+                    📊 Upload Excel / CSV Quiz
+                    <input
+                      type="file"
+                      accept=".xlsx,.xls,.csv"
+                      style={{ display: 'none' }}
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0]
+                        if (!file) return
+                        setBusy('Importing questions from spreadsheet…')
+                        try {
+                          const parsed = await parseQuizFromSpreadsheet(file)
+                          const saved = saveQuizDraft({
+                            title: parsed.title || file.name.replace(/\.[^/.]+$/, ''),
+                            description: `Imported from Excel (${parsed.questions.length} questions)`,
+                            language: 'English',
+                            bloomLevel: 'Recall',
+                            questions: parsed.questions
+                          }, false)
+                          setAllQuizzes(getSavedQuizzes())
+                          setBusy('')
+                          showToast(`✅ Successfully imported "${saved.title}" (${parsed.questions.length} Qs)!`)
+                        } catch (err: any) {
+                          setBusy('')
+                          showToast(`❌ ${err?.message || 'Failed to parse Excel file.'}`)
+                        }
+                        e.target.value = ''
+                      }}
+                    />
+                  </label>
+                  <Link href="/quizflow/studio"><button className="btn btn-sun btn-lg">✨ Open AI Studio</button></Link>
+                </div>
               </div>
             ) : (
               <div>
@@ -743,8 +917,14 @@ export default function AdminDashboard() {
                                 Updated {formatExactTime(item.updatedAt)}
                               </span>
                             </div>
-                            <h3 style={{ fontFamily: 'Space Grotesk', fontSize: 18, fontWeight: 800, color: 'var(--ink)', marginBottom: 6 }}>
-                              {item.title}
+                            <h3
+                              onClick={() => setPreviewQuiz(item)}
+                              className="hover:text-[var(--violet)] transition-colors cursor-pointer"
+                              style={{ fontFamily: 'Space Grotesk', fontSize: 18, fontWeight: 800, color: 'var(--ink)', marginBottom: 6, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}
+                              title="Click to preview quiz questions"
+                            >
+                              <span className="truncate">{item.title}</span>
+                              <span style={{ fontSize: 12, opacity: 0.6, flexShrink: 0, fontWeight: 700 }}>👁️ Preview</span>
                             </h3>
                             <p style={{ fontSize: 13, color: '#555', fontFamily: 'Inter', marginBottom: 14, lineHeight: 1.4 }}>
                               {item.description}
@@ -755,11 +935,9 @@ export default function AdminDashboard() {
                               <span className="badge badge-violet">{item.bloomLevel}</span>
                             </div>
                           </div>
-                          <div style={{ display: 'grid', gridTemplateColumns: ENABLE_GLOBAL_PUBLISH ? '1fr 1fr' : '1fr', gap: 8, borderTop: '2px solid var(--ink)', paddingTop: 14 }}>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, borderTop: '2px solid var(--ink)', paddingTop: 14 }}>
                             <button className="btn btn-sun btn-sm" style={{ fontWeight: 800 }} onClick={() => handleHostSavedQuiz(item)}>🚀 Host Game</button>
-                            {ENABLE_GLOBAL_PUBLISH && (
-                              <button className="btn btn-violet btn-sm" style={{ fontWeight: 800, color: '#fff' }} onClick={() => handlePublishGlobal(item)}>🌐 Publish Global</button>
-                            )}
+                            <button className="btn btn-sm" style={{ background: 'var(--paper-2)', color: 'var(--ink)', fontWeight: 800 }} onClick={() => setPreviewQuiz(item)}>👁️ Preview</button>
                             <button className="btn btn-sm" style={{ background: 'var(--paper-2)', color: 'var(--ink)' }} onClick={() => handleEditQuizInStudio(item)}>✏️ Edit Studio</button>
                             <button className="btn btn-sm" style={{ background: 'var(--paper)', color: 'var(--cherry)', border: '1.5px solid var(--cherry)' }} onClick={() => handleDeleteQuiz(item.id)}>🗑️ Delete</button>
                           </div>
@@ -784,8 +962,14 @@ export default function AdminDashboard() {
                                 Updated {formatExactTime(item.updatedAt)}
                               </span>
                             </div>
-                            <h3 style={{ fontFamily: 'Space Grotesk', fontSize: 18, fontWeight: 800, color: 'var(--ink)', marginBottom: 6 }}>
-                              {item.title}
+                            <h3
+                              onClick={() => setPreviewQuiz(item)}
+                              className="hover:text-[var(--violet)] transition-colors cursor-pointer"
+                              style={{ fontFamily: 'Space Grotesk', fontSize: 18, fontWeight: 800, color: 'var(--ink)', marginBottom: 6, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}
+                              title="Click to preview quiz questions"
+                            >
+                              <span className="truncate">{item.title}</span>
+                              <span style={{ fontSize: 12, opacity: 0.6, flexShrink: 0, fontWeight: 700 }}>👁️ Preview</span>
                             </h3>
                             <p style={{ fontSize: 13, color: '#555', fontFamily: 'Inter', marginBottom: 14, lineHeight: 1.4 }}>
                               {item.description}
@@ -796,12 +980,10 @@ export default function AdminDashboard() {
                               <span className="badge badge-violet">{item.bloomLevel}</span>
                             </div>
                           </div>
-                          <div style={{ display: 'grid', gridTemplateColumns: ENABLE_GLOBAL_PUBLISH ? '1fr 1fr' : '1fr', gap: 8, borderTop: '2px solid var(--ink)', paddingTop: 14 }}>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, borderTop: '2px solid var(--ink)', paddingTop: 14 }}>
                             <button className="btn btn-sun btn-sm" style={{ fontWeight: 800 }} onClick={() => handleHostSavedQuiz(item)}>🚀 Host Game</button>
-                            {ENABLE_GLOBAL_PUBLISH && (
-                              <button className="btn btn-violet btn-sm" style={{ fontWeight: 800, color: '#fff' }} onClick={() => handlePublishGlobal(item)}>🌐 Publish Global</button>
-                            )}
-                            <button className="btn btn-sm" style={{ background: 'var(--paper-2)', color: 'var(--ink)' }} onClick={() => handleEditQuizInStudio(item)}>✏️ Edit</button>
+                            <button className="btn btn-sm" style={{ background: 'var(--paper-2)', color: 'var(--ink)', fontWeight: 800 }} onClick={() => setPreviewQuiz(item)}>👁️ Preview</button>
+                            <button className="btn btn-sm" style={{ background: 'var(--paper-2)', color: 'var(--ink)' }} onClick={() => handleEditQuizInStudio(item)}>✏️ Edit Studio</button>
                             <button className="btn btn-sm" style={{ background: 'var(--paper)', color: 'var(--cherry)', border: '1.5px solid var(--cherry)' }} onClick={() => handleDeleteQuiz(item.id)}>🗑️ Delete</button>
                           </div>
                         </div>
@@ -945,6 +1127,35 @@ export default function AdminDashboard() {
               )}
             </div>
 
+            {/* Teams search & table toolbar */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, flexWrap: 'wrap', gap: 10 }}>
+              <div style={{ display: 'flex', gap: 10, alignItems: 'center', flex: 1, minWidth: 260, maxWidth: 450 }}>
+                <input
+                  className="input"
+                  style={{ width: '100%' }}
+                  placeholder="🔍 Search teams by name, username, or code…"
+                  value={teamSearch}
+                  onChange={e => setTeamSearch(e.target.value)}
+                />
+                {teamSearch && (
+                  <button className="btn btn-sm" onClick={() => setTeamSearch('')}>✕</button>
+                )}
+              </div>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <span style={{ fontSize: 13, color: '#555', fontFamily: 'Inter' }}>
+                  Showing {teams.filter(t => !teamSearch || t.name?.toLowerCase().includes(teamSearch.toLowerCase()) || t.username?.toLowerCase().includes(teamSearch.toLowerCase()) || t.code?.toLowerCase().includes(teamSearch.toLowerCase())).length} of {teams.length} teams
+                </span>
+                <button
+                  className="btn btn-sm"
+                  style={{ background: 'var(--paper-2)', border: '2px solid var(--ink)', fontWeight: 800 }}
+                  onClick={handleReleaseAllDevices}
+                  title="Unlock all teams so students can switch or re-login from new devices"
+                >
+                  🔓 Release All Devices ({teams.filter(t => t.device_id).length} bound)
+                </button>
+              </div>
+            </div>
+
             {/* Teams table */}
             {teams.length === 0 ? (
               <div className="card" style={{ padding: 40, textAlign: 'center' }}>
@@ -962,30 +1173,52 @@ export default function AdminDashboard() {
                       <th style={{ padding: 10 }}>Username</th>
                       <th style={{ padding: 10 }}>Roster</th>
                       <th style={{ padding: 10 }}>Status</th>
-                      <th style={{ padding: 10 }}>Device</th>
+                      <th style={{ padding: 10 }}>Device Binding</th>
                       <th style={{ padding: 10, textAlign: 'right' }}>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {teams.map(t => (
-                      <tr key={t.id} style={{ borderBottom: '1px solid #eee', fontSize: 13, fontFamily: 'Inter' }}>
-                        <td style={{ padding: 10, fontWeight: 800, fontFamily: 'Space Grotesk' }}>{t.name}</td>
-                        <td style={{ padding: 10 }}><span className="badge badge-sun">{t.code}</span></td>
-                        <td style={{ padding: 10, fontWeight: 600 }}>{t.username || '—'}</td>
-                        <td style={{ padding: 10, fontSize: 12 }}>{(t.roster || []).join(', ')}</td>
-                        <td style={{ padding: 10 }}>
-                          <span className={`badge ${t.status === 'submitted' ? 'badge-violet' : t.status === 'waiting' ? 'badge-ink' : 'badge-mint'}`}>{t.status}</span>
-                        </td>
-                        <td style={{ padding: 10, fontSize: 12, color: t.device_id ? '#333' : '#999' }}>
-                          {t.device_id ? `📱 ${t.device_id.slice(0, 12)}…` : 'Not bound'}
-                        </td>
-                        <td style={{ padding: 10, textAlign: 'right', whiteSpace: 'nowrap' }}>
-                          <button className="btn btn-sm btn-sun" style={{ marginRight: 6 }} onClick={() => handleResetPassword(t)}>🔑 Reset</button>
-                          <button className="btn btn-sm" style={{ marginRight: 6, background: 'var(--paper-2)' }} onClick={() => handleReleaseTeam(t)}>🔓 Release</button>
-                          <button className="btn btn-sm" style={{ background: 'var(--paper)', color: 'var(--cherry)', border: '1.5px solid var(--cherry)' }} onClick={() => handleDeleteTeam(t)}>🗑️</button>
-                        </td>
-                      </tr>
-                    ))}
+                    {teams
+                      .filter(t =>
+                        !teamSearch ||
+                        t.name?.toLowerCase().includes(teamSearch.toLowerCase()) ||
+                        t.username?.toLowerCase().includes(teamSearch.toLowerCase()) ||
+                        t.code?.toLowerCase().includes(teamSearch.toLowerCase())
+                      )
+                      .map(t => (
+                        <tr key={t.id} style={{ borderBottom: '1px solid #eee', fontSize: 13, fontFamily: 'Inter' }}>
+                          <td style={{ padding: 10, fontWeight: 800, fontFamily: 'Space Grotesk' }}>{t.name}</td>
+                          <td style={{ padding: 10 }}><span className="badge badge-sun">{t.code}</span></td>
+                          <td style={{ padding: 10, fontWeight: 600 }}>{t.username || '—'}</td>
+                          <td style={{ padding: 10, fontSize: 12 }}>{(t.roster || []).join(', ')}</td>
+                          <td style={{ padding: 10 }}>
+                            <span className={`badge ${t.status === 'submitted' ? 'badge-violet' : t.status === 'waiting' ? 'badge-ink' : 'badge-mint'}`}>{t.status}</span>
+                          </td>
+                          <td style={{ padding: 10, fontSize: 12 }}>
+                            {t.device_id ? (
+                              <span className="badge badge-cherry" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                                📱 Bound ({t.device_id.slice(0, 10)}…)
+                              </span>
+                            ) : (
+                              <span style={{ color: '#888' }}>Unlocked</span>
+                            )}
+                          </td>
+                          <td style={{ padding: 10, textAlign: 'right', whiteSpace: 'nowrap' }}>
+                            {t.device_id && (
+                              <button
+                                className="btn btn-sm btn-mint"
+                                style={{ marginRight: 6, fontWeight: 800 }}
+                                onClick={() => handleReleaseTeam(t)}
+                                title="Click to cut out old device login so student can log in on their new device"
+                              >
+                                🔓 Cut / Release Device
+                              </button>
+                            )}
+                            <button className="btn btn-sm btn-sun" style={{ marginRight: 6 }} onClick={() => handleResetPassword(t)}>🔑 Reset</button>
+                            <button className="btn btn-sm" style={{ background: 'var(--paper)', color: 'var(--cherry)', border: '1.5px solid var(--cherry)' }} onClick={() => handleDeleteTeam(t)}>🗑️</button>
+                          </td>
+                        </tr>
+                      ))}
                   </tbody>
                 </table>
               </div>
@@ -1164,7 +1397,7 @@ export default function AdminDashboard() {
                       {liveGame.id} <span className="badge badge-ink">{liveGame.mode}</span>
                     </h3>
                     <div style={{ fontSize: 12, color: '#555', fontFamily: 'Inter', marginTop: 4 }}>
-                      {teamsInGame} teams registered · Question {Math.max(0, liveGame.current_question_index) + 1} / {liveGame.quiz?.questions?.length || 0}
+                      {totalRegisteredTeams} registered teams · {teamsInGame} active in arena · Question {liveGame.quiz?.questions?.length ? `${Math.max(0, liveGame.current_question_index) + 1} / ${liveGame.quiz.questions.length}` : '0 / 0'}
                     </div>
                   </div>
                   <span className={`badge ${liveGame.status === 'question_active' || liveGame.status === 'boss_frenzy' ? 'badge-cherry' : liveGame.status === 'ended' ? 'badge-violet' : 'badge-sun'}`} style={{ fontSize: 13 }}>
@@ -1172,30 +1405,325 @@ export default function AdminDashboard() {
                   </span>
                 </div>
 
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 12, alignItems: 'center' }}>
                   {['start', 'next', 'reveal', 'leaderboard', 'end'].map(action => (
-                    <button key={action} className="btn btn-sm" style={{ background: 'var(--paper-2)', border: '2px solid var(--ink)', boxShadow: '2px 2px 0 var(--ink)', fontWeight: 800 }}
+                    <button key={action} className="btn btn-sm" style={{ background: action === 'reveal' ? 'var(--sun)' : action === 'start' ? 'var(--mint)' : action === 'next' ? 'var(--sky)' : 'var(--paper-2)', border: '2px solid var(--ink)', boxShadow: '2px 2px 0 var(--ink)', fontWeight: 800 }}
                       onClick={() => handleAdvance(action)}>
-                      {action === 'start' ? '▶ Start' : action === 'next' ? '⏭ Next' : action === 'reveal' ? '👁 Reveal' : action === 'leaderboard' ? '🏆 Board' : '🏁 End'}
+                      {action === 'start' ? '▶ Start' : action === 'next' ? '⏭ Next Question' : action === 'reveal' ? '👁 Reveal Answer' : action === 'leaderboard' ? '🏆 Standings' : '🏁 End Game'}
                     </button>
                   ))}
-                  {liveGame.status !== 'boss_frenzy' && (
-                    <button className="btn btn-sm" style={{ background: '#111', color: '#FF4B5C', border: '2px solid #FF4B5C', boxShadow: '2px 2px 0 var(--ink)', fontWeight: 800 }} onClick={() => handleBoss('start')}>
-                      💥 Boss Frenzy
-                    </button>
-                  )}
-                  {liveGame.status === 'boss_frenzy' && (
-                    <button className="btn btn-sm" style={{ background: '#111', color: '#FF4B5C', border: '2px solid #FF4B5C', boxShadow: '2px 2px 0 var(--ink)', fontWeight: 800 }} onClick={() => handleBoss('finalize')}>
-                      🏁 Finalize Boss
-                    </button>
-                  )}
+                  <button
+                    onClick={() => setIsProjectorMode(true)}
+                    className="btn btn-sm"
+                    style={{ background: 'var(--violet)', color: '#fff', border: '2px solid var(--ink)', boxShadow: '2px 2px 0 var(--ink)', fontWeight: 800 }}
+                    title="Open giant full-screen projector view for auditorium/classroom"
+                  >
+                    📺 Projector View [M]
+                  </button>
+                  <button
+                    onClick={handleExportCSV}
+                    className="btn btn-sm"
+                    style={{ background: '#fff', border: '2px solid var(--ink)', boxShadow: '2px 2px 0 var(--ink)', fontWeight: 800 }}
+                    title="Export live standings to CSV"
+                  >
+                    📥 Export CSV
+                  </button>
+                  <button
+                    onClick={handleClearGame}
+                    className="btn btn-sm"
+                    style={{ background: '#fff', color: 'var(--cherry)', border: '2px solid var(--cherry)', boxShadow: '2px 2px 0 var(--ink)', fontWeight: 800, marginLeft: 'auto' }}
+                    title="Clear and reset arena"
+                  >
+                    🧹 Reset Arena
+                  </button>
                 </div>
+
+                {/* 📡 Live Team Response Radar & Submission Progress */}
+                {teamsInGame > 0 && (
+                  <div style={{ marginTop: 16, padding: 14, background: '#fff', border: '2px solid var(--ink)', borderRadius: 12 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, flexWrap: 'wrap', gap: 6 }}>
+                      <span style={{ fontFamily: 'Space Grotesk', fontSize: 13, fontWeight: 900, color: 'var(--ink)' }}>
+                        📡 Live Team Response Radar
+                      </span>
+                      <span style={{ fontFamily: 'Space Grotesk', fontSize: 12, fontWeight: 800, color: 'var(--violet)' }}>
+                        {answeredCount} / {teamsInGame} Teams Answered ({teamsInGame > 0 ? Math.round((answeredCount / teamsInGame) * 100) : 0}%)
+                      </span>
+                    </div>
+
+                    {/* Progress Bar */}
+                    <div style={{ width: '100%', height: 10, background: 'var(--paper-2)', borderRadius: 6, border: '1.5px solid var(--ink)', overflow: 'hidden' }}>
+                      <div style={{ width: `${teamsInGame > 0 ? (answeredCount / teamsInGame) * 100 : 0}%`, height: '100%', background: 'var(--mint)', transition: 'width 0.3s ease' }} />
+                    </div>
+
+                    {/* Team Radar Chips */}
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
+                      {teamsStatus.map((t: any) => (
+                        <span
+                          key={t.team_id}
+                          className={`badge ${t.has_answered ? 'badge-mint' : 'badge-sun'}`}
+                          style={{ fontSize: 11, padding: '3px 8px', border: '1.5px solid var(--ink)', display: 'flex', alignItems: 'center', gap: 5 }}
+                        >
+                          <span>{t.has_answered ? '✓' : '⏳'}</span>
+                          <span style={{ fontWeight: 800 }}>{t.name}</span>
+                          <span style={{ opacity: 0.6, fontSize: 10 }}>⚡{t.points}</span>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* 🥇 3D Olympic Standings Podium (Leaderboard / Ended) */}
+                {(liveGame.status === 'leaderboard' || liveGame.status === 'ended') && teamsStatus.length > 0 && (
+                  <div style={{ marginTop: 16, padding: 20, background: 'var(--paper-2)', border: '2px solid var(--ink)', borderRadius: 12 }}>
+                    <div style={{ textAlign: 'center', marginBottom: 16 }}>
+                      <div style={{ fontSize: 32 }}>🏆</div>
+                      <h3 style={{ fontFamily: 'Space Grotesk', fontSize: 20, fontWeight: 900, textTransform: 'uppercase' }}>
+                        {liveGame.status === 'ended' ? 'Championship Final Standings' : 'Live Round Standings'}
+                      </h3>
+                    </div>
+
+                    {/* 3D Olympic Podium */}
+                    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'flex-end', gap: 12, margin: '20px auto 24px', maxWidth: 500 }}>
+                      {/* 2nd Place (Left) */}
+                      {teamsStatus[1] && (
+                        <div style={{ flex: 1, textAlign: 'center' }}>
+                          <div style={{ fontSize: 18, marginBottom: 4 }}>🥈</div>
+                          <div className="truncate" style={{ fontFamily: 'Space Grotesk', fontWeight: 800, fontSize: 13 }}>{teamsStatus[1].name}</div>
+                          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--violet)' }}>⚡{teamsStatus[1].points.toLocaleString()}</div>
+                          <div style={{ height: 60, background: '#E0E0E0', border: '2px solid var(--ink)', borderRadius: '8px 8px 0 0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: 20, marginTop: 6, boxShadow: '2px 2px 0 var(--ink)' }}>
+                            2
+                          </div>
+                        </div>
+                      )}
+
+                      {/* 1st Place (Center Elevated) */}
+                      {teamsStatus[0] && (
+                        <div style={{ flex: 1.2, textAlign: 'center' }}>
+                          <div style={{ fontSize: 24, marginBottom: 2 }}>👑</div>
+                          <div className="truncate" style={{ fontFamily: 'Space Grotesk', fontWeight: 900, fontSize: 15 }}>{teamsStatus[0].name}</div>
+                          <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--violet)' }}>⚡{teamsStatus[0].points.toLocaleString()}</div>
+                          <div style={{ height: 90, background: '#FFD700', border: '2.5px solid var(--ink)', borderRadius: '10px 10px 0 0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: 28, marginTop: 6, boxShadow: '3px 3px 0 var(--ink)' }}>
+                            1
+                          </div>
+                        </div>
+                      )}
+
+                      {/* 3rd Place (Right) */}
+                      {teamsStatus[2] && (
+                        <div style={{ flex: 1, textAlign: 'center' }}>
+                          <div style={{ fontSize: 18, marginBottom: 4 }}>🥉</div>
+                          <div className="truncate" style={{ fontFamily: 'Space Grotesk', fontWeight: 800, fontSize: 13 }}>{teamsStatus[2].name}</div>
+                          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--violet)' }}>⚡{teamsStatus[2].points.toLocaleString()}</div>
+                          <div style={{ height: 45, background: '#CD7F32', color: '#fff', border: '2px solid var(--ink)', borderRadius: '8px 8px 0 0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: 18, marginTop: 6, boxShadow: '2px 2px 0 var(--ink)' }}>
+                            3
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Full Table */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {teamsStatus.map((t: any, i: number) => (
+                        <div key={t.team_id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: '#fff', border: '1.5px solid var(--ink)', borderRadius: 8 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span style={{ fontWeight: 900, width: 24 }}>#{i + 1}</span>
+                            <span style={{ fontWeight: 800, fontSize: 13 }}>{t.name}</span>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            {t.streak > 1 && <span style={{ fontSize: 11, fontWeight: 800 }}>🔥{t.streak}</span>}
+                            <span style={{ fontFamily: 'Space Grotesk', fontWeight: 900, fontSize: 14, color: 'var(--violet)' }}>⚡ {t.points.toLocaleString()}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Live Question Display for Host */}
+                {liveGame.status !== 'leaderboard' && liveGame.status !== 'ended' && liveGame.quiz?.questions && liveGame.current_question_index >= 0 && liveGame.quiz.questions[liveGame.current_question_index] && (
+                  <div style={{ marginTop: 16, padding: 16, background: 'var(--paper-2)', border: '2px solid var(--ink)', borderRadius: 12 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                        <span className="badge badge-ink" style={{ fontSize: 11 }}>
+                          Question {liveGame.current_question_index + 1} of {liveGame.quiz.questions.length}
+                        </span>
+                        <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--violet)', fontFamily: 'Space Grotesk' }}>
+                          {liveGame.status === 'question_active' ? '⏱ Question in progress…' : liveGame.status === 'question_reveal' ? '✅ Answer Revealed to Class' : '🏆 Standings / Break'}
+                        </span>
+                      </div>
+                      
+                      {/* Host-only Unhide Answer Key Toggle */}
+                      <button
+                        type="button"
+                        onClick={() => setUnhideHostKey(v => !v)}
+                        className="btn btn-sm"
+                        style={{
+                          background: unhideHostKey ? 'var(--sun)' : '#fff',
+                          border: '2px solid var(--ink)',
+                          fontSize: 11,
+                          fontWeight: 800,
+                          padding: '4px 10px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 5,
+                          cursor: 'pointer'
+                        }}
+                        title="Toggle answer key visibility for host"
+                      >
+                        {unhideHostKey ? '🙈 Hide Answer Key' : '👁️ Unhide Answer Key'}
+                      </button>
+                    </div>
+
+                    <div style={{ fontFamily: 'Space Grotesk', fontWeight: 800, fontSize: 16, marginBottom: 12, color: 'var(--ink)' }}>
+                      {liveGame.quiz.questions[liveGame.current_question_index].prompt}
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 8 }}>
+                      {liveGame.quiz.questions[liveGame.current_question_index].choices.map((c: string, ci: number) => {
+                        const isCorrect = liveGame.quiz.questions[liveGame.current_question_index].correct_index === ci
+                        const showKey = unhideHostKey || liveGame.status === 'question_reveal'
+                        return (
+                          <div 
+                            key={ci} 
+                            style={{
+                              padding: 10,
+                              borderRadius: 8,
+                              fontSize: 13,
+                              fontWeight: 700,
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 8,
+                              border: showKey && isCorrect ? '2px solid var(--ink)' : '1.5px solid rgba(16,16,15,0.25)',
+                              background: showKey && isCorrect ? 'var(--mint)' : '#fff',
+                              boxShadow: showKey && isCorrect ? '2px 2px 0 var(--ink)' : 'none',
+                              transition: 'all 0.15s ease'
+                            }}
+                          >
+                            <span style={{ width: 22, height: 22, borderRadius: '50%', background: '#fff', border: '1.5px solid var(--ink)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 900, flexShrink: 0 }}>
+                              {String.fromCharCode(65 + ci)}
+                            </span>
+                            <span style={{ flex: 1 }}>{c}</span>
+                            {showKey && isCorrect && <span className="badge badge-mint" style={{ fontSize: 10, padding: '2px 6px', border: '1px solid var(--ink)' }}>✓ Key</span>}
+                          </div>
+                        )
+                      })}
+                    </div>
+
+                    {/* Explanation - only shown when unhidden or during reveal */}
+                    {(unhideHostKey || liveGame.status === 'question_reveal') ? (
+                      liveGame.quiz.questions[liveGame.current_question_index].explanation ? (
+                        <div style={{ marginTop: 12, padding: '8px 12px', background: '#fff', border: '1.5px solid var(--ink)', borderRadius: 8, fontSize: 12, color: 'var(--ink)', display: 'flex', gap: 6 }}>
+                          <span style={{ fontWeight: 800, flexShrink: 0 }}>💡 Explanation:</span>
+                          <span>{liveGame.quiz.questions[liveGame.current_question_index].explanation}</span>
+                        </div>
+                      ) : null
+                    ) : (
+                      <div style={{ marginTop: 10, fontSize: 11, color: '#777', fontStyle: 'italic', display: 'flex', alignItems: 'center', gap: 5 }}>
+                        <span>🔒</span>
+                        <span>Answer key is kept secret (safe for classroom projector). Click <strong>&quot;👁️ Unhide Answer Key&quot;</strong> above to show it.</span>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             ) : (
               <div className="card" style={{ padding: 40, textAlign: 'center' }}>
                 <div style={{ fontSize: 36, marginBottom: 10 }}>🎮</div>
-                <h3 style={{ fontFamily: 'Space Grotesk', fontSize: 18, fontWeight: 800 }}>No Game Loaded</h3>
-                <p style={{ fontSize: 14, color: '#666' }}>Create the game above, then open student login from the Day-of Controls tab.</p>
+                <h3 style={{ fontFamily: 'Space Grotesk', fontSize: 18, fontWeight: 800 }}>No Active Game in Arena</h3>
+                <p style={{ fontSize: 14, color: '#666', marginTop: 4 }}>Select a quiz above and click &quot;⚡ Create / Replace Game&quot; or &quot;🚀 Host Game&quot; from your quiz cards.</p>
+              </div>
+            )}
+
+            {/* 📺 Auditorium Fullscreen Projector Arena Modal */}
+            {isProjectorMode && liveGame && (
+              <div className="fixed inset-0 z-50 bg-[var(--paper)] flex flex-col p-6 overflow-y-auto">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '3px solid var(--ink)', paddingBottom: 14, marginBottom: 20 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <span className="badge badge-ink" style={{ fontSize: 14, padding: '6px 12px' }}>
+                      {liveGame.id} ARENA
+                    </span>
+                    <span className="badge badge-sun" style={{ fontSize: 14, padding: '6px 12px' }}>
+                      {liveGame.status.toUpperCase()}
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <button
+                      onClick={() => {
+                        if (liveGame.status === 'lobby') handleAdvance('start')
+                        else if (liveGame.status === 'question_active') handleAdvance('reveal')
+                        else if (liveGame.status === 'question_reveal') handleAdvance('leaderboard')
+                        else if (liveGame.status === 'leaderboard') handleAdvance('next')
+                      }}
+                      className="btn btn-sm btn-sun"
+                      style={{ border: '2px solid var(--ink)', fontWeight: 900, fontSize: 13, padding: '6px 14px' }}
+                    >
+                      {liveGame.status === 'lobby' ? '▶ Start Game [Space]' : liveGame.status === 'question_active' ? '👁 Reveal Answer [Space]' : liveGame.status === 'question_reveal' ? '🏆 Standings [Space]' : '⏭ Next Question [Space]'}
+                    </button>
+                    <button
+                      onClick={() => setIsProjectorMode(false)}
+                      className="btn btn-sm"
+                      style={{ background: '#fff', border: '2px solid var(--ink)', fontWeight: 800, fontSize: 13 }}
+                    >
+                      ✕ Exit Projector [M]
+                    </button>
+                  </div>
+                </div>
+
+                {/* Projector Question Content */}
+                {liveGame.quiz?.questions && liveGame.current_question_index >= 0 && liveGame.quiz.questions[liveGame.current_question_index] && (
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', maxWidth: 1100, margin: '0 auto', width: '100%' }}>
+                    <div style={{ fontSize: 14, fontWeight: 900, fontFamily: 'Space Grotesk', textTransform: 'uppercase', color: 'var(--violet)', marginBottom: 8 }}>
+                      Question {liveGame.current_question_index + 1} of {liveGame.quiz.questions.length}
+                    </div>
+                    <h1 style={{ fontFamily: 'Space Grotesk', fontSize: 'clamp(24px, 3.5vw, 40px)', fontWeight: 900, lineHeight: 1.25, color: 'var(--ink)', marginBottom: 30 }}>
+                      {liveGame.quiz.questions[liveGame.current_question_index].prompt}
+                    </h1>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
+                      {liveGame.quiz.questions[liveGame.current_question_index].choices.map((c: string, ci: number) => {
+                        const colors = ['#FFE8EC', '#E3F2FD', '#FFF8E1', '#E8F5E9']
+                        const borderColors = ['#FF4B5C', '#2196F3', '#FFC107', '#4CAF50']
+                        const isCorrect = liveGame.quiz.questions[liveGame.current_question_index].correct_index === ci
+                        const isReveal = liveGame.status === 'question_reveal'
+                        return (
+                          <div
+                            key={ci}
+                            style={{
+                              padding: '20px 24px',
+                              borderRadius: 14,
+                              fontSize: 'clamp(16px, 1.8vw, 22px)',
+                              fontWeight: 800,
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 14,
+                              border: `3px solid ${isReveal && isCorrect ? 'var(--ink)' : borderColors[ci % borderColors.length]}`,
+                              background: isReveal && isCorrect ? 'var(--mint)' : colors[ci % colors.length],
+                              boxShadow: '4px 4px 0 var(--ink)'
+                            }}
+                          >
+                            <span style={{ width: 36, height: 36, borderRadius: '50%', background: '#fff', border: '2px solid var(--ink)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 900, flexShrink: 0 }}>
+                              {String.fromCharCode(65 + ci)}
+                            </span>
+                            <span style={{ flex: 1 }}>{c}</span>
+                            {isReveal && isCorrect && <span style={{ fontSize: 24, fontWeight: 900 }}>✓</span>}
+                          </div>
+                        )
+                      })}
+                    </div>
+
+                    {/* Live Progress Bar at Bottom of Projector */}
+                    <div style={{ marginTop: 36, padding: 14, background: '#fff', border: '2.5px solid var(--ink)', borderRadius: 12 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 900, fontSize: 14, marginBottom: 8, fontFamily: 'Space Grotesk' }}>
+                        <span>● Live Submissions: {answeredCount} / {teamsInGame} Teams</span>
+                        <span>{teamsInGame > 0 ? Math.round((answeredCount / teamsInGame) * 100) : 0}%</span>
+                      </div>
+                      <div style={{ width: '100%', height: 12, background: 'var(--paper-2)', borderRadius: 6, border: '1.5px solid var(--ink)', overflow: 'hidden' }}>
+                        <div style={{ width: `${teamsInGame > 0 ? (answeredCount / teamsInGame) * 100 : 0}%`, height: '100%', background: 'var(--mint)', transition: 'width 0.3s ease' }} />
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -1512,6 +2040,136 @@ export default function AdminDashboard() {
         )}
 
       </div>
+
+      {/* ═══ SCROLLABLE QUIZ PREVIEW MODAL ═══ */}
+      {previewQuiz && (
+        <div 
+          className="fixed inset-0 z-[300] bg-[rgba(16,16,15,0.65)] flex items-center justify-center p-3 sm:p-6" 
+          onClick={() => setPreviewQuiz(null)}
+        >
+          <div 
+            className="hard bg-[var(--paper)] border-[3px] border-[var(--ink)] rounded-[var(--radius-card)] w-full max-w-[780px] max-h-[88vh] flex flex-col shadow-[8px_8px_0px_#10100F] animate-scale-in"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="p-4 sm:p-5 border-b-[3px] border-[var(--ink)] bg-[var(--paper-2)] flex items-center justify-between gap-3 shrink-0">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap mb-1">
+                  <span className="badge badge-sun text-[11px]">
+                    📝 {previewQuiz.quiz.questions?.length || previewQuiz.questionCount} Questions
+                  </span>
+                  <span className="badge badge-sky text-[11px]">{previewQuiz.language}</span>
+                  <span className="badge badge-violet text-[11px]">{previewQuiz.bloomLevel}</span>
+                </div>
+                <h2 className="font-display font-[900] text-[20px] sm:text-[22px] text-[var(--ink)] truncate">
+                  {previewQuiz.title}
+                </h2>
+              </div>
+              <button 
+                onClick={() => setPreviewQuiz(null)} 
+                className="w-9 h-9 rounded-full border-[2px] border-[var(--ink)] bg-white font-bold text-[16px] flex items-center justify-center hover:bg-[var(--cherry)] hover:text-white transition-colors shrink-0"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Scrollable Questions List */}
+            <div className="p-4 sm:p-6 overflow-y-auto flex-1 flex flex-col gap-4">
+              {(!previewQuiz.quiz.questions || previewQuiz.quiz.questions.length === 0) ? (
+                <div className="text-center py-10 text-gray-500 font-medium">
+                  No questions in this quiz yet. Click &quot;Edit Studio&quot; to add questions.
+                </div>
+              ) : (
+                previewQuiz.quiz.questions.map((q, idx) => (
+                  <div key={idx} className="hard bg-white border-[2.5px] border-[var(--ink)] rounded-[14px] p-4 shadow-[3px_3px_0px_#10100F]">
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <span className="badge badge-ink text-[11px]">Q{idx + 1}</span>
+                      <div className="flex gap-2">
+                        {q.difficulty && <span className="badge badge-sky text-[10px] uppercase">{q.difficulty}</span>}
+                        {q.time_limit_ms && <span className="badge badge-sun text-[10px]">⏱ {Math.round(q.time_limit_ms / 1000)}s</span>}
+                      </div>
+                    </div>
+
+                    <h4 className="font-display font-[800] text-[15px] sm:text-[16px] text-[var(--ink)] mb-3 leading-snug">
+                      {q.prompt}
+                    </h4>
+
+                    {/* Choices Grid */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
+                      {q.choices.map((choice, cIdx) => {
+                        const isCorrect = q.correct_index === cIdx
+                        return (
+                          <div
+                            key={cIdx}
+                            className={`p-2.5 rounded-[8px] border-[2px] text-[13px] font-semibold flex items-center gap-2 ${
+                              isCorrect
+                                ? 'bg-[var(--mint)] border-[var(--ink)] shadow-[2px_2px_0px_#10100F] font-bold text-[var(--ink)]'
+                                : 'bg-[var(--paper-2)] border-[#10100F]/20 text-[var(--ink)]/80'
+                            }`}
+                          >
+                            <span className="font-display font-black text-[12px] w-5 h-5 rounded-full bg-white border-[1.5px] border-[var(--ink)] flex items-center justify-center shrink-0">
+                              {String.fromCharCode(65 + cIdx)}
+                            </span>
+                            <span className="flex-1">{choice}</span>
+                            {isCorrect && (
+                              <span className="badge badge-mint text-[9px] px-1.5 py-0.5 border border-[var(--ink)] shrink-0">
+                                ✓ Correct
+                              </span>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+
+                    {/* Explanation */}
+                    {q.explanation && (
+                      <div className="bg-[var(--paper-2)] border-[1.5px] border-[var(--ink)]/30 rounded-[8px] p-2.5 text-[12px] text-[var(--ink)]/90 flex gap-2">
+                        <span className="font-bold shrink-0">💡 Explanation:</span>
+                        <span>{q.explanation}</span>
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 border-t-[3px] border-[var(--ink)] bg-[var(--paper-2)] flex items-center justify-between gap-3 shrink-0 flex-wrap">
+              <button 
+                onClick={() => setPreviewQuiz(null)}
+                className="btn btn-sm"
+                style={{ background: 'white', color: 'var(--ink)' }}
+              >
+                Close
+              </button>
+              <div className="flex gap-2">
+                <button 
+                  onClick={() => {
+                    const qItem = previewQuiz
+                    setPreviewQuiz(null)
+                    handleEditQuizInStudio(qItem)
+                  }}
+                  className="btn btn-sm"
+                  style={{ background: 'var(--paper)', color: 'var(--ink)' }}
+                >
+                  ✏️ Edit in Studio
+                </button>
+                <button 
+                  onClick={() => {
+                    const qItem = previewQuiz
+                    setPreviewQuiz(null)
+                    handleHostSavedQuiz(qItem)
+                  }}
+                  className="btn btn-sun btn-sm"
+                  style={{ fontWeight: 800 }}
+                >
+                  🚀 Host Game →
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

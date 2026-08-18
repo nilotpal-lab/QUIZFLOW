@@ -19,14 +19,17 @@ async function ensureUnique(supabase: any, column: string, generate: () => strin
   throw new Error(`Could not generate a unique ${column}.`)
 }
 
-/** Username is the team name itself; append `-2`, `-3`… only on collision. */
-async function ensureUniqueUsername(supabase: any, name: string): Promise<string> {
-  for (let i = 0; i < 8; i++) {
-    const candidate = i === 0 ? name : `${name}-${i + 1}`
-    const { data } = await supabase.from('teams').select('id').eq('username', candidate).maybeSingle()
-    if (!data) return candidate
+/** Disallow duplicate team names (case-insensitive check). */
+async function checkTeamNameUnique(supabase: any, name: string): Promise<void> {
+  const { data } = await supabase
+    .from('teams')
+    .select('id, name')
+    .ilike('name', name.trim())
+    .maybeSingle()
+
+  if (data) {
+    throw new Error(`A team named "${data.name}" already exists. Please choose a unique team name.`)
   }
-  throw new Error(`Could not generate a unique username for "${name}".`)
 }
 
 export async function createTeamRecord(
@@ -34,11 +37,13 @@ export async function createTeamRecord(
   name: string,
   roster: string[]
 ): Promise<{ team: any; credentials: { username: string; password: string } }> {
+  const cleanName = name.trim()
+  await checkTeamNameUnique(supabase, cleanName)
   const code = await ensureUnique(supabase, 'code', generateTeamCode)
-  const username = await ensureUniqueUsername(supabase, name)
+  const username = cleanName
   // Password is the team leader's name — the FIRST roster entry. Falls
   // back to the team name when no roster was provided.
-  const password = (roster[0] || name).trim()
+  const password = (roster[0] || cleanName).trim()
   const { salt, hash } = await hashPassword(password)
 
   const { data, error } = await supabase

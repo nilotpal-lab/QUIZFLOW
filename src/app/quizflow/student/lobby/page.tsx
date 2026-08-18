@@ -71,10 +71,15 @@ export default function StudentLobby() {
   const [answeredIndex, setAnsweredIndex] = useState<number | null>(null)
   const [result, setResult] = useState<{ correct: boolean; points: number; coins: number; reason: string } | null>(null)
   const [showBoard, setShowBoard] = useState(false)
+  const [showShop, setShowShop] = useState(false)
+  const [buyingItem, setBuyingItem] = useState<string | null>(null)
+  const [shopMsg, setShopMsg] = useState<string | null>(null)
   const [board, setBoard] = useState<LbRow[]>([])
   const [elapsed, setElapsed] = useState(0)
   const [bossCountdown, setBossCountdown] = useState<number | null>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  const lastQuestionIdxRef = useRef<number | null>(null)
 
   const status = state?.game?.status || 'lobby'
   const isBoss = status === 'boss_frenzy'
@@ -93,10 +98,16 @@ export default function StudentLobby() {
       if (data?.success) {
         setState(data)
         setLoadState('ready')
-        // Reset per-question answer state when a new question begins.
-        setAnsweredIndex(prev => (prev !== null && prev !== data.game?.active_question?.index ? null : prev))
-        setSelected(null)
-        setResult(null)
+
+        const newQIdx = data.game?.active_question?.index ?? null
+
+        // Only reset answer state when moving to a brand new question!
+        if (lastQuestionIdxRef.current !== null && newQIdx !== null && lastQuestionIdxRef.current !== newQIdx) {
+          setAnsweredIndex(null)
+          setSelected(null)
+          setResult(null)
+        }
+        lastQuestionIdxRef.current = newQIdx
       } else if (res.status === 404) {
         setState(null)
         setLoadState('no_game')
@@ -150,11 +161,39 @@ export default function StudentLobby() {
   }, [state?.game?.id])
 
   useEffect(() => {
-    if (!showBoard) return
+    if (!showBoard && !showShop) return
     loadBoard()
     const t = setInterval(loadBoard, 2000)
     return () => clearInterval(t)
-  }, [showBoard, loadBoard])
+  }, [showBoard, showShop, loadBoard])
+
+  /* ── Buy Shop Item ────────────────────────────────────────────── */
+  const handleBuyShopItem = async (itemType: string, targetTeamId?: string) => {
+    setBuyingItem(itemType)
+    setShopMsg(null)
+    try {
+      const res = await fetch('/api/quiz/shop/buy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ item: itemType, target_team_id: targetTeamId })
+      })
+      const data = await res.json()
+      if (data?.success) {
+        setShopMsg(`✅ Power-up activated!`)
+        poll()
+        setTimeout(() => {
+          setShopMsg(null)
+          setShowShop(false)
+        }, 1000)
+      } else {
+        setShopMsg(`❌ ${data?.error || 'Purchase failed.'}`)
+      }
+    } catch {
+      setShopMsg('❌ Network error.')
+    } finally {
+      setBuyingItem(null)
+    }
+  }
 
   /* ── Submit answer (server-authoritative) ────────────────────── */
   const handleAnswer = async (optionIndex: number) => {
@@ -170,6 +209,8 @@ export default function StudentLobby() {
       if (data?.success !== undefined) {
         setResult({ correct: Boolean(data.correct), points: data.points_earned || 0, coins: data.coins_earned || 0, reason: data.reason || 'ok' })
         setAnsweredIndex(q?.index ?? null)
+        // Refresh live score immediately
+        poll()
       }
     } catch {
       setResult({ correct: false, points: 0, coins: 0, reason: 'network_error' })
@@ -177,8 +218,10 @@ export default function StudentLobby() {
   }
 
   const revealCorrect = status === 'question_reveal' || status === 'ended'
-  const showQuestion = (status === 'question_active' || status === 'boss_frenzy') && q
+  const showQuestion = (status === 'question_active' || status === 'boss_frenzy' || status === 'question_reveal') && q
   const answerLocked = answeredIndex === q?.index
+
+  const isFrozen = Boolean(me?.frozen_until && new Date(me.frozen_until).getTime() > Date.now())
 
   /* ═══ Shared shell ═══ */
   return (
@@ -190,40 +233,44 @@ export default function StudentLobby() {
             <Link href="/quizflow/student/dashboard" className="font-display font-[900] text-[18px] md:text-[20px] tracking-tight flex items-center gap-1.5 shrink-0">
               <QuizFlowLogo size={22} className="md:w-[24px] md:h-[24px]" alt="QuizFlow" /> QuizFlow
             </Link>
-            <span className={`badge ${isBoss ? 'badge-cherry' : status === 'ended' ? 'badge-violet' : status === 'question_active' ? 'badge-mint' : 'badge-sun'}`} style={{ fontSize: 9.5, maxWidth: 130, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            <span className={`badge ${isBoss ? 'badge-cherry' : status === 'ended' ? 'badge-violet' : status === 'question_active' ? 'badge-mint' : status === 'question_reveal' ? 'badge-sky' : 'badge-sun'}`} style={{ fontSize: 9.5, maxWidth: 130, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {STATUS_LABEL[status] || status.toUpperCase()}
             </span>
           </div>
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2 flex-wrap">
             {me && (
-              <div className="hidden sm:flex items-center gap-2">
-                <span className="badge badge-ink">⚡ {me.points.toLocaleString()}</span>
-                {me.streak > 1 && <span className="badge badge-sun">🔥 {me.streak}</span>}
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <span className="badge badge-ink text-[11px] sm:text-[12px] font-bold" title="Team Points">
+                  ⚡ {me.points.toLocaleString()}
+                </span>
+                <button
+                  onClick={() => setShowShop(true)}
+                  className="badge badge-sun text-[11px] sm:text-[12px] font-bold cursor-pointer hover:scale-105 transition-transform flex items-center gap-1 border-[1.5px] border-[var(--ink)]"
+                  title="Click to open Stadium Coin Shop"
+                >
+                  <span>🪙 {me.coins}</span>
+                  <span className="bg-[#10100F] text-[var(--sun)] text-[8.5px] px-1 py-0.2 rounded font-black uppercase">Shop</span>
+                </button>
+                {me.streak > 1 && (
+                  <span className="badge badge-cherry text-[11px] sm:text-[12px] font-bold" title="Current Streak">
+                    🔥 {me.streak}
+                  </span>
+                )}
+                {isFrozen && <span className="badge badge-sky text-[11px] sm:text-[12px] font-bold">🧊 FROZEN</span>}
               </div>
             )}
             {(status === 'question_active' || status === 'boss_frenzy' || status === 'question_reveal') && (
               <button
                 onClick={() => setShowBoard(v => !v)}
-                className={`hard rounded-full px-3.5 py-2 text-[11px] sm:px-4 sm:text-[12px] font-display font-bold uppercase tracking-wider border-[2px] border-[var(--ink)] btn-press ${showBoard ? 'bg-[var(--violet)] text-white' : 'bg-[var(--sun)] text-[var(--ink)]'}`}
-                style={{ minHeight: 36 }}
+                className={`hard rounded-full px-3 py-1.5 text-[11px] sm:px-4 sm:text-[12px] font-display font-bold uppercase tracking-wider border-[2px] border-[var(--ink)] btn-press ${showBoard ? 'bg-[var(--violet)] text-white' : 'bg-[var(--sun)] text-[var(--ink)]'}`}
+                style={{ minHeight: 32 }}
               >
-                🏆 {showBoard ? 'Hide Board' : 'Leaderboard'}
+                🏆 {showBoard ? 'Hide' : 'Board'}
               </button>
             )}
           </div>
         </div>
       </nav>
-
-      {/* Boss banner */}
-      {isBoss && (
-        <div className="w-full bg-[var(--ink)] text-[var(--paper)] border-b-[3px] border-[var(--cherry)] px-4 py-2.5 flex items-center justify-center gap-3">
-          <span className="text-[16px]">💥</span>
-          <span className="font-display font-[900] text-[13px] uppercase tracking-widest text-[var(--cherry)]">Boss Frenzy Finale</span>
-          {bossCountdown !== null && (
-            <span className="font-display font-[900] text-[15px] text-[var(--sun)]">⏱ {bossCountdown}s</span>
-          )}
-        </div>
-      )}
 
       <main className="flex-1 w-full max-w-[820px] mx-auto px-3 md:px-6 py-5 md:py-10 flex flex-col gap-6 pb-[max(20px,env(safe-area-inset-bottom))]">
         {/* ═══ WAITING (no game) ═══ */}
@@ -269,9 +316,24 @@ export default function StudentLobby() {
             <div className="flex justify-between items-center mb-4 flex-wrap gap-2">
               <span className="badge badge-ink">Q{q.index + 1} of {state?.game?.question_count}</span>
               <span className="font-display font-[800] text-[12px] uppercase tracking-wider opacity-60">
-                {isBoss ? `💥 Frenzy Q${q.index + 1}` : q.difficulty ? `🎚 ${q.difficulty.toUpperCase()}` : ''}
+                {q.difficulty ? `🎚 ${q.difficulty.toUpperCase()}` : ''}
               </span>
             </div>
+
+            {/* Active Multiplier or Freeze Banner */}
+            {me && me.bid_multiplier > 1 && (
+              <div className="mb-4 px-3 py-1.5 bg-[var(--sun)] border-[2.5px] border-[var(--ink)] rounded-[10px] font-display font-extrabold text-[12px] text-[var(--ink)] shadow-[2px_2px_0px_#10100F] inline-flex items-center gap-1.5">
+                <span>⚡</span>
+                <span>{me.bid_multiplier}× Multiplier Armed for this question!</span>
+              </div>
+            )}
+            {isFrozen && (
+              <div className="mb-4 px-4 py-2 bg-blue-100 border-[2.5px] border-blue-600 rounded-[10px] font-display font-extrabold text-[12px] sm:text-[13px] text-blue-900 shadow-[2px_2px_0px_#10100F] flex items-center gap-2">
+                <span className="text-[16px]">🧊</span>
+                <span>YOUR TEAM IS FROZEN! You cannot submit answers until the freeze expires.</span>
+              </div>
+            )}
+
             <h1 className="font-display font-[900] text-[clamp(17px,4.6vw,28px)] leading-snug tracking-tight mb-6">{q.prompt}</h1>
 
             <div className="quiz-answer-grid">
@@ -280,7 +342,7 @@ export default function StudentLobby() {
                 const isCorrect = revealCorrect && q.correct_index === ci
                 const isWrongPick = revealCorrect && selected === ci && !result?.correct && !isCorrect
                 const isSelected = selected === ci
-                const locked = answerLocked || result !== null || revealCorrect || selected !== null
+                const locked = answerLocked || result !== null || revealCorrect || selected !== null || isFrozen
 
                 let stateClass = ''
                 if (revealCorrect) {
@@ -387,6 +449,75 @@ export default function StudentLobby() {
                     </div>
                   </div>
                 ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ═══ STADIUM COIN SHOP MODAL ═══ */}
+        {showShop && (
+          <div className="fixed inset-0 z-50 bg-[rgba(16,16,15,0.65)] flex items-center justify-center p-4" onClick={() => setShowShop(false)}>
+            <div className="hard bg-[var(--paper)] border-[3px] border-[var(--ink)] rounded-[var(--radius-card)] p-5 w-full max-w-[540px] max-h-[85vh] overflow-y-auto shadow-[8px_8px_0px_#10100F] animate-scale-in" onClick={e => e.stopPropagation()}>
+              <div className="flex justify-between items-center mb-4 border-b-[2.5px] border-[var(--ink)] pb-3">
+                <div>
+                  <h2 className="font-display font-[900] text-[20px] uppercase tracking-tight flex items-center gap-2">
+                    <span>🛒</span> Stadium Coin Shop
+                  </h2>
+                  <div className="text-[12px] text-[#555] font-semibold">
+                    Spend your team coins on tactical advantages and multipliers.
+                  </div>
+                </div>
+                <button onClick={() => setShowShop(false)} className="w-8 h-8 rounded-full border-[2px] border-[var(--ink)] bg-white font-bold hover:bg-[var(--cherry)] hover:text-white">✕</button>
+              </div>
+
+              {/* Coin Balance Badge */}
+              <div className="mb-4 p-3 bg-[var(--paper-2)] border-[2px] border-[var(--ink)] rounded-[12px] flex items-center justify-between">
+                <span className="font-display font-[800] text-[13px] uppercase tracking-wider text-[#555]">Your Team Balance</span>
+                <span className="font-display font-[900] text-[18px] text-[var(--ink)]">🪙 {me?.coins ?? 0} Coins</span>
+              </div>
+
+              {shopMsg && (
+                <div className="mb-4 p-2.5 rounded-[8px] border-[2px] border-[var(--ink)] text-[13px] font-bold text-center bg-[var(--mint)] shadow-[2px_2px_0px_#10100F]">
+                  {shopMsg}
+                </div>
+              )}
+
+              {/* Shop Items Catalog */}
+              <div className="flex flex-col gap-3">
+                {[
+                  { type: 'bid_2x', label: '2× Multiplier', emoji: '⚡', cost: 20, desc: 'Double your points on your next question.' },
+                  { type: 'bid_3x', label: '3× Multiplier', emoji: '🔥', cost: 35, desc: 'Triple your points on your next question.' },
+                  { type: 'bid_4x', label: '4× Multiplier', emoji: '💥', cost: 50, desc: 'Quadruple your points on your next question.' },
+                  { type: 'freeze_all', label: 'Blizzard', emoji: '❄️', cost: 30, desc: 'Freeze ALL opposing teams for 4 seconds.' },
+                  { type: 'freeze_player', label: 'Freeze Opponent', emoji: '🧊', cost: 15, desc: 'Freeze a random active rival team for 6 seconds.' }
+                ].map(item => {
+                  const canAfford = (me?.coins ?? 0) >= item.cost
+                  const isArmed = Boolean(item.type.startsWith('bid_') && me?.bid_multiplier && me.bid_multiplier > 1)
+                  return (
+                    <div key={item.type} className="hard bg-white border-[2px] border-[var(--ink)] rounded-[12px] p-3.5 flex items-center justify-between gap-3 shadow-[2px_2px_0px_#10100F]">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <span className="text-[26px] shrink-0">{item.emoji}</span>
+                        <div>
+                          <div className="font-display font-[800] text-[14px] text-[var(--ink)]">{item.label}</div>
+                          <div className="text-[12px] text-[#555] font-medium leading-tight">{item.desc}</div>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => handleBuyShopItem(item.type)}
+                        disabled={!canAfford || Boolean(buyingItem) || isArmed}
+                        className={`hard px-3.5 py-2 rounded-[10px] font-display font-extrabold text-[12px] border-[2px] border-[var(--ink)] btn-press shrink-0 ${
+                          isArmed 
+                            ? 'bg-[var(--mint)] text-[var(--ink)] cursor-default'
+                            : canAfford 
+                              ? 'bg-[var(--sun)] text-[var(--ink)] hover:bg-[#FFD54F]' 
+                              : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                        }`}
+                      >
+                        {isArmed ? 'ARMED ✓' : buyingItem === item.type ? '⏳...' : `🪙 ${item.cost}`}
+                      </button>
+                    </div>
+                  )
+                })}
               </div>
             </div>
           </div>

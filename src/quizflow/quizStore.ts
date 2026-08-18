@@ -167,18 +167,18 @@ export function getSavedQuizzes(): SavedQuizItem[] {
   const key = getStorageKey()
   try {
     const raw = localStorage.getItem(key)
-    if (raw) {
+    if (raw !== null) {
       const parsed = JSON.parse(raw)
-      if (Array.isArray(parsed) && parsed.length > 0) {
+      if (Array.isArray(parsed)) {
         return parsed
       }
     }
-    // Initialize default presets if empty
+    // Only initialize default presets on very first initialization (when key has never been set)
     localStorage.setItem(key, JSON.stringify(DEFAULT_PRESET_QUIZZES))
     return DEFAULT_PRESET_QUIZZES
   } catch (err) {
     console.warn('Failed to load saved quizzes from storage:', err)
-    return DEFAULT_PRESET_QUIZZES
+    return []
   }
 }
 

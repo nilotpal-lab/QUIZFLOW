@@ -41,10 +41,11 @@ export async function hashPassword(
   password: string,
   salt?: string
 ): Promise<{ salt: string; hash: string }> {
+  const normalized = (password || '').trim().toLowerCase()
   const s = salt || randomBytesBase64(16)
   const keyMaterial = await crypto.subtle.importKey(
     'raw',
-    encoder.encode(password),
+    encoder.encode(normalized),
     'PBKDF2',
     false,
     ['deriveBits']

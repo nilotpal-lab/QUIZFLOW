@@ -6,6 +6,7 @@ import type { AIGeneratedQuiz, AIGeneratedQuestion, BloomLevel } from '@/quizflo
 import { createSession } from '@/quizflow/sessionStore'
 import { generatePrintableWorksheet, type WorksheetVersion } from '@/quizflow/pdfGenerator'
 import { ingestYouTubeUrl, ingestWebpageUrl, parseUploadedFile, type IngestedContent } from '@/quizflow/ingestion'
+import { parseQuizFromSpreadsheet } from '@/quizflow/excelQuizParser'
 import { saveQuizDraft } from '@/quizflow/quizStore'
 import { publishQuizToCommunity } from '@/quizflow/communityStore'
 import { getHostUser } from '@/quizflow/authStore'
@@ -78,12 +79,36 @@ export default function AIQuizStudio() {
 
   // Question deleting animation
   const [deletingId, setDeletingId] = useState<number | null>(null)
+  const [editingQuizId, setEditingQuizId] = useState<string | null>(null)
 
   const [viewMode, setViewMode] = useState<'generate' | 'editor'>('generate')
   const [rightTab, setRightTab] = useState<'adapt' | 'translate' | 'settings'>('adapt')
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
+      // 1. Check if a quiz was sent to Studio for editing
+      const savedDraft = localStorage.getItem('qf_saved_quiz')
+      const savedQuizId = localStorage.getItem('qf_editing_quiz_id')
+      if (savedDraft) {
+        try {
+          const parsed = JSON.parse(savedDraft)
+          if (parsed && Array.isArray(parsed.questions) && parsed.questions.length > 0) {
+            setQuiz(parsed)
+            setTempTitle(parsed.title || 'Untitled Quiz')
+            if (parsed.language) setSelectedLang(parsed.language)
+            if (parsed.bloomLevel) setBloomLevel(parsed.bloomLevel)
+            if (savedQuizId) setEditingQuizId(savedQuizId)
+            setViewMode('editor')
+            localStorage.removeItem('qf_saved_quiz')
+            localStorage.removeItem('qf_editing_quiz_id')
+            return
+          }
+        } catch (e) {
+          console.error('Failed to parse saved quiz draft from storage:', e)
+        }
+      }
+
+      // 2. Check manual query mode
       const params = new URLSearchParams(window.location.search)
       if (params.get('mode') === 'manual') {
         if (quiz.questions.length === 0) {
@@ -126,6 +151,29 @@ export default function AIQuizStudio() {
     if (!file) return
     setIngesting(true)
     setIngestError(null)
+    const ext = file.name.split('.').pop()?.toLowerCase() || ''
+
+    // If it's an Excel spreadsheet or CSV with structured questions, parse directly into Quiz!
+    if (ext === 'xlsx' || ext === 'xls' || ext === 'csv') {
+      try {
+        const parsed = await parseQuizFromSpreadsheet(file)
+        setQuiz({
+          title: parsed.title || file.name.replace(/\.[^/.]+$/, ''),
+          description: `Imported from spreadsheet (${parsed.questions.length} questions)`,
+          language: selectedLang,
+          bloomLevel,
+          questions: parsed.questions
+        })
+        setViewMode('editor')
+        setToastMsg(`📊 Successfully imported ${parsed.questions.length} questions from Excel!`)
+        setTimeout(() => setToastMsg(null), 4000)
+        return
+      } catch (excelErr: any) {
+        // Fallback to text ingestion if spreadsheet parsing didn't find direct tabular questions
+        console.warn('Direct spreadsheet parse failed, falling back to text ingestion:', excelErr)
+      }
+    }
+
     try {
       const result = await parseUploadedFile(file)
       setIngestedContent(result)
@@ -334,16 +382,10 @@ export default function AIQuizStudio() {
       <header className="min-h-[68px] h-auto py-2 bg-[#10100F] border-b-[3px] border-[#10100F] flex flex-wrap items-center justify-between px-3 md:px-5 sticky top-0 z-50 gap-2 md:gap-3 shrink-0">
         <div className="flex items-center gap-2.5 shrink-0">
           <button
-            onClick={() => {
-              if (viewMode === 'editor') {
-                setViewMode('generate')
-              } else {
-                router.push('/quizflow')
-              }
-            }}
+            onClick={() => router.push('/quizflow/dashboard')}
             className="h-10 px-3.5 bg-[#FFFCF5] border-[3px] border-[#10100F] rounded-[12px] text-[13px] font-bold tracking-[-0.02em] flex items-center gap-1.5 btn-press hard-white text-[#10100F]"
           >
-            <span>←</span> {viewMode === 'editor' ? 'Generator' : 'Exit Studio'}
+            <span>←</span> Dashboard
           </button>
           <div className="flex items-center gap-2 text-[#FFFCF5] sg font-extrabold text-[17px] md:text-[18px] tracking-[-0.03em]">
             <span className="w-7 h-7 bg-[#FFE57F] rounded-[8px] border-[2px] border-white/20 grid place-items-center text-[#10100F] text-[13px]">✦</span>
@@ -429,7 +471,7 @@ export default function AIQuizStudio() {
                     setTimeout(() => setToastMsg(null), 3000)
                     return
                   }
-                  saveQuizDraft(quiz, true)
+                  saveQuizDraft(quiz, true, editingQuizId || undefined)
                   setToastMsg('✅ Quiz saved to Teacher Dashboard!')
                   setTimeout(() => setToastMsg(null), 3000)
                 }}
@@ -450,16 +492,30 @@ export default function AIQuizStudio() {
             onClick={async () => {
               try {
                 setPublishing(true)
-                const state = createSession(quiz, 'host-' + Date.now())
-                router.push(`/quizflow/host?pin=${state.pin}`)
+                // Save quiz draft first
+                const savedItem = saveQuizDraft(quiz, false, editingQuizId || undefined)
+                // Register as the active competition game
+                const res = await fetch('/api/quiz/game', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ game_id: 'EVENT', quiz, mode: 'classic' })
+                })
+                if (res.ok) {
+                  router.push('/quizflow/dashboard?tab=game')
+                } else {
+                  // Fallback: save and redirect to dashboard
+                  router.push('/quizflow/dashboard')
+                }
               } catch (err) {
-                console.error('Failed to publish session:', err)
+                console.error('Failed to publish competition game:', err)
+                router.push('/quizflow/dashboard')
+              } finally {
                 setPublishing(false)
               }
             }}
             className="h-10 px-4 bg-[#FFE57F] border-[3px] border-[#10100F] rounded-[12px] text-[13px] font-extrabold hard-white btn-press-white text-[#10100F] shrink-0 flex items-center gap-1.5 cursor-pointer hover:bg-[#FFD54F] transition-all"
           >
-            <span>🚀</span> {publishing ? 'Creating...' : 'Publish & Host →'}
+            <span>🚀</span> {publishing ? 'Creating...' : 'Publish & Host Competition →'}
           </button>
         </div>
       </header>
@@ -514,17 +570,17 @@ export default function AIQuizStudio() {
 
               {ingestMode === 'file' && (
                 <div>
-                  <label className="sg text-[11px] font-bold tracking-[0.08em] text-black/50 block mb-2">UPLOAD DRAFT OR DOCUMENT</label>
+                  <label className="sg text-[11px] font-bold tracking-[0.08em] text-black/50 block mb-2">UPLOAD SPREADSHEET (EXCEL / CSV) OR DOCUMENT</label>
                   <div className="border-[3px] border-dashed border-[#10100F]/20 rounded-[12px] p-6 text-center bg-[#FFFCF5]/50 hover:bg-[#FFFCF5] transition-colors relative cursor-pointer">
                     <input
                       type="file"
-                      accept=".pdf,.pptx,.ppt,.txt,.md,.json,.csv"
+                      accept=".xlsx,.xls,.csv,.pdf,.pptx,.ppt,.txt,.md,.json"
                       onChange={handleFileUpload}
                       className="absolute inset-0 opacity-0 cursor-pointer"
                     />
-                    <div className="text-[32px] mb-2">📄</div>
-                    <div className="font-display font-[800] text-[14px]">Choose Document</div>
-                    <div className="text-[11px] text-black/50 mt-1">Supports PDF, PPTX, MD, TXT</div>
+                    <div className="text-[32px] mb-2">📊</div>
+                    <div className="font-display font-[800] text-[14px]">Choose Excel (.xlsx / .csv) or Document</div>
+                    <div className="text-[11px] text-black/50 mt-1">Supports Excel, Google Form CSV exports, PDF, PPTX, TXT</div>
                   </div>
                 </div>
               )}
