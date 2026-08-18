@@ -41,43 +41,47 @@ export async function GET(req: Request) {
     return NextResponse.json({ success: false, error: 'Supabase is not configured.' }, { status: 503, headers: noCacheHeaders })
   }
 
-  let { data: session, error: sessionError } = await supabase
+  // 1. Fetch active game ID from event_config
+  const { data: config } = await supabase
+    .from('event_config')
+    .select('active_game_id')
+    .eq('id', 1)
+    .maybeSingle()
+
+  const activeGameId = config?.active_game_id || 'EVENT'
+
+  // 2. Fetch student's session row
+  let { data: session } = await supabase
     .from('quiz_sessions')
     .select('id, game_id, points, coins, streak, max_streak, total_correct, total_answered, frozen_until, bid_multiplier, frenzy_correct_count, violation_count')
     .eq('team_id', claims.team_id)
+    .order('updated_at', { ascending: false })
+    .limit(1)
     .maybeSingle()
 
-  if (!session || !session.game_id) {
-    // Auto-link to active game in event_config if available
-    const { data: config } = await supabase
-      .from('event_config')
-      .select('active_game_id')
-      .eq('id', 1)
+  // 3. If session is missing or linked to an outdated game, auto-upsert to active game
+  if (!session || session.game_id !== activeGameId) {
+    const token = 'sess_' + claims.team_id
+    const { data: newSession } = await supabase
+      .from('quiz_sessions')
+      .upsert({
+        team_id: claims.team_id,
+        game_id: activeGameId,
+        token: token,
+        points: session?.points || 0,
+        coins: session?.coins || 0,
+        streak: session?.streak || 0,
+        max_streak: session?.max_streak || 0,
+        total_correct: session?.total_correct || 0,
+        total_answered: session?.total_answered || 0,
+        total_response_time_ms: 0,
+        last_answered_question_index: -1,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'team_id' })
+      .select('id, game_id, points, coins, streak, max_streak, total_correct, total_answered, frozen_until, bid_multiplier, frenzy_correct_count, violation_count')
       .maybeSingle()
 
-    if (config?.active_game_id) {
-      const token = 'sess_' + claims.team_id
-      const { data: newSession } = await supabase
-        .from('quiz_sessions')
-        .upsert({
-          team_id: claims.team_id,
-          game_id: config.active_game_id,
-          token: token,
-          points: 0,
-          coins: 0,
-          streak: 0,
-          max_streak: 0,
-          total_correct: 0,
-          total_answered: 0,
-          total_response_time_ms: 0,
-          last_answered_question_index: -1,
-          updated_at: new Date().toISOString()
-        })
-        .select('id, game_id, points, coins, streak, max_streak, total_correct, total_answered, frozen_until, bid_multiplier, frenzy_correct_count, violation_count')
-        .single()
-
-      session = newSession
-    }
+    if (newSession) session = newSession
   }
 
   if (!session || !session.game_id) {

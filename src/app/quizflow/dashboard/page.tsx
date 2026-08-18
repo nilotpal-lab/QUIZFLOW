@@ -1195,15 +1195,16 @@ export default function AdminDashboard() {
                   className="btn btn-sm"
                   style={{ background: teamFilterStatus === 'lobby' ? 'var(--sun)' : '#fff', border: '2px solid var(--ink)', fontWeight: 800 }}
                   onClick={() => setTeamFilterStatus('lobby')}
+                  title="Teams who have logged in on a student device"
                 >
-                  🟡 Bound ({claimedTeamsCount})
+                  📱 Logged In / Bound ({claimedTeamsCount})
                 </button>
                 <button
                   className="btn btn-sm"
                   style={{ background: teamFilterStatus === 'offline' ? 'var(--paper-2)' : '#fff', border: '2px solid var(--ink)', fontWeight: 800 }}
                   onClick={() => setTeamFilterStatus('offline')}
                 >
-                  🔴 Offline ({Math.max(0, teams.length - claimedTeamsCount)})
+                  ⚪ Unclaimed ({Math.max(0, teams.length - claimedTeamsCount)})
                 </button>
               </div>
 
@@ -1231,8 +1232,19 @@ export default function AdminDashboard() {
             {teams.length === 0 ? (
               <div className="card" style={{ padding: 40, textAlign: 'center' }}>
                 <div style={{ fontSize: 36, marginBottom: 10 }}>👥</div>
-                <h3 style={{ fontFamily: 'Space Grotesk', fontSize: 18, fontWeight: 800 }}>No Teams Yet</h3>
-                <p style={{ fontSize: 14, color: '#666' }}>Create teams above to hand out credentials on the day.</p>
+                <h3 style={{ fontFamily: 'Space Grotesk', fontSize: 18, fontWeight: 800 }}>No Teams Created Yet</h3>
+                <p style={{ fontSize: 14, color: '#666' }}>Create teams above manually or upload an Excel/CSV file from Google Forms.</p>
+              </div>
+            ) : teamFilterStatus === 'lobby' && claimedTeamsCount === 0 ? (
+              <div className="card" style={{ padding: 36, textAlign: 'center', background: '#FFFDE7', border: '2px solid #FFD54F' }}>
+                <div style={{ fontSize: 36, marginBottom: 10 }}>📱</div>
+                <h3 style={{ fontFamily: 'Space Grotesk', fontSize: 18, fontWeight: 900, color: '#856404' }}>0 Teams Logged In On Devices Yet</h3>
+                <p style={{ fontSize: 14, color: '#666', marginTop: 4 }}>
+                  All {teams.length} registered teams are currently <strong>Unclaimed</strong>. Hand out credentials so students can log in at <code className="badge badge-ink">/quizflow/student/login</code>.
+                </p>
+                <button className="btn btn-sm btn-sun" style={{ marginTop: 14, fontWeight: 800 }} onClick={() => setTeamFilterStatus('all')}>
+                  ← View All {teams.length} Registered Teams
+                </button>
               </div>
             ) : (
               <div className="card" style={{ padding: 20, overflowX: 'auto' }}>
