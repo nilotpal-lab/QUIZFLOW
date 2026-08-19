@@ -321,6 +321,41 @@ export default function StudentLobby() {
   /* ═══ Shared shell ═══ */
   return (
     <div className="min-h-screen w-full bg-[var(--paper)] selection:bg-[var(--sun)] flex flex-col text-[var(--ink)] overflow-x-hidden">
+      {/* 🚨 COMPULSORY FULLSCREEN LOCK OVERLAY (Active during live competition) */}
+      {!isFullscreen && loadState === 'ready' && status !== 'ended' && (
+        <div className="fixed inset-0 z-[999] bg-[#10100F]/90 backdrop-blur-md flex flex-col items-center justify-center p-4 text-center animate-scale-in">
+          <div className="max-w-[460px] w-full bg-[var(--paper)] border-[3.5px] border-[var(--ink)] rounded-[20px] p-6 sm:p-8 shadow-[8px_8px_0_#10100F] text-[var(--ink)]">
+            <div className="text-[52px] mb-2 animate-bounce">⛶</div>
+            <div className="inline-block bg-[var(--sun)] border-[2px] border-[var(--ink)] px-3 py-1 rounded-full font-display font-[900] text-[11px] uppercase tracking-widest mb-3">
+              ⚠️ FULLSCREEN COMPULSORY
+            </div>
+            <h2 className="font-display font-[900] text-[22px] sm:text-[24px] uppercase tracking-tight mb-2">
+              Fullscreen Mode Required
+            </h2>
+            <p className="font-body text-[13.5px] font-semibold text-[#444] leading-relaxed mb-6">
+              To ensure fair play and prevent tab switching during the live competition, all competitors must stay in full-screen mode to view questions and submit answers.
+            </p>
+            <button
+              onClick={() => {
+                requestFullscreen()
+                setIsFullscreen(true)
+              }}
+              className="w-full h-[52px] bg-[var(--mint)] hover:bg-[#00C853] text-[var(--ink)] border-[3px] border-[var(--ink)] font-display font-[900] text-[15px] uppercase tracking-wider rounded-[12px] shadow-[4px_4px_0_#10100F] btn-press transition cursor-pointer mb-3"
+            >
+              ⛶ Enter Fullscreen Arena Now
+            </button>
+            {status === 'lobby' && (
+              <button
+                onClick={handleReturnToDashboard}
+                className="text-[12px] font-display font-bold text-[#666] hover:text-[var(--ink)] underline cursor-pointer"
+              >
+                ← Back to Dashboard
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Top nav — wraps on phones so status + leaderboard never collide */}
       <nav className="w-full bg-[var(--paper)] border-b-[3px] border-[var(--ink)]">
         <div className="max-w-[1280px] mx-auto px-3 md:px-6 min-h-[56px] py-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">

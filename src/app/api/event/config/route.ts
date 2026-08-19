@@ -55,19 +55,12 @@ export async function GET() {
   const cfg: EventConfig | null = data
     ? { login_open: Boolean(data.login_open), opens_at: data.opens_at, closes_at: data.closes_at }
     : null
-  let gateState = computeGateState(cfg)
-
-  // If there is no active game running, gate should be marked as closed/waiting
-  if (gateState === 'open' && !hasActiveGame) {
-    gateState = 'closed_before'
-  }
+  const gateState = computeGateState(cfg)
 
   return NextResponse.json({
     success: true,
     gate_state: gateState,
-    message: !hasActiveGame && Boolean(data?.login_open)
-      ? 'No active competition is open right now. Waiting for the host to launch the quiz.'
-      : gateStateMessage(gateState, cfg),
+    message: gateStateMessage(gateState, cfg),
     has_active_game: hasActiveGame,
     active_game_status: activeGameStatus,
     config: cfg

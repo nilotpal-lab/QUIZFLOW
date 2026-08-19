@@ -646,6 +646,11 @@ export default function AdminDashboard() {
     })
     setBusy('')
     if (res.ok) {
+      if (res.body?.config) {
+        setEventCfg(res.body.config)
+      } else {
+        setEventCfg(prev => prev ? { ...prev, login_open: open } : { login_open: open, opens_at: null, closes_at: null })
+      }
       showToast(open ? '✅ Student login OPEN.' : '🔒 Student login CLOSED.')
       loadEventConfig()
     } else {

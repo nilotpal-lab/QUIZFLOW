@@ -71,6 +71,8 @@ Level Guidelines:
 
 CRITICAL RANDOMIZATION MANDATE: You MUST randomly distribute correct_index across 0, 1, 2, and 3 for the questions in the quiz. Do NOT put the correct answer at index 0 or index 1 for all questions.
 
+EXPLANATION ACCURACY MANDATE: The 'explanation' MUST clearly and accurately explain WHY the choice at 'correct_index' is correct. Do NOT use hardcoded letters like 'Option A' in the explanation; instead refer to the actual concept or value.
+
 LANGUAGE MANDATE: All text (title, description, questions, choices, explanations, misconceptions) MUST be strictly in ${targetLanguage} using ${scriptHint}.
 
 JSON Output Schema:

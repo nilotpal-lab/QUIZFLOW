@@ -141,7 +141,7 @@ export async function POST(req: Request) {
       )
     }
 
-    // Check that an active, non-ended game currently exists
+    // Check if an active, non-ended game currently exists
     const { data: activeGames } = await supabase
       .from('games')
       .select('id, status')
@@ -150,18 +150,6 @@ export async function POST(req: Request) {
       .limit(1)
 
     const activeGame = activeGames && activeGames.length > 0 ? activeGames[0] : null
-
-    if (!activeGame) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'No active arena game is open right now. Please wait for the host to launch the quiz.',
-          gate_state: 'closed_before',
-          config: cfg
-        },
-        { status: 403, headers: noCacheHeaders }
-      )
-    }
 
     // ── Find the team by username ──────────────────────────────────
     // Usernames are the team name (e.g. "Phoenix Squad") while the input
