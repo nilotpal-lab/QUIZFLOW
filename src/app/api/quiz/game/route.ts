@@ -4,7 +4,8 @@ import {
   sanitizeQuizForClient,
   extractAnswerKeys,
   buildGameConfig,
-  noCacheHeaders
+  noCacheHeaders,
+  resolveQuestionCorrectIndex
 } from '@/quizflow/liveplay'
 import type { AIGeneratedQuiz } from '@/quizflow/types'
 
@@ -75,31 +76,9 @@ export async function GET(req: Request) {
 
   const fullQuestions = Array.isArray(game.quiz?.questions)
     ? game.quiz.questions.map((q: any, idx: number) => {
-        let keyIdx = keyMap.has(idx) ? keyMap.get(idx) : (typeof q.correct_index === 'number' ? q.correct_index : 0)
-        if (q.explanation && Array.isArray(q.choices) && q.choices.length > 0) {
-          const expLow = String(q.explanation).toLowerCase()
-          for (let cI = 0; cI < q.choices.length; cI++) {
-            const rawC = String(q.choices[cI] || '').trim()
-            if (!rawC) continue
-            const cleanC = rawC.replace(/^[\(\[]?[A-Da-d1-4][\.\)\:\-\]]\s*/, '').trim().toLowerCase()
-            if (cleanC && (
-              expLow.includes(`"${cleanC}"`) ||
-              expLow.includes(`'${cleanC}'`) ||
-              expLow.includes(`is ${cleanC}`) ||
-              expLow.includes(`is: ${cleanC}`) ||
-              expLow.includes(`is "${cleanC}"`)
-            )) {
-              keyIdx = cI
-              break
-            }
-          }
-          const letterMatch = expLow.match(/(?:correct answer is|answer is|correct option is|correct:)\s*[\"\']?\(?([a-d])\)?[\"\']?/i)
-          if (letterMatch) {
-            const l = letterMatch[1].toLowerCase()
-            const lIdx = l === 'a' ? 0 : l === 'b' ? 1 : l === 'c' ? 2 : 3
-            if (lIdx < q.choices.length) keyIdx = lIdx
-          }
-        }
+        const resolved = resolveQuestionCorrectIndex(q)
+        const dbKey = keyMap.get(idx)
+        const keyIdx = q.explanation ? resolved : (typeof dbKey === 'number' ? dbKey : resolved)
         return {
           ...q,
           correct_index: keyIdx

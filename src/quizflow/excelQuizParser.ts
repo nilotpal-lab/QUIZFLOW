@@ -192,20 +192,55 @@ export async function parseQuizFromSpreadsheet(file: File): Promise<ParsedExcelQ
     if (correctIndex === -1 && rawExplanation) {
       const expLow = rawExplanation.toLowerCase()
 
-      // Look for patterns like: The correct answer is "20" or Correct answer: B
-      const expLetterMatch = expLow.match(/(?:correct answer is|answer is|correct option is|correct:)\s*[\"\']?\(?([a-d])\)?[\"\']?/i)
-      if (expLetterMatch) {
-        const letter = expLetterMatch[1].toLowerCase()
-        correctIndex = letter === 'a' ? 0 : letter === 'b' ? 1 : letter === 'c' ? 2 : 3
+      // 3a. Quoted text match: e.g. The correct answer is "Amino acids" or '20' or "20"
+      const quotedMatches = Array.from(rawExplanation.matchAll(/["'“‘]([^"'”’]+)["'”’]/g)).map(m => m[1].trim())
+      for (const quoted of quotedMatches) {
+        const cleanQuoted = cleanChoiceText(quoted).toLowerCase()
+        if (!cleanQuoted) continue
+        const matchIdx = cleanedChoices.findIndex(c => c.toLowerCase() === cleanQuoted)
+        if (matchIdx !== -1) {
+          correctIndex = matchIdx
+          break
+        }
       }
 
+      // 3b. Word-bounded option letters: e.g. "Option B", "Choice B", "(B)", "Answer is B.", "Correct: B"
+      if (correctIndex === -1) {
+        const optLetterMatch = expLow.match(/\b(?:option|choice)\s+([a-d])\b/i) ||
+                               expLow.match(/\(([a-d])\)/i) ||
+                               expLow.match(/(?:correct\s+answer\s+is|answer\s+is|correct\s+option\s+is|correct:)\s*\(?([a-d])\)?(?:\s*[\.\,\:\;\!\-\)]|\s*$|\s+(?:because|which|as|due|\-|\:))/i)
+        if (optLetterMatch) {
+          const letter = optLetterMatch[1].toLowerCase()
+          const lIdx = letter === 'a' ? 0 : letter === 'b' ? 1 : letter === 'c' ? 2 : 3
+          if (lIdx < cleanedChoices.length) {
+            correctIndex = lIdx
+          }
+        }
+      }
+
+      // 3c. Exact phrase match after "correct answer is ..."
+      if (correctIndex === -1) {
+        const afterPhraseMatch = expLow.match(/(?:correct\s+answer\s+is|answer\s+is|correct\s+option\s+is|correct:)\s*[:\-]?\s*([^.,;\n\r]+)/i)
+        if (afterPhraseMatch) {
+          const targetPhrase = cleanChoiceText(afterPhraseMatch[1]).replace(/["'”’]/g, '').trim().toLowerCase()
+          if (targetPhrase) {
+            const phraseIdx = cleanedChoices.findIndex(c => {
+              const cLow = c.toLowerCase()
+              return cLow === targetPhrase || targetPhrase.startsWith(cLow) || cLow.startsWith(targetPhrase)
+            })
+            if (phraseIdx !== -1) {
+              correctIndex = phraseIdx
+            }
+          }
+        }
+      }
+
+      // 3d. Direct choice text inclusion in explanation
       if (correctIndex === -1) {
         const matchInExp = cleanedChoices.findIndex(c => {
           if (!c || c.length < 2) return false
-          return expLow.includes(`"${c.toLowerCase()}"`) ||
-                 expLow.includes(`'${c.toLowerCase()}'`) ||
-                 expLow.includes(`is ${c.toLowerCase()}`) ||
-                 expLow.includes(`is: ${c.toLowerCase()}`)
+          const cLow = c.toLowerCase()
+          return expLow.includes(` ${cLow} `) || expLow.includes(` ${cLow}.`) || expLow.includes(` ${cLow},`)
         })
         if (matchInExp !== -1) {
           correctIndex = matchInExp

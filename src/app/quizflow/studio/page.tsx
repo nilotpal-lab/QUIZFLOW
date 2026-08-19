@@ -8,6 +8,7 @@ import { generatePrintableWorksheet, type WorksheetVersion } from '@/quizflow/pd
 import { ingestYouTubeUrl, ingestWebpageUrl, parseUploadedFile, type IngestedContent } from '@/quizflow/ingestion'
 import { parseQuizFromSpreadsheet } from '@/quizflow/excelQuizParser'
 import { saveQuizDraft } from '@/quizflow/quizStore'
+import { repairQuizQuestions } from '@/quizflow/liveplay'
 import { publishQuizToCommunity } from '@/quizflow/communityStore'
 import { getHostUser } from '@/quizflow/authStore'
 import { adminFetch } from '@/quizflow/adminFetch'
@@ -94,10 +95,11 @@ export default function AIQuizStudio() {
         try {
           const parsed = JSON.parse(savedDraft)
           if (parsed && Array.isArray(parsed.questions) && parsed.questions.length > 0) {
-            setQuiz(parsed)
-            setTempTitle(parsed.title || 'Untitled Quiz')
-            if (parsed.language) setSelectedLang(parsed.language)
-            if (parsed.bloomLevel) setBloomLevel(parsed.bloomLevel)
+            const repaired = repairQuizQuestions(parsed)
+            setQuiz(repaired)
+            setTempTitle(repaired.title || 'Untitled Quiz')
+            if (repaired.language) setSelectedLang(repaired.language)
+            if (repaired.bloomLevel) setBloomLevel(repaired.bloomLevel as BloomLevel)
             if (savedQuizId) setEditingQuizId(savedQuizId)
             setViewMode('editor')
             localStorage.removeItem('qf_saved_quiz')

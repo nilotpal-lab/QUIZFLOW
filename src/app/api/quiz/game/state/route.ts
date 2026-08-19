@@ -4,7 +4,11 @@ import {
   getSessionTokenFromRequest,
   verifySessionToken
 } from '@/quizflow/authToken'
-import { noCacheHeaders, type LiveGameStatus } from '@/quizflow/liveplay'
+import {
+  noCacheHeaders,
+  type LiveGameStatus,
+  resolveQuestionCorrectIndex
+} from '@/quizflow/liveplay'
 
 /* ================================================================
    QuizFlow — Live Game State (team-facing)
@@ -133,9 +137,9 @@ export async function GET(req: Request) {
       p_question_index: keyIdx
     })
     const keyRow = Array.isArray(keyData) ? keyData[0] : keyData
-    if (keyRow && typeof keyRow.correct_index === 'number') {
-      correctIndex = keyRow.correct_index
-    }
+    const dbKey = typeof keyRow?.correct_index === 'number' ? keyRow.correct_index : undefined
+    const resolvedKey = resolveQuestionCorrectIndex(question)
+    correctIndex = question.explanation ? resolvedKey : (typeof dbKey === 'number' ? dbKey : resolvedKey)
   }
   const activeQuestion = question
     ? {
