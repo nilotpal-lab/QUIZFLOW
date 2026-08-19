@@ -82,6 +82,7 @@ export async function GET(req: Request) {
 
   const hostGame = {
     ...game,
+    is_paused: Boolean(game.config?.is_paused),
     quiz: {
       ...(game.quiz || {}),
       questions: fullQuestions
@@ -106,27 +107,36 @@ export async function GET(req: Request) {
 
   const currentQIdx = game.current_question_index ?? -1
   
-  // Only teams that are actually claimed / bound to a device are considered active participants
-  const liveSessionRows = (sessionRows || []).filter((s: any) => s.teams?.device_id !== null || s.teams?.status === 'claimed' || s.teams?.claimed_by !== null)
+  // Build team map from allTeams for guaranteed O(1) metadata
+  const teamMap = new Map((allTeams || []).map(t => [t.id, t]))
 
-  const teamsStatus = liveSessionRows.map((s: any, idx: number) => ({
-    rank: idx + 1,
-    team_id: s.team_id,
-    name: s.teams?.name || s.teams?.code || 'Team',
-    code: s.teams?.code || '',
-    roster: s.teams?.roster || null,
-    points: s.points || 0,
-    coins: s.coins || 0,
-    streak: s.streak || 0,
-    max_streak: s.max_streak || 0,
-    total_correct: s.total_correct || 0,
-    total_answered: s.total_answered || 0,
-    total_response_time_ms: s.total_response_time_ms || 0,
-    violation_count: s.violation_count || 0,
-    device_id: s.teams?.device_id || null,
-    status: s.teams?.status || 'active',
-    has_answered: currentQIdx >= 0 ? (s.last_answered_question_index === currentQIdx) : false
-  }))
+  // Only teams that are actually claimed / bound to a device are considered active participants
+  const liveSessionRows = (sessionRows || []).filter((s: any) => {
+    const t = teamMap.get(s.team_id)
+    return Boolean(t?.device_id || t?.claimed_by || t?.status === 'claimed')
+  })
+
+  const teamsStatus = liveSessionRows.map((s: any, idx: number) => {
+    const t = teamMap.get(s.team_id)
+    return {
+      rank: idx + 1,
+      team_id: s.team_id,
+      name: t?.name || t?.code || 'Team',
+      code: t?.code || '',
+      roster: t?.roster || null,
+      points: s.points || 0,
+      coins: s.coins || 0,
+      streak: s.streak || 0,
+      max_streak: s.max_streak || 0,
+      total_correct: s.total_correct || 0,
+      total_answered: s.total_answered || 0,
+      total_response_time_ms: s.total_response_time_ms || 0,
+      violation_count: s.violation_count || 0,
+      device_id: t?.device_id || null,
+      status: t?.status || 'active',
+      has_answered: currentQIdx >= 0 ? (s.last_answered_question_index === currentQIdx) : false
+    }
+  })
 
   const answeredCount = teamsStatus.filter(t => t.has_answered).length
   const waitingTeams = teamsStatus.filter(t => !t.has_answered)
@@ -195,7 +205,14 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: false, error: 'Every question must have a valid correct_index.' }, { status: 400, headers: noCacheHeaders })
   }
 
-  // Clear previous sessions for fresh game
+  // End any other active games so there is strictly 1 active game
+  try {
+    await supabase.from('games').update({ status: 'ended' }).neq('id', gameId).neq('status', 'ended')
+  } catch (endErr) {
+    console.warn('[Quiz Game] End previous games notice:', endErr)
+  }
+
+  // Clear previous sessions for this game
   try {
     await supabase.from('quiz_sessions').delete().eq('game_id', gameId)
   } catch (cleanErr) {
@@ -226,12 +243,11 @@ export async function POST(req: Request) {
     console.warn('[Quiz Game] Clean unclaimed sessions notice:', cleanUnclaimedErr)
   }
 
-  // Automatically ungate student logins & set active_game_id in event_config
+  // Automatically ungate student logins in event_config
   try {
     await supabase.from('event_config').upsert({
       id: 1,
       login_open: true,
-      active_game_id: gameId,
       updated_at: new Date().toISOString()
     })
   } catch (gateErr) {
@@ -261,11 +277,16 @@ export async function DELETE(req: Request) {
   }
 
   try {
-    await supabase.from('games').delete().eq('id', gameId)
+    // 1. Delete dependent quiz sessions first
     await supabase.from('quiz_sessions').delete().eq('game_id', gameId)
+    // 2. Delete answer keys
     await supabase.from('game_answer_keys').delete().eq('game_id', gameId)
-    await supabase.from('event_config').update({ active_game_id: null }).eq('id', 1)
+    // 3. Delete the game itself
+    await supabase.from('games').delete().eq('id', gameId)
+    // 4. Reset gate in event_config
+    await supabase.from('event_config').update({ login_open: false, updated_at: new Date().toISOString() }).eq('id', 1)
   } catch (err: any) {
+    console.warn('[Quiz Game DELETE] Error clearing game:', err)
     return NextResponse.json({ success: false, error: err?.message || 'Failed to clear game.' }, { status: 500, headers: noCacheHeaders })
   }
 

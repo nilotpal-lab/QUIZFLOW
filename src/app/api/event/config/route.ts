@@ -40,15 +40,36 @@ export async function GET() {
     return NextResponse.json({ success: false, error: 'Failed to load event status.' }, { status: 500, headers: noCacheHeaders })
   }
 
+  // Check if an active game currently exists in games table
+  const { data: activeGames } = await supabase
+    .from('games')
+    .select('id, status')
+    .neq('status', 'ended')
+    .order('created_at', { ascending: false })
+    .limit(1)
+
+  const activeGame = activeGames && activeGames.length > 0 ? activeGames[0] : null
+  const hasActiveGame = Boolean(activeGame)
+  const activeGameStatus = activeGame?.status || null
+
   const cfg: EventConfig | null = data
     ? { login_open: Boolean(data.login_open), opens_at: data.opens_at, closes_at: data.closes_at }
     : null
-  const gateState = computeGateState(cfg)
+  let gateState = computeGateState(cfg)
+
+  // If there is no active game running, gate should be marked as closed/waiting
+  if (gateState === 'open' && !hasActiveGame) {
+    gateState = 'closed_before'
+  }
 
   return NextResponse.json({
     success: true,
     gate_state: gateState,
-    message: gateStateMessage(gateState, cfg),
+    message: !hasActiveGame && Boolean(data?.login_open)
+      ? 'No active competition is open right now. Waiting for the host to launch the quiz.'
+      : gateStateMessage(gateState, cfg),
+    has_active_game: hasActiveGame,
+    active_game_status: activeGameStatus,
     config: cfg
   }, { headers: noCacheHeaders })
 }

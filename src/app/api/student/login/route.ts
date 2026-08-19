@@ -141,6 +141,28 @@ export async function POST(req: Request) {
       )
     }
 
+    // Check that an active, non-ended game currently exists
+    const { data: activeGames } = await supabase
+      .from('games')
+      .select('id, status')
+      .neq('status', 'ended')
+      .order('created_at', { ascending: false })
+      .limit(1)
+
+    const activeGame = activeGames && activeGames.length > 0 ? activeGames[0] : null
+
+    if (!activeGame) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'No active arena game is open right now. Please wait for the host to launch the quiz.',
+          gate_state: 'closed_before',
+          config: cfg
+        },
+        { status: 403, headers: noCacheHeaders }
+      )
+    }
+
     // ── Find the team by username ──────────────────────────────────
     // Usernames are the team name (e.g. "Phoenix Squad") while the input
     // is lowercased above — match case-insensitively so the exact team
@@ -214,6 +236,30 @@ export async function POST(req: Request) {
       member_name: bound.claimed_by || 'Team Member',
       device_id: deviceId
     })
+
+    // Immediately register team into active game's quiz_sessions
+    if (activeGame?.id) {
+      try {
+        const sessToken = 'sess_' + bound.id
+        await supabase
+          .from('quiz_sessions')
+          .upsert({
+            team_id: bound.id,
+            game_id: activeGame.id,
+            token: sessToken,
+            points: 0,
+            coins: 0,
+            streak: 0,
+            max_streak: 0,
+            total_correct: 0,
+            total_answered: 0,
+            total_response_time_ms: 0,
+            last_answered_question_index: -1
+          }, { onConflict: 'token' })
+      } catch (sessErr) {
+        console.warn('[Student Login] quiz_sessions upsert notice:', sessErr)
+      }
+    }
 
     const res = NextResponse.json({
       success: true,

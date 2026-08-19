@@ -51,6 +51,8 @@ export const POWERUP_COSTS = {
   bid_2x: 20,
   bid_3x: 35,
   bid_4x: 50,
+  coin_boost_2x: 15,
+  coin_boost_3x: 25,
 } as const
 
 export type PowerUpItem = keyof typeof POWERUP_COSTS

@@ -63,30 +63,65 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: false, error: 'Supabase is not configured.' }, { status: 503, headers: noCacheHeaders })
   }
 
-  // Resolve the team's session row (and therefore its game).
-  const { data: session, error: sessionError } = await supabase
+  // 1. Resolve active game ID directly from games table
+  const { data: activeGames } = await supabase
+    .from('games')
+    .select('id')
+    .neq('status', 'ended')
+    .order('created_at', { ascending: false })
+    .limit(1)
+
+  const activeGameId = activeGames?.[0]?.id || 'EVENT'
+
+  // 2. Resolve the team's session row via unique token index
+  const sessToken = 'sess_' + claims.team_id
+  let { data: session } = await supabase
     .from('quiz_sessions')
-    .select('id, game_id')
-    .eq('team_id', claims.team_id)
+    .select('id, game_id, coins, bid_multiplier')
+    .eq('token', sessToken)
     .maybeSingle()
 
-  if (sessionError || !session) {
-    return NextResponse.json({ success: false, error: 'No game session for this team.' }, { status: 404, headers: noCacheHeaders })
+  if (!session || session.game_id !== activeGameId) {
+    const { data: newSession } = await supabase
+      .from('quiz_sessions')
+      .upsert({
+        team_id: claims.team_id,
+        game_id: activeGameId,
+        token: sessToken,
+        points: 0,
+        coins: session?.coins || 0,
+        streak: 0,
+        max_streak: 0,
+        total_correct: 0,
+        total_answered: 0,
+        total_response_time_ms: 0,
+        last_answered_question_index: -1
+      }, { onConflict: 'token' })
+      .select('id, game_id, coins, bid_multiplier')
+      .maybeSingle()
+
+    if (newSession) session = newSession
   }
-  if (!session.game_id) {
-    return NextResponse.json({ success: false, error: 'Team is not registered to a live game.' }, { status: 409, headers: noCacheHeaders })
+
+  if (!session || !session.game_id) {
+    return NextResponse.json({ success: false, error: 'No game session for this team.' }, { status: 404, headers: noCacheHeaders })
   }
 
   // The ACTIVE question index is server-authoritative. Normal rounds
   // use current_question_index; the boss finale uses the frenzy slot.
   const { data: game, error: gameError } = await supabase
     .from('games')
-    .select('status, current_question_index, boss_question_index')
+    .select('status, current_question_index, boss_question_index, config')
     .eq('id', session.game_id)
     .maybeSingle()
 
   if (gameError || !game) {
     return NextResponse.json({ success: false, error: 'Game not found.' }, { status: 404, headers: noCacheHeaders })
+  }
+
+  // Reject answer submissions if the host has paused the game
+  if (game.config?.is_paused) {
+    return NextResponse.json({ success: false, error: 'Quiz is currently paused by the host.' }, { status: 409, headers: noCacheHeaders })
   }
 
   const questionIndex = game.status === 'boss_frenzy'
@@ -114,6 +149,23 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: false, error: 'No scoring result.' }, { status: 500, headers: noCacheHeaders })
   }
 
+  // Handle Coin Multiplier Power-Up Bonus
+  let finalCoinsEarned = row.coin_delta || 0
+  if (row.correct && session.coin_multiplier && session.coin_multiplier > 1) {
+    const bonusMultiplier = session.coin_multiplier
+    const extraCoins = finalCoinsEarned * (bonusMultiplier - 1)
+    if (extraCoins > 0) {
+      await supabase
+        .from('quiz_sessions')
+        .update({
+          coins: (session.coins || 0) + finalCoinsEarned + extraCoins,
+          coin_multiplier: 1
+        })
+        .eq('id', session.id)
+      finalCoinsEarned += extraCoins
+    }
+  }
+
   // NEVER echo the correct answer id — even during reveal.
   // client_elapsed_ms was accepted but ignored for scoring (the RPC
   // recomputed elapsed from the server-stamped question start).
@@ -121,7 +173,7 @@ export async function POST(req: Request) {
     success: row.reason === 'ok',
     correct: row.correct,
     points_earned: row.points_delta,
-    coins_earned: row.coin_delta,
+    coins_earned: finalCoinsEarned,
     reason: row.reason
   }, { headers: noCacheHeaders })
 }

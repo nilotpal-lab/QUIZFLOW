@@ -1,8 +1,8 @@
 'use client'
 export const dynamic = 'force-dynamic'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import QuizFlowLogo from '@/quizflow/QuizFlowLogo'
 
 interface MeResponse {
@@ -18,26 +18,33 @@ interface MeResponse {
   member_name?: string
 }
 
-export default function StudentDashboard() {
+function StudentDashboardContent() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const noticeParam = searchParams.get('notice')
+
   const [me, setMe] = useState<MeResponse | null>(null)
   const [gate, setGate] = useState<{ gate_state: string; message: string } | null>(null)
   const [gameState, setGameState] = useState<'waiting' | 'lobby' | 'live' | 'ended' | 'none'>('waiting')
+  const [showClosedBanner, setShowClosedBanner] = useState(noticeParam === 'arena_closed')
 
   useEffect(() => {
     let cancelled = false
     async function load() {
       // Validate session — middleware also guards, but a direct check is safer.
-      const res = await fetch('/api/session/me')
-      const data = await res.json()
-      if (!cancelled) {
-        if (res.ok && data?.success) {
-          setMe(data)
-        } else {
-          router.push('/quizflow/student/login')
-          return
+      try {
+        const res = await fetch('/api/session/me')
+        const data = await res.json()
+        if (!cancelled) {
+          if (res.ok && data?.success) {
+            setMe(data)
+          } else {
+            router.push('/quizflow/student/login')
+            return
+          }
         }
-      }
+      } catch {}
+
       // Gate + game status strip
       try {
         const g = await fetch('/api/event/config').then(r => r.json())
@@ -60,8 +67,13 @@ export default function StudentDashboard() {
         if (!cancelled) setGameState('none')
       }
     }
+
     load()
-    return () => { cancelled = true }
+    const timer = setInterval(load, 2000)
+    return () => {
+      cancelled = true
+      clearInterval(timer)
+    }
   }, [router])
 
   const handleLogout = async () => {
@@ -98,6 +110,24 @@ export default function StudentDashboard() {
 
       <main className="flex-1 w-full max-w-[760px] mx-auto px-3 md:px-6 py-6 md:py-12 flex flex-col gap-6 pb-[max(20px,env(safe-area-inset-bottom))]">
 
+        {/* Notice Banner (e.g. Arena Closed by Host) */}
+        {showClosedBanner && (
+          <div className="hard bg-[var(--sun)] border-[3px] border-[var(--ink)] rounded-[var(--radius-card)] p-4 shadow-[4px_4px_0px_#10100F] flex items-center justify-between gap-3 anim-scale-in">
+            <div className="flex items-center gap-3">
+              <span className="text-[24px]">🏟️</span>
+              <span className="font-display font-[800] text-[13px] md:text-[14px]">
+                The live game arena was closed and reset by the host. Returned to your normal dashboard!
+              </span>
+            </div>
+            <button
+              onClick={() => setShowClosedBanner(false)}
+              className="w-7 h-7 rounded-full bg-white border-[2px] border-[var(--ink)] font-bold text-[12px] hover:bg-black hover:text-white shrink-0 flex items-center justify-center"
+            >
+              ✕
+            </button>
+          </div>
+        )}
+
         {/* Team identity */}
         <div className="hard bg-[var(--paper-2)] border-[3px] border-[var(--ink)] rounded-[var(--radius-card)] p-6 md:p-8 shadow-[5px_5px_0px_#10100F] animate-scale-in">
           <div className="inline-flex items-center gap-2 hard bg-[var(--mint)] px-4 py-1.5 rounded-full font-display font-[800] text-[11px] uppercase tracking-widest border-[2px] border-[var(--ink)] mb-4">
@@ -132,20 +162,39 @@ export default function StudentDashboard() {
         </div>
 
         {/* THE one feature: Join Game */}
-        <button
-          onClick={() => router.push('/quizflow/student/lobby')}
-          className="group w-full hard bg-[var(--violet)] hover:bg-[#8f66ff] text-white rounded-[var(--radius-card)] p-6 md:p-10 flex items-center justify-between gap-4 btn-press shadow-[6px_6px_0px_#10100F] transition-all hover:shadow-[8px_8px_0px_#10100F] cursor-pointer"
-          aria-label="Join game"
-          style={{ minHeight: 120 }}
-        >
-          <div className="flex flex-col items-start gap-2 min-w-0">
-            <span className="font-display font-[900] text-[clamp(24px,7vw,36px)] uppercase tracking-tight leading-none">Join Game</span>
-            <span className="text-[12px] md:text-[13px] font-display font-[700] uppercase tracking-wider opacity-85">Enter the arena &amp; compete with your team</span>
+        {gameState === 'none' || gameState === 'ended' || gate?.gate_state !== 'open' ? (
+          <div
+            className="w-full hard bg-gray-100 text-[#666] rounded-[var(--radius-card)] p-6 md:p-10 flex items-center justify-between gap-4 border-[3px] border-[var(--ink)] shadow-[4px_4px_0px_#10100F] cursor-not-allowed opacity-90"
+            style={{ minHeight: 120 }}
+          >
+            <div className="flex flex-col items-start gap-2 min-w-0">
+              <span className="font-display font-[900] text-[clamp(22px,6vw,32px)] uppercase tracking-tight leading-none text-[#555]">
+                {gameState === 'ended' ? 'Match Finished' : 'Arena Closed'}
+              </span>
+              <span className="text-[12px] md:text-[13px] font-display font-[700] uppercase tracking-wider text-[#777]">
+                {gameState === 'ended' ? 'Competition has ended. Check final standings on projector.' : 'Waiting for host to host quiz & open the arena...'}
+              </span>
+            </div>
+            <div className="w-12 h-12 md:w-14 md:h-14 rounded-full bg-white text-[#777] flex items-center justify-center font-display font-black text-[22px] md:text-[24px] hard border-[2px] border-[#999] shrink-0">
+              🔒
+            </div>
           </div>
-          <div className="w-12 h-12 md:w-14 md:h-14 rounded-full bg-white text-[var(--ink)] flex items-center justify-center font-display font-black text-[22px] md:text-[24px] hard border-[2px] border-[var(--ink)] shrink-0 group-hover:translate-x-1 transition-transform">
-            →
-          </div>
-        </button>
+        ) : (
+          <button
+            onClick={() => router.push('/quizflow/student/lobby')}
+            className="group w-full hard bg-[var(--violet)] hover:bg-[#8f66ff] text-white rounded-[var(--radius-card)] p-6 md:p-10 flex items-center justify-between gap-4 btn-press shadow-[6px_6px_0px_#10100F] transition-all hover:shadow-[8px_8px_0px_#10100F] cursor-pointer"
+            aria-label="Join game"
+            style={{ minHeight: 120 }}
+          >
+            <div className="flex flex-col items-start gap-2 min-w-0">
+              <span className="font-display font-[900] text-[clamp(24px,7vw,36px)] uppercase tracking-tight leading-none">Join Game</span>
+              <span className="text-[12px] md:text-[13px] font-display font-[700] uppercase tracking-wider opacity-85">Enter the arena &amp; compete with your team</span>
+            </div>
+            <div className="w-12 h-12 md:w-14 md:h-14 rounded-full bg-white text-[var(--ink)] flex items-center justify-center font-display font-black text-[22px] md:text-[24px] hard border-[2px] border-[var(--ink)] shrink-0 group-hover:translate-x-1 transition-transform">
+              →
+            </div>
+          </button>
+        )}
 
         {gate && gate.gate_state !== 'open' && (
           <div className="text-center text-[12px] font-display font-bold uppercase tracking-wider opacity-60">
@@ -154,5 +203,13 @@ export default function StudentDashboard() {
         )}
       </main>
     </div>
+  )
+}
+
+export default function StudentDashboard() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-[var(--paper)] flex items-center justify-center font-display font-black">Loading Dashboard…</div>}>
+      <StudentDashboardContent />
+    </Suspense>
   )
 }

@@ -17,7 +17,7 @@ import {
   playWrongBuzzer
 } from '@/quizflow/sound'
 import { speakText, stopSpeech, toggleSpeech, isSpeaking } from '@/quizflow/speech'
-import { useAntiCheat, requestFullscreen } from '@/quizflow/antiCheat'
+import { useAntiCheat, requestFullscreen, exitFullscreen } from '@/quizflow/antiCheat'
 import ParticleField from '@/quizflow/ParticleField'
 import { useScreenShake, DamageParticles, BossHealthBar } from '@/quizflow/BossVFX'
 import StreakBadge from '@/quizflow/StreakBadge'
@@ -199,6 +199,11 @@ function StudentPlayScreen() {
     if (!gameState) return
     if (gameState.status === 'ended') {
       stopSpeech()
+      try {
+        if (typeof document !== 'undefined' && document.fullscreenElement) {
+          exitFullscreen()
+        }
+      } catch {}
       router.push(`/quizflow/results?pin=${pin}&pid=${playerId}`)
     }
   }, [gameState?.status, pin, playerId, router])

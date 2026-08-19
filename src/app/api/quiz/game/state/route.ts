@@ -41,32 +41,32 @@ export async function GET(req: Request) {
     return NextResponse.json({ success: false, error: 'Supabase is not configured.' }, { status: 503, headers: noCacheHeaders })
   }
 
-  // 1. Fetch active game ID from event_config
-  const { data: config } = await supabase
-    .from('event_config')
-    .select('active_game_id')
-    .eq('id', 1)
-    .maybeSingle()
+  // 1. Resolve active game ID directly from games table
+  const { data: activeGames } = await supabase
+    .from('games')
+    .select('id')
+    .neq('status', 'ended')
+    .order('created_at', { ascending: false })
+    .limit(1)
 
-  const activeGameId = config?.active_game_id || 'EVENT'
+  const activeGameId = activeGames?.[0]?.id || 'EVENT'
 
-  // 2. Fetch student's session row
+  // 2. Fetch student's session row via unique token index
+  const sessToken = 'sess_' + claims.team_id
   let { data: session } = await supabase
     .from('quiz_sessions')
     .select('id, game_id, points, coins, streak, max_streak, total_correct, total_answered, last_answered_question_index, frozen_until, bid_multiplier, frenzy_correct_count, violation_count')
-    .eq('team_id', claims.team_id)
-    .limit(1)
+    .eq('token', sessToken)
     .maybeSingle()
 
-  // 3. If session is missing or linked to an outdated game, auto-upsert to active game
+  // 3. If session is missing or linked to outdated game, auto-upsert
   if (!session || session.game_id !== activeGameId) {
-    const token = 'sess_' + claims.team_id
     const { data: newSession } = await supabase
       .from('quiz_sessions')
       .upsert({
         team_id: claims.team_id,
         game_id: activeGameId,
-        token: token,
+        token: sessToken,
         points: session?.points || 0,
         coins: session?.coins || 0,
         streak: session?.streak || 0,
@@ -88,7 +88,7 @@ export async function GET(req: Request) {
 
   const { data: game, error: gameError } = await supabase
     .from('games')
-    .select('id, mode, status, quiz, current_question_index, question_started_at, boss_question_index, boss_window_ends_at')
+    .select('id, mode, status, quiz, config, current_question_index, question_started_at, boss_question_index, boss_window_ends_at')
     .eq('id', session.game_id)
     .maybeSingle()
 
@@ -148,9 +148,11 @@ export async function GET(req: Request) {
       question_started_at: game.question_started_at,
       boss_window_ends_at: game.boss_window_ends_at,
       question_count: questions.length,
-      active_question: activeQuestion
+      active_question: activeQuestion,
+      is_paused: Boolean(game.config?.is_paused)
     },
     me: {
+      team_id: claims.team_id,
       points: session.points,
       coins: session.coins,
       streak: session.streak,
@@ -160,6 +162,7 @@ export async function GET(req: Request) {
       last_answered_question_index: session.last_answered_question_index ?? -1,
       frozen_until: session.frozen_until,
       bid_multiplier: session.bid_multiplier,
+      coin_multiplier: session.coin_multiplier || 1,
       frenzy_correct_count: session.frenzy_correct_count,
       violation_count: session.violation_count
     }

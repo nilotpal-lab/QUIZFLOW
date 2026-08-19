@@ -368,7 +368,7 @@ export default function AdminDashboard() {
     return () => { cancelled = true; clearInterval(t) }
   }, [activeTab, gameId])
 
-  /* Host keyboard shortcuts ([Space] -> Next Action, [M] -> Projector Mode, [F] -> Fullscreen Leaderboard) */
+  /* Host keyboard shortcuts ([Space] -> Next Action, [P] -> Pause/Resume, [N] -> Next Question, [M] -> Projector Mode, [F] -> Fullscreen Leaderboard) */
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (['INPUT', 'TEXTAREA', 'SELECT'].includes((e.target as HTMLElement)?.tagName)) return
@@ -379,6 +379,14 @@ export default function AdminDashboard() {
         else if (liveGame.status === 'question_active') handleAdvance('reveal')
         else if (liveGame.status === 'question_reveal') handleAdvance('leaderboard')
         else if (liveGame.status === 'leaderboard') handleAdvance('next')
+      } else if (e.key === 'p' || e.key === 'P') {
+        if (activeTab === 'game' && liveGame) {
+          handleAdvance(liveGame.is_paused ? 'resume' : 'pause')
+        }
+      } else if (e.key === 'n' || e.key === 'N') {
+        if (activeTab === 'game' && liveGame) {
+          handleAdvance('next')
+        }
       } else if (e.key === 'm' || e.key === 'M') {
         if (activeTab === 'game') setIsProjectorMode(v => !v)
       } else if (e.key === 'f' || e.key === 'F') {
@@ -1852,35 +1860,79 @@ export default function AdminDashboard() {
                     </div>
                   </div>
 
-                  {/* ONE GIANT HERO BUTTON */}
-                  <button
-                    onClick={() => {
-                      if (liveGame.status === 'lobby') handleAdvance('start')
-                      else if (liveGame.status === 'question_active') handleAdvance('reveal')
-                      else if (liveGame.status === 'question_reveal') handleAdvance('leaderboard')
-                      else if (liveGame.status === 'leaderboard') handleAdvance('next')
-                      else if (liveGame.status === 'ended') handleExportCSV()
-                    }}
-                    className="btn btn-lg"
-                    style={{
-                      background: liveGame.status === 'lobby' ? 'var(--mint)' :
-                                  liveGame.status === 'question_active' ? 'var(--sun)' :
-                                  liveGame.status === 'question_reveal' ? 'var(--sky)' :
-                                  liveGame.status === 'leaderboard' ? 'var(--violet)' : '#E0E0E0',
-                      color: liveGame.status === 'leaderboard' ? '#fff' : 'var(--ink)',
-                      border: '3px solid var(--ink)',
-                      boxShadow: '4px 4px 0 var(--ink)',
-                      fontWeight: 900,
-                      fontSize: 16,
-                      padding: '14px 28px',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    {liveGame.status === 'lobby' ? '▶ START MATCH [Space]' :
-                     liveGame.status === 'question_active' ? '👁️ REVEAL ANSWER [Space]' :
-                     liveGame.status === 'question_reveal' ? '🏆 SHOW STANDINGS [Space]' :
-                     liveGame.status === 'leaderboard' ? '⏭️ NEXT QUESTION [Space]' : '📥 EXPORT STANDINGS'}
-                  </button>
+                  {/* HERO BUTTONS & PACING CONTROLS */}
+                  <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                    {/* Pause / Resume Button */}
+                    {liveGame.status !== 'lobby' && liveGame.status !== 'ended' && (
+                      <button
+                        onClick={() => handleAdvance(liveGame.is_paused ? 'resume' : 'pause')}
+                        className={`btn btn-lg ${liveGame.is_paused ? 'btn-sun' : 'btn-white'}`}
+                        style={{
+                          background: liveGame.is_paused ? 'var(--sun)' : '#fff',
+                          border: '3px solid var(--ink)',
+                          boxShadow: '3px 3px 0 var(--ink)',
+                          fontWeight: 900,
+                          fontSize: 15,
+                          padding: '14px 20px',
+                          cursor: 'pointer'
+                        }}
+                        title="Pause / Resume active question timers and player submissions [P]"
+                      >
+                        {liveGame.is_paused ? '▶ RESUME QUIZ [P]' : '⏸️ PAUSE QUIZ [P]'}
+                      </button>
+                    )}
+
+                    {/* Next Question Skip Button */}
+                    {liveGame.status !== 'lobby' && liveGame.status !== 'ended' && (
+                      <button
+                        onClick={() => handleAdvance('next')}
+                        className="btn btn-lg"
+                        style={{
+                          background: '#F0E6FF',
+                          color: 'var(--ink)',
+                          border: '3px solid var(--ink)',
+                          boxShadow: '3px 3px 0 var(--ink)',
+                          fontWeight: 900,
+                          fontSize: 15,
+                          padding: '14px 20px',
+                          cursor: 'pointer'
+                        }}
+                        title="Jump immediately to next question [N]"
+                      >
+                        ⏭️ NEXT QUESTION [N]
+                      </button>
+                    )}
+
+                    {/* ONE GIANT HERO BUTTON */}
+                    <button
+                      onClick={() => {
+                        if (liveGame.status === 'lobby') handleAdvance('start')
+                        else if (liveGame.status === 'question_active') handleAdvance('reveal')
+                        else if (liveGame.status === 'question_reveal') handleAdvance('leaderboard')
+                        else if (liveGame.status === 'leaderboard') handleAdvance('next')
+                        else if (liveGame.status === 'ended') handleExportCSV()
+                      }}
+                      className="btn btn-lg"
+                      style={{
+                        background: liveGame.status === 'lobby' ? 'var(--mint)' :
+                                    liveGame.status === 'question_active' ? 'var(--sun)' :
+                                    liveGame.status === 'question_reveal' ? 'var(--sky)' :
+                                    liveGame.status === 'leaderboard' ? 'var(--violet)' : '#E0E0E0',
+                        color: liveGame.status === 'leaderboard' ? '#fff' : 'var(--ink)',
+                        border: '3px solid var(--ink)',
+                        boxShadow: '4px 4px 0 var(--ink)',
+                        fontWeight: 900,
+                        fontSize: 16,
+                        padding: '14px 28px',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {liveGame.status === 'lobby' ? '▶ START MATCH [Space]' :
+                       liveGame.status === 'question_active' ? '👁️ REVEAL ANSWER [Space]' :
+                       liveGame.status === 'question_reveal' ? '🏆 SHOW STANDINGS [Space]' :
+                       liveGame.status === 'leaderboard' ? '⏭️ ADVANCE [Space]' : '📥 EXPORT STANDINGS'}
+                    </button>
+                  </div>
                 </div>
 
                 {/* Host Quick Toolbar */}
@@ -2043,7 +2095,25 @@ export default function AdminDashboard() {
                     </span>
                   </div>
 
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                    {liveGame.status !== 'lobby' && liveGame.status !== 'ended' && (
+                      <button
+                        onClick={() => handleAdvance(liveGame.is_paused ? 'resume' : 'pause')}
+                        className={`btn btn-sm ${liveGame.is_paused ? 'btn-sun' : ''}`}
+                        style={{ background: liveGame.is_paused ? 'var(--sun)' : '#fff', border: '2px solid var(--ink)', fontWeight: 800, fontSize: 13 }}
+                      >
+                        {liveGame.is_paused ? '▶ Resume [P]' : '⏸️ Pause [P]'}
+                      </button>
+                    )}
+                    {liveGame.status !== 'lobby' && liveGame.status !== 'ended' && (
+                      <button
+                        onClick={() => handleAdvance('next')}
+                        className="btn btn-sm"
+                        style={{ background: '#F0E6FF', border: '2px solid var(--ink)', fontWeight: 800, fontSize: 13 }}
+                      >
+                        ⏭️ Next [N]
+                      </button>
+                    )}
                     <button
                       onClick={() => {
                         if (liveGame.status === 'lobby') handleAdvance('start')

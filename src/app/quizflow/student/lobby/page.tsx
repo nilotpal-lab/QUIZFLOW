@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import QuizFlowLogo from '@/quizflow/QuizFlowLogo'
+import { requestFullscreen, exitFullscreen } from '@/quizflow/antiCheat'
 
 interface GameStateResponse {
   success: boolean
@@ -14,6 +15,7 @@ interface GameStateResponse {
     question_started_at: string | null
     boss_window_ends_at: string | null
     question_count: number
+    is_paused?: boolean
     active_question: {
       index: number
       prompt: string
@@ -25,6 +27,7 @@ interface GameStateResponse {
     } | null
   }
   me?: {
+    team_id?: string
     points: number
     coins: number
     streak: number
@@ -34,8 +37,9 @@ interface GameStateResponse {
     last_answered_question_index?: number
     frozen_until: string | null
     bid_multiplier: number
+    coin_multiplier?: number
     frenzy_correct_count: number
-    violation_count: number
+    violation_count?: number
   }
 }
 
@@ -78,27 +82,89 @@ export default function StudentLobby() {
   const [board, setBoard] = useState<LbRow[]>([])
   const [elapsed, setElapsed] = useState(0)
   const [bossCountdown, setBossCountdown] = useState<number | null>(null)
+  const [isFullscreen, setIsFullscreen] = useState(false)
+  const [closedNotice, setClosedNotice] = useState(false)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const wasInGameRef = useRef(false)
 
   const lastQuestionIdxRef = useRef<number | null>(null)
 
   const status = state?.game?.status || 'lobby'
   const isBoss = status === 'boss_frenzy'
+  const isPaused = Boolean(state?.game?.is_paused)
   const q = state?.game?.active_question || null
   const me = state?.me
+
+  /* ── Fullscreen toggle ────────────────────────────────────────── */
+  const toggleFullscreen = () => {
+    try {
+      if (!document.fullscreenElement) {
+        requestFullscreen()
+        setIsFullscreen(true)
+      } else {
+        exitFullscreen()
+        setIsFullscreen(false)
+      }
+    } catch { /* best-effort */ }
+  }
+
+  const handleReturnToDashboard = () => {
+    try {
+      if (typeof document !== 'undefined' && document.fullscreenElement) {
+        exitFullscreen()
+        setIsFullscreen(false)
+      }
+    } catch { /* best-effort */ }
+    router.push('/quizflow/student/dashboard')
+  }
+
+  useEffect(() => {
+    const handleFsChange = () => {
+      setIsFullscreen(Boolean(document.fullscreenElement))
+    }
+    document.addEventListener('fullscreenchange', handleFsChange)
+    return () => document.removeEventListener('fullscreenchange', handleFsChange)
+  }, [])
+
+  // Auto-exit fullscreen when unmounting
+  useEffect(() => {
+    return () => {
+      try {
+        if (typeof document !== 'undefined' && document.fullscreenElement) {
+          exitFullscreen()
+        }
+      } catch {}
+    }
+  }, [])
 
   /* ── Poll game state ─────────────────────────────────────────── */
   const poll = useCallback(async () => {
     try {
       const res = await fetch('/api/quiz/game/state')
       if (res.status === 401) {
+        try {
+          if (typeof document !== 'undefined' && document.fullscreenElement) {
+            exitFullscreen()
+          }
+        } catch {}
         router.push('/quizflow/student/login')
         return
       }
       const data: GameStateResponse = await res.json()
-      if (data?.success) {
+      if (data?.success && data?.game) {
         setState(data)
         setLoadState('ready')
+        wasInGameRef.current = true
+
+        if (data.game.status === 'ended') {
+          // If match ended, exit fullscreen so standings are viewed comfortably in normal screen
+          try {
+            if (typeof document !== 'undefined' && document.fullscreenElement) {
+              exitFullscreen()
+              setIsFullscreen(false)
+            }
+          } catch {}
+        }
 
         const newQIdx = data.game?.active_question?.index ?? null
 
@@ -112,9 +178,25 @@ export default function StudentLobby() {
           setAnsweredIndex(newQIdx)
         }
         lastQuestionIdxRef.current = newQIdx
-      } else if (res.status === 404) {
+      } else if (res.status === 404 || !data?.success) {
+        // Game has been closed or does not exist
+        try {
+          if (typeof document !== 'undefined' && document.fullscreenElement) {
+            exitFullscreen()
+            setIsFullscreen(false)
+          }
+        } catch {}
         setState(null)
         setLoadState('no_game')
+
+        // If the student was inside an active game and the host closed it, gracefully return to dashboard
+        if (wasInGameRef.current) {
+          wasInGameRef.current = false
+          setClosedNotice(true)
+          setTimeout(() => {
+            router.replace('/quizflow/student/dashboard?notice=arena_closed')
+          }, 1200)
+        }
       }
     } catch {
       /* transient network error — keep last state */
@@ -177,8 +259,9 @@ export default function StudentLobby() {
     setShopMsg(null)
     try {
       let finalTarget = targetTeamId
+      const myTeamId = state?.me?.team_id
       if (itemType === 'freeze_player' && !finalTarget && board.length > 0) {
-        const opponents = board.filter(b => b.team_id)
+        const opponents = board.filter(b => b.team_id && b.team_id !== myTeamId)
         if (opponents.length > 0) {
           finalTarget = opponents[Math.floor(Math.random() * opponents.length)].team_id
         }
@@ -209,7 +292,7 @@ export default function StudentLobby() {
 
   /* ── Submit answer (server-authoritative) ────────────────────── */
   const handleAnswer = async (optionIndex: number) => {
-    if (selected !== null || answeredIndex === q?.index) return
+    if (selected !== null || answeredIndex === q?.index || isPaused) return
     setSelected(optionIndex)
     try {
       const res = await fetch('/api/quiz/answer', {
@@ -245,8 +328,8 @@ export default function StudentLobby() {
             <Link href="/quizflow/student/dashboard" className="font-display font-[900] text-[18px] md:text-[20px] tracking-tight flex items-center gap-1.5 shrink-0">
               <QuizFlowLogo size={22} className="md:w-[24px] md:h-[24px]" alt="QuizFlow" /> QuizFlow
             </Link>
-            <span className={`badge ${isBoss ? 'badge-cherry' : status === 'ended' ? 'badge-violet' : status === 'question_active' ? 'badge-mint' : status === 'question_reveal' ? 'badge-sky' : 'badge-sun'}`} style={{ fontSize: 9.5, maxWidth: 130, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {STATUS_LABEL[status] || status.toUpperCase()}
+            <span className={`badge ${isBoss ? 'badge-cherry' : status === 'ended' ? 'badge-violet' : isPaused ? 'badge-sun' : status === 'question_active' ? 'badge-mint' : status === 'question_reveal' ? 'badge-sky' : 'badge-sun'}`} style={{ fontSize: 9.5, maxWidth: 130, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {isPaused ? 'PAUSED' : STATUS_LABEL[status] || status.toUpperCase()}
             </span>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
@@ -271,6 +354,14 @@ export default function StudentLobby() {
                 {isFrozen && <span className="badge badge-sky text-[11px] sm:text-[12px] font-bold">🧊 FROZEN</span>}
               </div>
             )}
+            <button
+              onClick={toggleFullscreen}
+              className="hard rounded-full px-2.5 py-1 text-[11px] font-display font-extrabold uppercase tracking-wider border-[2px] border-[var(--ink)] bg-white text-[var(--ink)] hover:bg-[var(--sun)] btn-press"
+              style={{ minHeight: 30 }}
+              title="Toggle Fullscreen Arena Mode"
+            >
+              {isFullscreen ? '✕ Normal' : '⛶ Fullscreen'}
+            </button>
             {(status === 'question_active' || status === 'boss_frenzy' || status === 'question_reveal') && (
               <button
                 onClick={() => setShowBoard(v => !v)}
@@ -291,7 +382,7 @@ export default function StudentLobby() {
             <div className="text-[64px] mb-4">🎯</div>
             <h1 className="font-display font-[900] text-[26px] uppercase tracking-tight mb-2">Arena Not Open Yet</h1>
             <p className="font-body text-[14px] font-semibold opacity-70 max-w-[400px] mb-6">
-              The admin hasn't created the game yet. This page refreshes automatically — you'll drop into the lobby the moment it opens.
+              The admin hasn&apos;t created the game yet. This page refreshes automatically — you&apos;ll drop into the lobby the moment it opens.
             </p>
             <Link href="/quizflow/student/dashboard">
               <button className="hard btn-press bg-white text-[var(--ink)] font-display font-[800] text-[14px] px-6 py-3 rounded-[12px] border-[2.5px] border-[var(--ink)] shadow-[3px_3px_0px_#10100F] cursor-pointer">
@@ -333,6 +424,16 @@ export default function StudentLobby() {
                 </div>
               </div>
 
+              {!isFullscreen && (
+                <button
+                  onClick={toggleFullscreen}
+                  className="w-full mb-4 py-2.5 px-4 bg-[var(--violet)] text-white border-[2.5px] border-[var(--ink)] rounded-[12px] font-display font-extrabold text-[13px] hard btn-press shadow-[3px_3px_0px_#10100F] flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <span>⛶</span>
+                  <span>Enter Fullscreen Arena Mode</span>
+                </button>
+              )}
+
               <div className="flex items-center justify-center gap-2 font-display font-[800] text-[13px] text-[var(--ink)] bg-[#E8F8F5] border-[2px] border-[#2ECC71] rounded-[10px] py-3 px-4">
                 <span className="animate-spin text-[16px]">⏳</span>
                 <span>Waiting for host to press START GAME...</span>
@@ -343,7 +444,20 @@ export default function StudentLobby() {
 
         {/* ═══ QUESTION (active / boss) ═══ */}
         {showQuestion && q && (
-          <div className="card anim-scale-in p-5 md:p-7">
+          <div className="card anim-scale-in p-5 md:p-7 relative">
+            {/* Host Paused Banner */}
+            {isPaused && (
+              <div className="mb-4 p-3.5 bg-[var(--sun)] border-[3px] border-[var(--ink)] rounded-[12px] text-center shadow-[4px_4px_0px_#10100F] animate-pulse">
+                <div className="font-display font-[900] text-[16px] uppercase tracking-wider text-[var(--ink)] flex items-center justify-center gap-2">
+                  <span>⏸️</span>
+                  <span>QUIZ PAUSED BY HOST</span>
+                </div>
+                <div className="text-[12px] font-semibold text-[#444] mt-0.5">
+                  Timer and input are frozen. Please wait for the host to resume.
+                </div>
+              </div>
+            )}
+
             <div className="flex justify-between items-center mb-4 flex-wrap gap-2">
               <span className="badge badge-ink">Q{q.index + 1} of {state?.game?.question_count}</span>
               <span className="font-display font-[800] text-[12px] uppercase tracking-wider opacity-60">
@@ -355,7 +469,13 @@ export default function StudentLobby() {
             {me && me.bid_multiplier > 1 && (
               <div className="mb-4 px-3 py-1.5 bg-[var(--sun)] border-[2.5px] border-[var(--ink)] rounded-[10px] font-display font-extrabold text-[12px] text-[var(--ink)] shadow-[2px_2px_0px_#10100F] inline-flex items-center gap-1.5">
                 <span>⚡</span>
-                <span>{me.bid_multiplier}× Multiplier Armed for this question!</span>
+                <span>{me.bid_multiplier}× Points Multiplier Armed!</span>
+              </div>
+            )}
+            {me && (me.coin_multiplier || 1) > 1 && (
+              <div className="mb-4 ml-2 px-3 py-1.5 bg-[var(--mint)] border-[2.5px] border-[var(--ink)] rounded-[10px] font-display font-extrabold text-[12px] text-[var(--ink)] shadow-[2px_2px_0px_#10100F] inline-flex items-center gap-1.5">
+                <span>🪙</span>
+                <span>{me.coin_multiplier}× Coin Boost Armed!</span>
               </div>
             )}
             {isFrozen && (
@@ -373,7 +493,7 @@ export default function StudentLobby() {
                 const isCorrect = revealCorrect && q.correct_index === ci
                 const isWrongPick = revealCorrect && selected === ci && !result?.correct && !isCorrect
                 const isSelected = selected === ci
-                const locked = answerLocked || result !== null || revealCorrect || selected !== null || isFrozen
+                const locked = answerLocked || result !== null || revealCorrect || selected !== null || isFrozen || isPaused
 
                 let stateClass = ''
                 if (revealCorrect) {
@@ -388,7 +508,7 @@ export default function StudentLobby() {
                     key={ci}
                     onClick={() => handleAnswer(ci)}
                     disabled={locked}
-                    className={`answer-btn ${color} ${stateClass} ${isSelected && locked ? 'is-locked' : ''}`}
+                    className={`answer-btn ${color} ${stateClass} ${isSelected && locked ? 'is-locked' : ''} ${isPaused ? 'opacity-60 cursor-not-allowed' : ''}`}
                   >
                     <span className="answer-glyph">{String.fromCharCode(65 + ci)}</span>
                     <span className="flex-1">{choice}</span>
@@ -444,12 +564,12 @@ export default function StudentLobby() {
 
         {/* ═══ LEADERBOARD status ═══ */}
         {loadState === 'ready' && status === 'leaderboard' && (
-          <BoardPanel gameId={state?.game?.id || ''} />
+          <BoardPanel gameId={state?.game?.id || ''} onReturn={handleReturnToDashboard} />
         )}
 
         {/* ═══ ENDED — final standings ═══ */}
         {loadState === 'ready' && status === 'ended' && (
-          <BoardPanel gameId={state?.game?.id || ''} final showMe={me} />
+          <BoardPanel gameId={state?.game?.id || ''} final showMe={me} onReturn={handleReturnToDashboard} />
         )}
 
         {/* ═══ Overlay leaderboard (while answering) ═══ */}
@@ -516,14 +636,18 @@ export default function StudentLobby() {
               {/* Shop Items Catalog */}
               <div className="flex flex-col gap-3">
                 {[
-                  { type: 'bid_2x', label: '2× Multiplier', emoji: '⚡', cost: 20, desc: 'Double your points on your next question.' },
-                  { type: 'bid_3x', label: '3× Multiplier', emoji: '🔥', cost: 35, desc: 'Triple your points on your next question.' },
-                  { type: 'bid_4x', label: '4× Multiplier', emoji: '💥', cost: 50, desc: 'Quadruple your points on your next question.' },
+                  { type: 'coin_boost_2x', label: '2× Coin Doubler', emoji: '🪙', cost: 15, desc: 'Earn 2× Stadium Coins on your next correct answer.' },
+                  { type: 'coin_boost_3x', label: '3× Coin Rush', emoji: '🔥', cost: 25, desc: 'Earn 3× Stadium Coins on your next correct answer.' },
+                  { type: 'bid_2x', label: '2× Point Multiplier', emoji: '⚡', cost: 20, desc: 'Double your points on your next question.' },
+                  { type: 'bid_3x', label: '3× Point Multiplier', emoji: '🔥', cost: 35, desc: 'Triple your points on your next question.' },
+                  { type: 'bid_4x', label: '4× Point Multiplier', emoji: '💥', cost: 50, desc: 'Quadruple your points on your next question.' },
                   { type: 'freeze_all', label: 'Blizzard', emoji: '❄️', cost: 30, desc: 'Freeze ALL opposing teams for 4 seconds.' },
                   { type: 'freeze_player', label: 'Freeze Opponent', emoji: '🧊', cost: 15, desc: 'Freeze a random active rival team for 6 seconds.' }
                 ].map(item => {
                   const canAfford = (me?.coins ?? 0) >= item.cost
-                  const isArmed = Boolean(item.type.startsWith('bid_') && me?.bid_multiplier && me.bid_multiplier > 1)
+                  const isPointArmed = Boolean(item.type.startsWith('bid_') && me?.bid_multiplier && me.bid_multiplier > 1)
+                  const isCoinArmed = Boolean(item.type.startsWith('coin_boost_') && (me?.coin_multiplier || 1) > 1)
+                  const isArmed = isPointArmed || isCoinArmed
                   return (
                     <div key={item.type} className="hard bg-white border-[2px] border-[var(--ink)] rounded-[12px] p-3.5 flex items-center justify-between gap-3 shadow-[2px_2px_0px_#10100F]">
                       <div className="flex items-center gap-3 min-w-0">
@@ -552,6 +676,25 @@ export default function StudentLobby() {
               </div>
             </div>
           </div>
+        {/* ═══ ARENA CLOSED MODAL NOTICE ═══ */}
+        {closedNotice && (
+          <div className="fixed inset-0 z-[9999] bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 anim-fade-in">
+            <div className="card bg-white border-[3.5px] border-[var(--ink)] p-6 sm:p-8 max-w-[440px] w-full text-center shadow-[8px_8px_0px_#10100F] anim-scale-in">
+              <div className="text-[52px] mb-3">🏟️</div>
+              <h2 className="font-display font-[900] text-[24px] uppercase tracking-tight text-[var(--ink)] mb-2">
+                Game Arena Closed
+              </h2>
+              <p className="font-body text-[14px] font-bold text-[#555] mb-6">
+                The host has closed and reset the live arena. Returning you to the normal dashboard...
+              </p>
+              <button
+                onClick={handleReturnToDashboard}
+                className="hard bg-[var(--sun)] text-[var(--ink)] font-display font-[800] text-[14px] px-6 py-3 rounded-[12px] border-[2.5px] border-[var(--ink)] shadow-[3px_3px_0px_#10100F] cursor-pointer w-full btn-press"
+              >
+                ← Go to Dashboard Now
+              </button>
+            </div>
+          </div>
         )}
       </main>
     </div>
@@ -559,7 +702,8 @@ export default function StudentLobby() {
 }
 
 /* ── Standings panel (leaderboard status / ended) ──────────────── */
-function BoardPanel({ gameId, final, showMe }: { gameId: string; final?: boolean; showMe?: { points: number; total_correct: number } | null }) {
+function BoardPanel({ gameId, final, showMe, onReturn }: { gameId: string; final?: boolean; showMe?: { points: number; total_correct: number } | null; onReturn?: () => void }) {
+  const router = useRouter()
   const [board, setBoard] = useState<LbRow[]>([])
   const [error, setError] = useState('')
 
@@ -583,6 +727,19 @@ function BoardPanel({ gameId, final, showMe }: { gameId: string; final?: boolean
     }
     return () => { cancelled = true }
   }, [gameId, final])
+
+  const handleBack = () => {
+    if (onReturn) {
+      onReturn()
+    } else {
+      try {
+        if (typeof document !== 'undefined' && document.fullscreenElement) {
+          exitFullscreen()
+        }
+      } catch {}
+      router.push('/quizflow/student/dashboard')
+    }
+  }
 
   return (
     <div className="flex-1 flex flex-col gap-4 py-6">
@@ -624,12 +781,13 @@ function BoardPanel({ gameId, final, showMe }: { gameId: string; final?: boolean
         ))}
       </div>
 
-      <div className="text-center">
-        <Link href="/quizflow/student/dashboard">
-          <button className="hard btn-press bg-white text-[var(--ink)] font-display font-[800] text-[14px] px-6 py-3 rounded-[12px] border-[2.5px] border-[var(--ink)] shadow-[3px_3px_0px_#10100F] cursor-pointer">
-            ← Back to Dashboard
-          </button>
-        </Link>
+      <div className="text-center mt-4">
+        <button
+          onClick={handleBack}
+          className="hard btn-press bg-white text-[var(--ink)] font-display font-[800] text-[14px] px-6 py-3 rounded-[12px] border-[2.5px] border-[var(--ink)] shadow-[3px_3px_0px_#10100F] cursor-pointer"
+        >
+          ← Return to Main Dashboard
+        </button>
       </div>
     </div>
   )

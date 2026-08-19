@@ -17,7 +17,7 @@ export const dynamic = 'force-dynamic'
 export const revalidate = 0
 export const fetchCache = 'force-no-store'
 
-const ACTIONS = ['start', 'next', 'reveal', 'leaderboard', 'end'] as const
+const ACTIONS = ['start', 'next', 'reveal', 'leaderboard', 'end', 'pause', 'resume'] as const
 
 export async function POST(req: Request) {
   const host = await getAuthenticatedHost(req)
@@ -47,6 +47,41 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: false, error: 'Supabase is not configured.' }, { status: 503, headers: noCacheHeaders })
   }
 
+  // Handle Pause & Resume directly via atomic config updates
+  if (action === 'pause') {
+    const { data: g } = await supabase.from('games').select('config, question_started_at, status').eq('id', gameId).maybeSingle()
+    const prevConfig = g?.config || {}
+    const now = Date.now()
+    const startedAt = g?.question_started_at ? new Date(g.question_started_at).getTime() : now
+    const elapsed = Math.max(0, now - startedAt)
+    await supabase.from('games').update({
+      config: {
+        ...prevConfig,
+        is_paused: true,
+        paused_at: new Date(now).toISOString(),
+        elapsed_before_pause_ms: elapsed
+      }
+    }).eq('id', gameId)
+    return NextResponse.json({ success: true, game: { id: gameId, status: g?.status, is_paused: true } }, { headers: noCacheHeaders })
+  }
+
+  if (action === 'resume') {
+    const { data: g } = await supabase.from('games').select('config, status').eq('id', gameId).maybeSingle()
+    const prevConfig = g?.config || {}
+    const elapsed = typeof prevConfig.elapsed_before_pause_ms === 'number' ? prevConfig.elapsed_before_pause_ms : 0
+    const newStartedAt = new Date(Date.now() - elapsed).toISOString()
+    await supabase.from('games').update({
+      question_started_at: newStartedAt,
+      config: {
+        ...prevConfig,
+        is_paused: false,
+        paused_at: null,
+        elapsed_before_pause_ms: 0
+      }
+    }).eq('id', gameId)
+    return NextResponse.json({ success: true, game: { id: gameId, status: g?.status, is_paused: false } }, { headers: noCacheHeaders })
+  }
+
   const { data, error } = await supabase.rpc('qf_advance_game', {
     p_game_id: gameId,
     p_action: action
@@ -55,6 +90,18 @@ export async function POST(req: Request) {
   if (error) {
     console.warn('[Quiz Advance] failed:', error.message)
     return NextResponse.json({ success: false, error: 'Failed to advance game.' }, { status: 500, headers: noCacheHeaders })
+  }
+
+  // Reset pause state on new question/start
+  if (action === 'start' || action === 'next') {
+    try {
+      const { data: curG } = await supabase.from('games').select('config').eq('id', gameId).maybeSingle()
+      if (curG?.config?.is_paused) {
+        await supabase.from('games').update({
+          config: { ...curG.config, is_paused: false, paused_at: null, elapsed_before_pause_ms: 0 }
+        }).eq('id', gameId)
+      }
+    } catch { /* best effort */ }
   }
 
   return NextResponse.json({ success: true, game: data }, { headers: noCacheHeaders })

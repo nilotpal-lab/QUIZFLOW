@@ -83,18 +83,47 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: false, error: `item must be one of: ${Object.keys(POWERUP_COSTS).join(', ')}` }, { status: 400, headers: noCacheHeaders })
   }
 
-  const supabase = getServerSupabase()
-  if (!supabase) {
-    return NextResponse.json({ success: false, error: 'Supabase is not configured.' }, { status: 503, headers: noCacheHeaders })
-  }
+  // 1. Resolve active game ID directly from games table
+  const { data: activeGames } = await supabase
+    .from('games')
+    .select('id')
+    .neq('status', 'ended')
+    .order('created_at', { ascending: false })
+    .limit(1)
 
-  const { data: session, error: sessionError } = await supabase
+  const activeGameId = activeGames?.[0]?.id || 'EVENT'
+
+  // 2. Resolve the team's session row via unique token index
+  const sessToken = 'sess_' + claims.team_id
+  let { data: session } = await supabase
     .from('quiz_sessions')
     .select('id, game_id')
-    .eq('team_id', claims.team_id)
+    .eq('token', sessToken)
     .maybeSingle()
 
-  if (sessionError || !session) {
+  if (!session || session.game_id !== activeGameId) {
+    const { data: newSession } = await supabase
+      .from('quiz_sessions')
+      .upsert({
+        team_id: claims.team_id,
+        game_id: activeGameId,
+        token: sessToken,
+        points: 0,
+        coins: 0,
+        streak: 0,
+        max_streak: 0,
+        total_correct: 0,
+        total_answered: 0,
+        total_response_time_ms: 0,
+        last_answered_question_index: -1
+      }, { onConflict: 'token' })
+      .select('id, game_id')
+      .maybeSingle()
+
+    if (newSession) session = newSession
+  }
+
+  if (!session || !session.game_id) {
     return NextResponse.json({ success: false, error: 'No game session for this team.' }, { status: 404, headers: noCacheHeaders })
   }
 
@@ -118,6 +147,44 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: 'Target team is not in this game.' }, { status: 404, headers: noCacheHeaders })
     }
     targetSessionId = target.id
+  }
+
+  // Handle coin boost power-ups
+  if (item === 'coin_boost_2x' || item === 'coin_boost_3x') {
+    const cost = POWERUP_COSTS[item as PowerUpItem]
+    const multiplier = item === 'coin_boost_2x' ? 2 : 3
+    const { data: curSess } = await supabase.from('quiz_sessions').select('coins').eq('id', session.id).maybeSingle()
+    if (!curSess || (curSess.coins ?? 0) < cost) {
+      return NextResponse.json({ success: false, error: 'Insufficient coins.', reason: 'insufficient' }, { status: 402, headers: noCacheHeaders })
+    }
+    const { data: updated, error: upErr } = await supabase
+      .from('quiz_sessions')
+      .update({
+        coins: curSess.coins - cost,
+        bid_multiplier: multiplier
+      })
+      .eq('id', session.id)
+      .gte('coins', cost)
+      .select('coins')
+      .maybeSingle()
+
+    if (upErr || !updated) {
+      return NextResponse.json({ success: false, error: 'Purchase failed.', reason: 'insufficient' }, { status: 402, headers: noCacheHeaders })
+    }
+
+    void broadcastPowerUpEffect(supabase, session.game_id!, {
+      type: 'powerup',
+      item,
+      actor_team_id: claims.team_id,
+      target_team_ids: [claims.team_id],
+      effect: 'coin_boost'
+    })
+
+    return NextResponse.json({
+      success: true,
+      item,
+      coins_remaining: updated.coins
+    }, { headers: noCacheHeaders })
   }
 
   const { data, error } = await supabase.rpc('qf_buy_powerup', {
