@@ -96,3 +96,28 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: false, error: err?.message || 'Failed to create team.' }, { status: 500, headers: noCacheHeaders })
   }
 }
+
+export async function DELETE(req: Request) {
+  const host = await getAuthenticatedHost(req)
+  if (!host) {
+    return NextResponse.json({ success: false, error: 'Unauthorized — admin session required.' }, { status: 401, headers: noCacheHeaders })
+  }
+
+  const supabase = getServerSupabase()
+  if (!supabase) {
+    return NextResponse.json({ success: false, error: 'Supabase is not configured.' }, { status: 503, headers: noCacheHeaders })
+  }
+
+  // Delete all dependent quiz_sessions first to avoid FK constraint violations
+  await supabase.from('quiz_sessions').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+
+  // Delete all teams from teams table
+  const { error } = await supabase.from('teams').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+
+  if (error) {
+    console.error('[Admin Teams] Purge all teams failed:', error.message)
+    return NextResponse.json({ success: false, error: error.message || 'Failed to delete all teams.' }, { status: 500, headers: noCacheHeaders })
+  }
+
+  return NextResponse.json({ success: true }, { headers: noCacheHeaders })
+}

@@ -525,6 +525,23 @@ export default function AdminDashboard() {
     loadTeams()
   }
 
+  const handlePurgeAllTeams = async () => {
+    if (teams.length === 0) {
+      showToast('ℹ️ No registered teams to delete.')
+      return
+    }
+    if (!confirm(`⚠️ Are you sure you want to DELETE ALL ${teams.length} registered teams?\n\nThis will permanently remove all team credentials and active game sessions!`)) return
+    setBusy('Purging all teams…')
+    const res = await adminFetch('/api/admin/teams', { method: 'DELETE' })
+    setBusy('')
+    if (res.ok) {
+      showToast('🗑️ All teams permanently deleted.')
+      loadTeams()
+    } else {
+      showToast(`❌ ${res.body?.error || 'Failed to delete all teams.'}`)
+    }
+  }
+
   const copyCreds = (username: string, password: string) => {
     navigator.clipboard.writeText(`Team: ${credentialCard?.teamName}\nUsername: ${username}\nPassword: ${password}`)
     showToast('📋 Credentials copied!')
@@ -1229,6 +1246,14 @@ export default function AdminDashboard() {
                   title="Unlock all teams so students can switch or re-login from new devices"
                 >
                   🔓 Release All ({teams.filter(t => t.device_id).length})
+                </button>
+                <button
+                  className="btn btn-sm"
+                  style={{ background: '#FFE4E7', color: 'var(--cherry)', border: '2px solid var(--cherry)', fontWeight: 800 }}
+                  onClick={handlePurgeAllTeams}
+                  title="Permanently remove all registered teams and their session data"
+                >
+                  🗑️ Purge All Teams
                 </button>
               </div>
             </div>

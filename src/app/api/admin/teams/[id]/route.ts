@@ -36,11 +36,18 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
     return NextResponse.json({ success: false, error: 'Supabase is not configured.' }, { status: 503, headers: noCacheHeaders })
   }
 
+  // 1. Delete dependent quiz_sessions rows first to satisfy foreign key constraint
+  const { error: sessionError } = await supabase.from('quiz_sessions').delete().eq('team_id', id)
+  if (sessionError) {
+    console.warn('[Admin Teams] Session delete before team delete warning:', sessionError.message)
+  }
+
+  // 2. Delete team from teams table
   const { error } = await supabase.from('teams').delete().eq('id', id)
 
   if (error) {
-    console.warn('[Admin Teams] Delete failed:', error.message)
-    return NextResponse.json({ success: false, error: 'Failed to delete team.' }, { status: 500, headers: noCacheHeaders })
+    console.error('[Admin Teams] Delete team failed:', error.message)
+    return NextResponse.json({ success: false, error: error.message || 'Failed to delete team.' }, { status: 500, headers: noCacheHeaders })
   }
 
   return NextResponse.json({ success: true }, { headers: noCacheHeaders })
