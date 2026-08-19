@@ -52,12 +52,11 @@ export async function POST(
     .select()
     .single()
 
-  if (error) {
-    if (error.code === 'PGRST116') {
-      return NextResponse.json({ success: false, error: 'Team not found.' }, { status: 404, headers: noCacheHeaders })
-    }
-    console.warn('[Admin Release] Failed:', error.message)
-    return NextResponse.json({ success: false, error: 'Failed to release team.' }, { status: 500, headers: noCacheHeaders })
+  // Also purge active quiz sessions for this team across any games
+  try {
+    await supabase.from('quiz_sessions').delete().eq('team_id', teamId)
+  } catch (sessErr) {
+    console.warn('[Admin Release] quiz_sessions purge notice:', sessErr)
   }
 
   return NextResponse.json({ success: true, team }, { headers: noCacheHeaders })

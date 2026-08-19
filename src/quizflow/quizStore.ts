@@ -4,6 +4,7 @@
    ================================================================ */
 
 import type { AIGeneratedQuiz } from './types'
+import { repairQuizQuestions } from './liveplay'
 
 export interface SavedQuizItem {
   id: string
@@ -170,7 +171,10 @@ export function getSavedQuizzes(): SavedQuizItem[] {
     if (raw !== null) {
       const parsed = JSON.parse(raw)
       if (Array.isArray(parsed)) {
-        return parsed
+        return parsed.map(item => ({
+          ...item,
+          quiz: repairQuizQuestions(item.quiz)
+        }))
       }
     }
     // Only initialize default presets on very first initialization (when key has never been set)
@@ -193,15 +197,16 @@ export function saveQuizDraft(quiz: AIGeneratedQuiz, isDraft = true, id?: string
   const quizzes = getSavedQuizzes()
   const quizId = id || 'quiz_' + Date.now()
   const existingIdx = quizzes.findIndex(q => q.id === quizId)
+  const repairedQuiz = repairQuizQuestions(quiz)
 
   const newItem: SavedQuizItem = {
     id: quizId,
-    title: quiz.title || 'Untitled Quiz',
-    description: quiz.description || 'AI Generated Quiz',
-    language: quiz.language || 'English',
-    bloomLevel: quiz.bloomLevel || 'Recall',
-    questionCount: quiz.questions?.length || 0,
-    quiz,
+    title: repairedQuiz.title || 'Untitled Quiz',
+    description: repairedQuiz.description || 'AI Generated Quiz',
+    language: repairedQuiz.language || 'English',
+    bloomLevel: repairedQuiz.bloomLevel || 'Recall',
+    questionCount: repairedQuiz.questions?.length || 0,
+    quiz: repairedQuiz,
     isDraft,
     createdAt: existingIdx >= 0 ? quizzes[existingIdx].createdAt : Date.now(),
     updatedAt: Date.now()

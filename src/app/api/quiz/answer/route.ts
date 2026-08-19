@@ -63,6 +63,20 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: false, error: 'Supabase is not configured.' }, { status: 503, headers: noCacheHeaders })
   }
 
+  // 0. Verify device binding: if team was released by admin or bound to another device, reject answer
+  const { data: teamRow } = await supabase
+    .from('teams')
+    .select('id, device_id')
+    .eq('id', claims.team_id)
+    .maybeSingle()
+
+  if (!teamRow || !teamRow.device_id || (claims.device_id && teamRow.device_id !== claims.device_id)) {
+    return NextResponse.json(
+      { success: false, error: 'Device binding has been released by the host. Please log in again.' },
+      { status: 401, headers: noCacheHeaders }
+    )
+  }
+
   // 1. Resolve active game ID directly from games table
   const { data: activeGames } = await supabase
     .from('games')
