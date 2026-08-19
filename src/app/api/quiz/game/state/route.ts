@@ -162,7 +162,7 @@ export async function GET(req: Request) {
       last_answered_question_index: session.last_answered_question_index ?? -1,
       frozen_until: session.frozen_until,
       bid_multiplier: session.bid_multiplier,
-      coin_multiplier: session.coin_multiplier || 1,
+      coin_multiplier: session.bid_multiplier || 1,
       frenzy_correct_count: session.frenzy_correct_count,
       violation_count: session.violation_count
     }

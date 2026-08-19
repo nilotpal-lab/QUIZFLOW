@@ -149,17 +149,17 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: false, error: 'No scoring result.' }, { status: 500, headers: noCacheHeaders })
   }
 
-  // Handle Coin Multiplier Power-Up Bonus
+  // Handle Multiplier Power-Up Bonus
   let finalCoinsEarned = row.coin_delta || 0
-  if (row.correct && session.coin_multiplier && session.coin_multiplier > 1) {
-    const bonusMultiplier = session.coin_multiplier
-    const extraCoins = finalCoinsEarned * (bonusMultiplier - 1)
+  const mult = (session as any).bid_multiplier || 1
+  if (row.correct && mult > 1) {
+    const extraCoins = finalCoinsEarned * (mult - 1)
     if (extraCoins > 0) {
       await supabase
         .from('quiz_sessions')
         .update({
           coins: (session.coins || 0) + finalCoinsEarned + extraCoins,
-          coin_multiplier: 1
+          bid_multiplier: 1
         })
         .eq('id', session.id)
       finalCoinsEarned += extraCoins

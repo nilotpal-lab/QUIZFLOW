@@ -71,6 +71,11 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: false, error: 'Unauthorized — no valid session.' }, { status: 401, headers: noCacheHeaders })
   }
 
+  const supabase = getServerSupabase()
+  if (!supabase) {
+    return NextResponse.json({ success: false, error: 'Supabase is not configured.' }, { status: 503, headers: noCacheHeaders })
+  }
+
   let body: { item?: unknown; target_team_id?: unknown }
   try {
     body = await req.json()
