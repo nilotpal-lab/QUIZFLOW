@@ -104,5 +104,16 @@ export async function POST(req: Request) {
     } catch { /* best effort */ }
   }
 
+  // Broadcast real-time advance to connected student devices for <50ms zero-latency transition
+  try {
+    const roomChannel = supabase.channel(`qf_room_${gameId}`)
+    await roomChannel.send({
+      type: 'broadcast',
+      event: 'game_advanced',
+      payload: { action, game_id: gameId, ts: Date.now() }
+    })
+    try { supabase.removeChannel(roomChannel) } catch { /* best effort */ }
+  } catch { /* best effort */ }
+
   return NextResponse.json({ success: true, game: data }, { headers: noCacheHeaders })
 }

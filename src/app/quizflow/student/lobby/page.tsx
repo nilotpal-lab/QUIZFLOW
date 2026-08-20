@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import QuizFlowLogo from '@/quizflow/QuizFlowLogo'
 import { requestFullscreen, exitFullscreen } from '@/quizflow/antiCheat'
+import { getSupabaseClient } from '@/quizflow/supabaseClient'
 
 interface GameStateResponse {
   success: boolean
@@ -84,6 +85,7 @@ export default function StudentLobby() {
   const [bossCountdown, setBossCountdown] = useState<number | null>(null)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [closedNotice, setClosedNotice] = useState(false)
+  const [strikes, setStrikes] = useState(0)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const wasInGameRef = useRef(false)
 
@@ -94,6 +96,32 @@ export default function StudentLobby() {
   const isPaused = Boolean(state?.game?.is_paused)
   const q = state?.game?.active_question || null
   const me = state?.me
+
+  /* ── Report Anti-Cheat Violation ──────────────────────────────── */
+  const reportViolation = useCallback(async (reason: string) => {
+    try {
+      setStrikes(s => s + 1)
+      await fetch('/api/quiz/violation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason })
+      })
+    } catch { /* best effort */ }
+  }, [])
+
+  /* ── Anti-Copy & DevTools Keyboard Blocker ───────────────────── */
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && ['c', 'u', 's', 'p', 'a'].includes(e.key.toLowerCase())) {
+        e.preventDefault()
+      }
+      if (e.key === 'F12') {
+        e.preventDefault()
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [])
 
   /* ── Fullscreen toggle ────────────────────────────────────────── */
   const toggleFullscreen = () => {
@@ -120,11 +148,24 @@ export default function StudentLobby() {
 
   useEffect(() => {
     const handleFsChange = () => {
-      setIsFullscreen(Boolean(document.fullscreenElement))
+      const inFs = Boolean(document.fullscreenElement)
+      setIsFullscreen(inFs)
+      if (!inFs && loadState === 'ready' && status !== 'ended' && status !== 'lobby') {
+        reportViolation('fullscreen_exited')
+      }
+    }
+    const handleVisibilityChange = () => {
+      if (document.hidden && loadState === 'ready' && status !== 'ended' && status !== 'lobby') {
+        reportViolation('tab_switched')
+      }
     }
     document.addEventListener('fullscreenchange', handleFsChange)
-    return () => document.removeEventListener('fullscreenchange', handleFsChange)
-  }, [])
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFsChange)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [loadState, status, reportViolation])
 
   // Auto-exit fullscreen when unmounting
   useEffect(() => {
@@ -203,9 +244,31 @@ export default function StudentLobby() {
     }
   }, [router])
 
+  /* ── Realtime Supabase Channel (<50ms zero-latency updates) ─── */
+  useEffect(() => {
+    const gameId = state?.game?.id
+    if (!gameId) return
+    const supabase = getSupabaseClient()
+    if (!supabase) return
+
+    const channel = supabase
+      .channel(`qf_room_${gameId}`)
+      .on('broadcast', { event: 'game_advanced' }, () => {
+        // Instant state refresh upon host advancement
+        poll()
+      })
+      .subscribe()
+
+    return () => {
+      try {
+        supabase.removeChannel(channel)
+      } catch {}
+    }
+  }, [state?.game?.id, poll])
+
   useEffect(() => {
     poll()
-    pollRef.current = setInterval(poll, 1000)
+    pollRef.current = setInterval(poll, 600)
     return () => {
       if (pollRef.current) clearInterval(pollRef.current)
     }
@@ -291,8 +354,10 @@ export default function StudentLobby() {
   }
 
   /* ── Submit answer (server-authoritative) ────────────────────── */
+  const isTimeUp = !isBoss && status === 'question_active' && ((q?.time_limit_ms ? elapsed >= q.time_limit_ms : elapsed >= 30000))
+
   const handleAnswer = async (optionIndex: number) => {
-    if (selected !== null || answeredIndex === q?.index || isPaused) return
+    if (selected !== null || answeredIndex === q?.index || isPaused || isTimeUp) return
     setSelected(optionIndex)
     try {
       const res = await fetch('/api/quiz/answer', {
@@ -320,29 +385,37 @@ export default function StudentLobby() {
 
   /* ═══ Shared shell ═══ */
   return (
-    <div className="min-h-screen w-full bg-[var(--paper)] selection:bg-[var(--sun)] flex flex-col text-[var(--ink)] overflow-x-hidden">
-      {/* 🚨 COMPULSORY FULLSCREEN LOCK OVERLAY (Active during live competition) */}
+    <div className="min-h-screen w-full bg-[var(--paper)] selection:bg-[var(--sun)] flex flex-col text-[var(--ink)] overflow-x-hidden select-none">
+      {/* 🚨 STRICT PROCTORING FULLSCREEN LOCK OVERLAY (Active during live competition) */}
       {!isFullscreen && loadState === 'ready' && status !== 'ended' && (
-        <div className="fixed inset-0 z-[999] bg-[#10100F]/90 backdrop-blur-md flex flex-col items-center justify-center p-4 text-center animate-scale-in">
-          <div className="max-w-[460px] w-full bg-[var(--paper)] border-[3.5px] border-[var(--ink)] rounded-[20px] p-6 sm:p-8 shadow-[8px_8px_0_#10100F] text-[var(--ink)]">
-            <div className="text-[52px] mb-2 animate-bounce">⛶</div>
-            <div className="inline-block bg-[var(--sun)] border-[2px] border-[var(--ink)] px-3 py-1 rounded-full font-display font-[900] text-[11px] uppercase tracking-widest mb-3">
-              ⚠️ FULLSCREEN COMPULSORY
+        <div className="fixed inset-0 z-[999] bg-[#10100F]/95 backdrop-blur-lg flex flex-col items-center justify-center p-4 text-center animate-scale-in">
+          <div className="max-w-[480px] w-full bg-[var(--paper)] border-[4px] border-[var(--cherry)] rounded-[24px] p-6 sm:p-8 shadow-[10px_10px_0_#10100F] text-[var(--ink)]">
+            <div className="text-[58px] mb-2 animate-bounce">🚨</div>
+            <div className="inline-block bg-[var(--cherry)] text-white border-[2px] border-[var(--ink)] px-4 py-1 rounded-full font-display font-[900] text-[12px] uppercase tracking-widest mb-3 shadow-[2px_2px_0px_#10100F]">
+              ⚠️ SECURITY &amp; ANTI-CHEAT ALERT
             </div>
-            <h2 className="font-display font-[900] text-[22px] sm:text-[24px] uppercase tracking-tight mb-2">
-              Fullscreen Mode Required
+            <h2 className="font-display font-[900] text-[22px] sm:text-[25px] uppercase tracking-tight mb-2 text-[var(--cherry)]">
+              {strikes > 0 ? `STRIKE #${strikes}: Fullscreen Breach` : 'Fullscreen Arena Compulsory'}
             </h2>
-            <p className="font-body text-[13.5px] font-semibold text-[#444] leading-relaxed mb-6">
-              To ensure fair play and prevent tab switching during the live competition, all competitors must stay in full-screen mode to view questions and submit answers.
+            <p className="font-body text-[13.5px] font-bold text-[#333] leading-relaxed mb-4">
+              {strikes > 0
+                ? 'A screen exit / tab switch was detected and logged with the exam proctor. To prevent search lookups, all competitors must stay locked in fullscreen.'
+                : 'To ensure fair play and prevent tab switching during the live competition, all competitors must stay in full-screen mode to view questions and submit answers.'}
             </p>
+            <div className="bg-red-50 border-[2px] border-[var(--cherry)] rounded-[12px] p-3 text-[12px] font-bold text-[var(--cherry)] mb-6 text-left flex items-start gap-2">
+              <span className="text-[16px]">⚠️</span>
+              <span>
+                <strong>PROCTOR WARNING:</strong> Exiting fullscreen, minimizing the browser, or switching windows is recorded live on the host dashboard.
+              </span>
+            </div>
             <button
               onClick={() => {
                 requestFullscreen()
                 setIsFullscreen(true)
               }}
-              className="w-full h-[52px] bg-[var(--mint)] hover:bg-[#00C853] text-[var(--ink)] border-[3px] border-[var(--ink)] font-display font-[900] text-[15px] uppercase tracking-wider rounded-[12px] shadow-[4px_4px_0_#10100F] btn-press transition cursor-pointer mb-3"
+              className="w-full h-[54px] bg-[var(--mint)] hover:bg-[#00C853] text-[var(--ink)] border-[3px] border-[var(--ink)] font-display font-[900] text-[15px] uppercase tracking-wider rounded-[14px] shadow-[5px_5px_0_#10100F] btn-press transition cursor-pointer mb-3"
             >
-              ⛶ Enter Fullscreen Arena Now
+              ⛶ RE-ENTER FULLSCREEN ARENA NOW
             </button>
             {status === 'lobby' && (
               <button
@@ -479,7 +552,20 @@ export default function StudentLobby() {
 
         {/* ═══ QUESTION (active / boss) ═══ */}
         {showQuestion && q && (
-          <div className="card anim-scale-in p-5 md:p-7 relative">
+          <div
+            className="card anim-scale-in p-5 md:p-7 relative select-none"
+            style={{
+              userSelect: 'none',
+              WebkitUserSelect: 'none',
+              MozUserSelect: 'none',
+              msUserSelect: 'none',
+              WebkitTouchCallout: 'none'
+            }}
+            onContextMenu={e => e.preventDefault()}
+            onCopy={e => e.preventDefault()}
+            onCut={e => e.preventDefault()}
+            onDragStart={e => e.preventDefault()}
+          >
             {/* Host Paused Banner */}
             {isPaused && (
               <div className="mb-4 p-3.5 bg-[var(--sun)] border-[3px] border-[var(--ink)] rounded-[12px] text-center shadow-[4px_4px_0px_#10100F] animate-pulse">
@@ -562,7 +648,7 @@ export default function StudentLobby() {
                 const isCorrect = revealCorrect && q.correct_index === ci
                 const isWrongPick = revealCorrect && selected === ci && !result?.correct && !isCorrect
                 const isSelected = selected === ci
-                const locked = answerLocked || result !== null || revealCorrect || selected !== null || isFrozen || isPaused
+                const locked = answerLocked || result !== null || revealCorrect || selected !== null || isFrozen || isPaused || isTimeUp
 
                 let stateClass = ''
                 if (revealCorrect) {
@@ -577,7 +663,7 @@ export default function StudentLobby() {
                     key={ci}
                     onClick={() => handleAnswer(ci)}
                     disabled={locked}
-                    className={`answer-btn ${color} ${stateClass} ${isSelected && locked ? 'is-locked' : ''} ${isPaused ? 'opacity-60 cursor-not-allowed' : ''}`}
+                    className={`answer-btn ${color} ${stateClass} ${isSelected && locked ? 'is-locked' : ''} ${isPaused || isTimeUp ? 'opacity-60 cursor-not-allowed' : ''}`}
                   >
                     <span className="answer-glyph">{String.fromCharCode(65 + ci)}</span>
                     <span className="flex-1">{choice}</span>
@@ -588,6 +674,14 @@ export default function StudentLobby() {
               })}
             </div>
 
+            {/* Time's up banner if student didn't submit in time */}
+            {isTimeUp && !answerLocked && result === null && (
+              <div className="mt-5 hard bg-amber-50 rounded-[12px] border-[3px] border-[var(--ink)] px-4 py-3 font-display font-[800] text-[14px] text-[var(--cherry)] shadow-[3px_3px_0px_#10100F] flex items-center gap-2">
+                <span className="text-[18px]">⏱️</span>
+                <span>Time is up! Submissions closed for this question. Waiting for host to reveal…</span>
+              </div>
+            )}
+
             {/* Answer result chip (server-confirmed only) */}
             {result && (
               <div className={`mt-5 hard rounded-[12px] border-[3px] border-[var(--ink)] px-4 py-3 font-display font-[800] text-[15px] shadow-[3px_3px_0px_#10100F] ${result.correct ? 'bg-[var(--mint)]' : 'bg-red-100 text-[var(--cherry)]'}`}>
@@ -595,15 +689,17 @@ export default function StudentLobby() {
                   ? `✅ Correct! +${result.points.toLocaleString()} pts · 🪙 +${result.coins} coins`
                   : result.reason === 'already_answered' || result.reason === 'rejected'
                     ? '⏳ Answer recorded — waiting for the host to reveal.'
-                    : result.reason === 'frozen'
-                      ? '🧊 Your team is frozen — wait a moment.'
-                      : result.reason === 'network_error'
-                        ? '⚠️ Could not submit. Try again.'
-                        : `❌ ${result.reason === 'ok' ? 'Wrong answer.' : `(${result.reason})`}`}
+                    : result.reason === 'time_expired'
+                      ? '⏱️ Time limit expired! 0 points awarded.'
+                      : result.reason === 'frozen'
+                        ? '🧊 Your team is frozen — wait a moment.'
+                        : result.reason === 'network_error'
+                          ? '⚠️ Could not submit. Try again.'
+                          : `❌ ${result.reason === 'ok' ? 'Wrong answer.' : `(${result.reason})`}`}
               </div>
             )}
 
-            {answerLocked && !result && (
+            {answerLocked && !result && !isTimeUp && (
               <div className="mt-5 hard bg-white rounded-[12px] border-[3px] border-[var(--ink)] px-4 py-3 font-display font-[800] text-[14px] shadow-[3px_3px_0px_#10100F]">
                 ⏳ Answer locked in — waiting for the host to reveal…
               </div>

@@ -14,7 +14,7 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
 // ── Lazy singleton — never runs at module parse time ──────────────
 let _supabase: SupabaseClient | null | false = false   // false = not yet resolved
 
-function getSupabaseClient(): SupabaseClient | null {
+export function getSupabaseClient(): SupabaseClient | null {
   // Already resolved — return cached result
   if (_supabase !== false) return _supabase
 

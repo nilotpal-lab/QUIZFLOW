@@ -125,7 +125,7 @@ export async function POST(req: Request) {
   // use current_question_index; the boss finale uses the frenzy slot.
   const { data: game, error: gameError } = await supabase
     .from('games')
-    .select('status, current_question_index, boss_question_index, config')
+    .select('status, current_question_index, boss_question_index, config, question_started_at, quiz')
     .eq('id', session.game_id)
     .maybeSingle()
 
@@ -144,6 +144,29 @@ export async function POST(req: Request) {
 
   if (typeof questionIndex !== 'number' || questionIndex < 0) {
     return NextResponse.json({ success: false, error: 'No active question.' }, { status: 409, headers: noCacheHeaders })
+  }
+
+  // Strict Server-Side 30s Time Limit Enforcement
+  if (game.status === 'question_active' && game.question_started_at) {
+    const startedMs = new Date(game.question_started_at).getTime()
+    const nowMs = Date.now()
+    const elapsedMs = Math.max(0, nowMs - startedMs)
+    
+    // Resolve question time limit (default 30,000 ms)
+    const questions = Array.isArray(game.quiz?.questions) ? game.quiz.questions : []
+    const qObj = questions[questionIndex]
+    const limitMs = (typeof qObj?.time_limit_ms === 'number' && qObj.time_limit_ms >= 5000)
+      ? qObj.time_limit_ms
+      : 30000
+
+    // Allow 1.5s grace period for in-flight latency, but reject anything submitted past the limit
+    if (elapsedMs > limitMs + 1500) {
+      return NextResponse.json({
+        success: false,
+        error: 'Time limit has expired for this question. Submissions closed.',
+        reason: 'time_expired'
+      }, { status: 409, headers: noCacheHeaders })
+    }
   }
 
   const { data, error } = await supabase.rpc('qf_apply_answer', {
