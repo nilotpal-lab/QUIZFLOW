@@ -493,18 +493,52 @@ export default function StudentLobby() {
               </div>
             )}
 
-            <div className="flex justify-between items-center mb-4 flex-wrap gap-2">
+            <div className="flex justify-between items-center mb-3 flex-wrap gap-2">
               <span className="badge badge-ink">Q{q.index + 1} of {state?.game?.question_count}</span>
               <span className="font-display font-[800] text-[12px] uppercase tracking-wider opacity-60">
                 {q.difficulty ? `🎚 ${q.difficulty.toUpperCase()}` : ''}
               </span>
             </div>
 
+            {/* ⏱️ 30s Live Question Countdown Timer */}
+            {status === 'question_active' && !isPaused && (
+              <div className="mb-4">
+                <div className="flex justify-between items-center mb-1.5 text-[12px] font-display font-black">
+                  <span className="flex items-center gap-1.5 text-[var(--ink)]">
+                    <span className="animate-spin text-[13px]">⏱️</span>
+                    <span>30s Question Timer</span>
+                  </span>
+                  <span className={`px-2 py-0.5 rounded-full border-[1.5px] border-[var(--ink)] font-black ${
+                    (q.time_limit_ms ? Math.max(0, Math.ceil((q.time_limit_ms - elapsed) / 1000)) : 30) <= 5
+                      ? 'bg-[var(--cherry)] text-white animate-pulse'
+                      : (q.time_limit_ms ? Math.max(0, Math.ceil((q.time_limit_ms - elapsed) / 1000)) : 30) <= 10
+                        ? 'bg-[var(--sun)] text-[var(--ink)]'
+                        : 'bg-white text-[var(--ink)]'
+                  }`}>
+                    {q.time_limit_ms ? Math.max(0, Math.ceil((q.time_limit_ms - elapsed) / 1000)) : 30}s
+                  </span>
+                </div>
+                <div className="w-full h-2.5 bg-gray-200 rounded-full border-[1.5px] border-[var(--ink)] overflow-hidden">
+                  <div
+                    className="h-full transition-all duration-300 ease-linear"
+                    style={{
+                      width: `${Math.min(100, Math.max(0, ((q.time_limit_ms || 30000) - elapsed) / (q.time_limit_ms || 30000) * 100))}%`,
+                      background: ((q.time_limit_ms || 30000) - elapsed) / (q.time_limit_ms || 30000) <= 0.25
+                        ? 'var(--cherry)'
+                        : ((q.time_limit_ms || 30000) - elapsed) / (q.time_limit_ms || 30000) <= 0.5
+                          ? 'var(--sun)'
+                          : 'var(--mint)'
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+
             {/* Active Multiplier or Freeze Banner */}
             {me && me.bid_multiplier > 1 && (
               <div className="mb-4 px-3 py-1.5 bg-[var(--sun)] border-[2.5px] border-[var(--ink)] rounded-[10px] font-display font-extrabold text-[12px] text-[var(--ink)] shadow-[2px_2px_0px_#10100F] inline-flex items-center gap-1.5">
                 <span>⚡</span>
-                <span>{me.bid_multiplier}× Points Multiplier Armed!</span>
+                <span>{me.bid_multiplier}× Points Multiplier Armed for this Question!</span>
               </div>
             )}
             {me && (me.coin_multiplier || 1) > 1 && (
@@ -560,7 +594,7 @@ export default function StudentLobby() {
                 {result.correct
                   ? `✅ Correct! +${result.points.toLocaleString()} pts · 🪙 +${result.coins} coins`
                   : result.reason === 'already_answered' || result.reason === 'rejected'
-                    ? '⏳ Already answered — waiting for the admin to reveal.'
+                    ? '⏳ Answer recorded — waiting for the host to reveal.'
                     : result.reason === 'frozen'
                       ? '🧊 Your team is frozen — wait a moment.'
                       : result.reason === 'network_error'
@@ -571,7 +605,7 @@ export default function StudentLobby() {
 
             {answerLocked && !result && (
               <div className="mt-5 hard bg-white rounded-[12px] border-[3px] border-[var(--ink)] px-4 py-3 font-display font-[800] text-[14px] shadow-[3px_3px_0px_#10100F]">
-                ⏳ Answer locked in — waiting for the admin to reveal…
+                ⏳ Answer locked in — waiting for the host to reveal…
               </div>
             )}
 
@@ -580,6 +614,30 @@ export default function StudentLobby() {
               <div className="card-sm mt-4" style={{ padding: '12px 16px' }}>
                 <div className="font-display font-[800] text-[11px] uppercase tracking-widest opacity-60 mb-1">💡 Explanation</div>
                 <div className="font-body text-[14px] font-semibold leading-relaxed">{q.explanation}</div>
+              </div>
+            )}
+
+            {/* 🛒 Shopping Break CTA (Buy Power-Ups for next question) */}
+            {revealCorrect && (
+              <div className="mt-4 p-3.5 bg-gradient-to-r from-[#FFF9E6] to-[#E8F8F5] border-[2.5px] border-[var(--ink)] rounded-[14px] shadow-[3px_3px_0px_#10100F] flex flex-wrap items-center justify-between gap-3 animate-scale-in">
+                <div className="flex items-center gap-2.5">
+                  <span className="text-[26px]">🛒</span>
+                  <div>
+                    <div className="font-display font-[900] text-[13px] uppercase tracking-wide text-[var(--ink)]">
+                      Power-Up Shopping Break!
+                    </div>
+                    <div className="text-[11.5px] font-semibold text-[#555]">
+                      Arm 4× Multipliers or Freezes now for the next question!
+                    </div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowShop(true)}
+                  className="px-4 py-2 bg-[var(--sun)] hover:bg-[#FFD600] text-[var(--ink)] border-[2px] border-[var(--ink)] rounded-[10px] font-display font-[900] text-[12px] uppercase tracking-wider shadow-[2px_2px_0px_#10100F] btn-press transition cursor-pointer"
+                >
+                  ⚡ Open Shop ({me?.coins || 0} 🪙)
+                </button>
               </div>
             )}
           </div>

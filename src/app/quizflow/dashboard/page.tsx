@@ -237,6 +237,8 @@ export default function AdminDashboard() {
   const [isProjectorMode, setIsProjectorMode] = useState(false)
   const [isFullscreenLeaderboard, setIsFullscreenLeaderboard] = useState(false)
   const [unhideHostKey, setUnhideHostKey] = useState(false)
+  const [autoTimer, setAutoTimer] = useState(false)
+  const [hostElapsedSec, setHostElapsedSec] = useState(0)
   const [showGameSetup, setShowGameSetup] = useState(false)
   const [printPassesModal, setPrintPassesModal] = useState(false)
   const [teamFilterStatus, setTeamFilterStatus] = useState<'all' | 'arena' | 'lobby' | 'offline'>('all')
@@ -367,6 +369,34 @@ export default function AdminDashboard() {
     const t = setInterval(tick, 1500)
     return () => { cancelled = true; clearInterval(t) }
   }, [activeTab, gameId])
+
+  /* Host 30s Countdown and Auto-Pacing Timer */
+  useEffect(() => {
+    if (!liveGame || liveGame.status !== 'question_active' || liveGame.is_paused || !liveGame.question_started_at) {
+      setHostElapsedSec(0)
+      return
+    }
+    const updateElapsed = () => {
+      const started = new Date(liveGame.question_started_at).getTime()
+      const sec = Math.max(0, Math.floor((Date.now() - started) / 1000))
+      setHostElapsedSec(sec)
+      if (autoTimer && sec >= 30) {
+        handleAdvance('reveal')
+      }
+    }
+    updateElapsed()
+    const timer = setInterval(updateElapsed, 500)
+    return () => clearInterval(timer)
+  }, [liveGame?.status, liveGame?.is_paused, liveGame?.question_started_at, autoTimer])
+
+  // In autoTimer mode: 5s shopping break in question_reveal, then auto-advance to next question
+  useEffect(() => {
+    if (!autoTimer || !liveGame || liveGame.status !== 'question_reveal') return
+    const timer = setTimeout(() => {
+      handleAdvance('next')
+    }, 5000)
+    return () => clearTimeout(timer)
+  }, [autoTimer, liveGame?.status, liveGame?.current_question_index])
 
   /* Host keyboard shortcuts ([Space] -> Next Action, [P] -> Pause/Resume, [N] -> Next Question, [M] -> Projector Mode, [F] -> Fullscreen Leaderboard) */
   useEffect(() => {
@@ -1943,6 +1973,20 @@ export default function AdminDashboard() {
                 {/* Host Quick Toolbar */}
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                   <button
+                    onClick={() => setAutoTimer(v => !v)}
+                    className="btn btn-sm"
+                    style={{
+                      background: autoTimer ? 'var(--mint)' : '#fff',
+                      color: 'var(--ink)',
+                      border: '2px solid var(--ink)',
+                      fontWeight: 800,
+                      boxShadow: autoTimer ? '2px 2px 0 var(--ink)' : 'none'
+                    }}
+                    title="Automatically time 30s per question and give 5s shopping breaks"
+                  >
+                    ⚡ Auto-Pacing: {autoTimer ? 'ON (30s + 5s Gap)' : 'OFF (Manual Spacebar)'}
+                  </button>
+                  <button
                     onClick={() => setIsProjectorMode(true)}
                     className="btn btn-sm btn-violet"
                     style={{ color: '#fff', border: '2px solid var(--ink)', fontWeight: 800, boxShadow: '2px 2px 0 var(--ink)' }}
@@ -2034,15 +2078,39 @@ export default function AdminDashboard() {
                       <span className="badge badge-ink" style={{ fontSize: 11 }}>
                         Question {liveGame.current_question_index + 1} of {liveGame.quiz.questions.length}
                       </span>
-                      <button
-                        type="button"
-                        onClick={() => setUnhideHostKey(v => !v)}
-                        className="btn btn-sm"
-                        style={{ background: unhideHostKey ? 'var(--sun)' : '#fff', border: '2px solid var(--ink)', fontSize: 11, fontWeight: 800, padding: '4px 10px' }}
-                      >
-                        {unhideHostKey ? '🙈 Hide Answer Key' : '👁️ Unhide Answer Key'}
-                      </button>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        {liveGame.status === 'question_active' && !liveGame.is_paused && (
+                          <span className={`badge ${30 - hostElapsedSec <= 5 ? 'badge-cherry animate-pulse' : 'badge-sun'}`} style={{ fontSize: 11 }}>
+                            ⏱️ {Math.max(0, 30 - hostElapsedSec)}s left
+                          </span>
+                        )}
+                        {liveGame.status === 'question_reveal' && (
+                          <span className="badge badge-mint animate-pulse" style={{ fontSize: 11 }}>
+                            🛒 5s Shopping Break
+                          </span>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => setUnhideHostKey(v => !v)}
+                          className="btn btn-sm"
+                          style={{ background: unhideHostKey ? 'var(--sun)' : '#fff', border: '2px solid var(--ink)', fontSize: 11, fontWeight: 800, padding: '4px 10px' }}
+                        >
+                          {unhideHostKey ? '🙈 Hide Answer Key' : '👁️ Unhide Answer Key'}
+                        </button>
+                      </div>
                     </div>
+
+                    {/* 30s Countdown Timer Bar */}
+                    {liveGame.status === 'question_active' && !liveGame.is_paused && (
+                      <div style={{ width: '100%', height: 6, background: '#E0E0E0', borderRadius: 3, border: '1px solid var(--ink)', overflow: 'hidden', marginBottom: 12 }}>
+                        <div style={{
+                          width: `${Math.min(100, Math.max(0, ((30 - hostElapsedSec) / 30) * 100))}%`,
+                          height: '100%',
+                          background: (30 - hostElapsedSec) <= 5 ? 'var(--cherry)' : (30 - hostElapsedSec) <= 10 ? 'var(--sun)' : 'var(--mint)',
+                          transition: 'width 0.5s linear'
+                        }} />
+                      </div>
+                    )}
 
                     <div style={{ fontFamily: 'Space Grotesk', fontWeight: 800, fontSize: 16, marginBottom: 10, color: 'var(--ink)' }}>
                       {liveGame.quiz.questions[liveGame.current_question_index].prompt}
