@@ -1,7 +1,9 @@
 /* ================================================================
    MULTIMODAL INGESTION SUITE
-   PDF, PPTX, TXT, MD, YouTube & Webpage Content Extractor
+   PDF, PPTX, TXT, MD, XLSX, CSV, YouTube & Webpage Content Extractor
    ================================================================ */
+
+import * as XLSX from 'xlsx'
 
 export interface IngestedContent {
   sourceType: 'topic' | 'file' | 'youtube' | 'webpage'
@@ -124,6 +126,16 @@ export async function parseUploadedFile(file: File): Promise<IngestedContent> {
     }
   }
 
+  if (ext === 'xlsx' || ext === 'xls') {
+    const text = await parseExcelFileToText(file)
+    return {
+      sourceType: 'file',
+      title: `📊 ${fileName}`,
+      text: text.slice(0, 15000),
+      wordCount: text.split(/\s+/).length
+    }
+  }
+
   if (ext === 'pptx' || ext === 'ppt') {
     const text = await parsePPTXFile(file)
     return {
@@ -144,15 +156,41 @@ export async function parseUploadedFile(file: File): Promise<IngestedContent> {
     }
   }
 
-  // Default fallback text reader
+  // Default fallback text reader (ensures no binary ZIP control characters)
   const rawText = await file.text()
-  const cleanedText = rawText.replace(/[\x00-\x09\x0B-\x1F\x7F-\x9F]/g, ' ').replace(/\s+/g, ' ').trim()
+  const cleanedText = rawText.replace(/[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F-\x9F]/g, ' ').replace(/\s+/g, ' ').trim()
   return {
     sourceType: 'file',
     title: `📄 ${fileName}`,
     text: (cleanedText || `Content extracted from uploaded file ${fileName}`).slice(0, 15000),
     wordCount: (cleanedText || '').split(/\s+/).length
   }
+}
+
+/**
+ * Robust XLSX / XLS Text Extractor via SheetJS
+ */
+async function parseExcelFileToText(file: File): Promise<string> {
+  try {
+    const buffer = await file.arrayBuffer()
+    const workbook = XLSX.read(buffer, { type: 'array' })
+    const lines: string[] = []
+    for (const sheetName of workbook.SheetNames) {
+      const sheet = workbook.Sheets[sheetName]
+      if (!sheet) continue
+      const rows: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' })
+      for (const row of rows) {
+        if (!Array.isArray(row)) continue
+        const rowText = row.map(c => String(c ?? '').trim()).filter(Boolean).join(' | ')
+        if (rowText) lines.push(rowText)
+      }
+    }
+    const result = lines.join('\n')
+    if (result.trim()) return result
+  } catch (err) {
+    console.warn('Excel parse error in ingestion:', err)
+  }
+  return `Spreadsheet Document: ${file.name}`
 }
 
 /**

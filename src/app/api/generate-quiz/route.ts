@@ -504,7 +504,20 @@ export async function POST(req: Request) {
   try {
     const { topic, sourceText, url, count = 5, gradeLevel = '8th grade', action, currentQuiz, targetLang = 'English', bloomLevel = 'Recall' } = await req.json()
 
-    const promptText = topic || sourceText || (url ? `Quiz from URL: ${url}` : 'General Science and Technology')
+    const sanitizeString = (str: string) => {
+      if (!str || typeof str !== 'string') return ''
+      return str
+        .replace(/[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F-\x9F\uFFFD]/g, ' ')
+        .replace(/PK[\x01-\x08].*/g, '')
+        .replace(/\s+/g, ' ')
+        .trim()
+    }
+
+    const cleanTopic = sanitizeString(topic)
+    const cleanSource = sanitizeString(sourceText)
+    const rawPrompt = cleanTopic || cleanSource || (url ? `Quiz from URL: ${url}` : 'General Science and Technology')
+    // Ensure prompt does not contain corrupted binary fragments
+    const promptText = (rawPrompt.length >= 2 && !rawPrompt.includes('')) ? rawPrompt.slice(0, 100) : 'General Science and Trivia'
     const questionCount = Math.max(1, Math.min(20, Number(count) || 5))
     const scriptHint = LANGUAGE_SCRIPT_MAP[targetLang] || targetLang
 
