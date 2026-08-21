@@ -2030,6 +2030,29 @@ export default function AdminDashboard() {
                         ⏭️ Next Question [N]
                       </button>
                     )}
+                    {liveGame.status !== 'lobby' && liveGame.status !== 'ended' && (
+                      <button
+                        onClick={() => {
+                          if (confirm('Are you sure you want to END THE QUIZ NOW and show the final championship podium & winners to all students?')) {
+                            handleAdvance('end')
+                          }
+                        }}
+                        className="btn btn-lg"
+                        style={{
+                          background: '#FFE4E7',
+                          color: 'var(--cherry)',
+                          border: '3px solid var(--cherry)',
+                          boxShadow: '4px 4px 0 var(--cherry)',
+                          fontWeight: 900,
+                          fontSize: 15,
+                          padding: '14px 20px',
+                          cursor: 'pointer'
+                        }}
+                        title="Immediately end the match and display final championship podium"
+                      >
+                        🛑 End Quiz &amp; Winners
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -2064,6 +2087,20 @@ export default function AdminDashboard() {
                   >
                     📥 Export Standings CSV
                   </button>
+                  {liveGame.status !== 'ended' && liveGame.status !== 'lobby' && (
+                    <button
+                      onClick={() => {
+                        if (confirm('End this quiz now and show final championship podium & winners?')) {
+                          handleAdvance('end')
+                        }
+                      }}
+                      className="btn btn-sm"
+                      style={{ background: '#FFE4E7', color: 'var(--cherry)', border: '2px solid var(--cherry)', fontWeight: 800 }}
+                      title="End match and display final winners"
+                    >
+                      🛑 End Quiz
+                    </button>
+                  )}
                   <button
                     onClick={handleClearGame}
                     className="btn btn-sm"
