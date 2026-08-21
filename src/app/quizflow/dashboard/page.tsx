@@ -776,7 +776,22 @@ export default function AdminDashboard() {
       body: JSON.stringify({ game_id: id, action })
     })
     setBusy('')
-    if (!res.ok) showToast(`❌ ${res.body?.error || 'Failed to advance.'}`)
+    if (res.ok) {
+      // Immediately refresh live game state without waiting for poll tick
+      const stateRes = await adminFetch(`/api/quiz/game?game_id=${encodeURIComponent(id)}`)
+      if (stateRes.ok && stateRes.body?.success) {
+        setLiveGame(stateRes.body.game || null)
+        setTeamsInGame(stateRes.body.active_sessions_count || 0)
+        setTotalRegisteredTeams(stateRes.body.total_registered_teams || 0)
+        setClaimedTeamsCount(stateRes.body.claimed_teams_count || 0)
+        setAnsweredCount(stateRes.body.answered_count || 0)
+        setWaitingTeams(stateRes.body.waiting_teams || [])
+        setOfflineTeams(stateRes.body.offline_teams || [])
+        setTeamsStatus(stateRes.body.teams_status || [])
+      }
+    } else {
+      showToast(`❌ ${res.body?.error || 'Failed to advance.'}`)
+    }
   }
 
   const handleClearGame = async () => {
