@@ -17,6 +17,7 @@ export interface LeaderboardRow {
   team_id: string
   name: string | null
   code: string | null
+  roster: string[] | null
   points: number
   coins: number
   streak: number
@@ -33,7 +34,7 @@ export async function fetchGameLeaderboard(
 ): Promise<{ error: { message: string } } | { leaderboard: LeaderboardRow[]; count: number }> {
   const { data: teams, error } = await supabase
     .from('quiz_sessions')
-    .select('team_id, points, coins, streak, max_streak, total_correct, total_answered, total_response_time_ms, frenzy_correct_count, violation_count, teams(name, code)')
+    .select('team_id, points, coins, streak, max_streak, total_correct, total_answered, total_response_time_ms, frenzy_correct_count, violation_count, teams(name, code, roster)')
     .eq('game_id', gameId)
     .order('points', { ascending: false })
     .order('max_streak', { ascending: false })
@@ -42,11 +43,18 @@ export async function fetchGameLeaderboard(
 
   if (error) return { error }
 
-  const ranked: LeaderboardRow[] = (teams || []).map((t: any, i: number) => ({
+  // Filter out phantom sessions (teams with zero activity from unclaimed teams)
+  const activeSessions = (teams || []).filter((t: any) => {
+    const hasActivity = (t.points > 0 || t.total_answered > 0 || t.coins > 0)
+    return hasActivity
+  })
+
+  const ranked: LeaderboardRow[] = activeSessions.map((t: any, i: number) => ({
     rank: i + 1,
     team_id: t.team_id,
     name: t.teams?.name || null,
     code: t.teams?.code || null,
+    roster: t.teams?.roster || null,
     points: t.points,
     coins: t.coins,
     streak: t.streak,

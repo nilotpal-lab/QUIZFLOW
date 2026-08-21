@@ -12,6 +12,10 @@ export type AntiCheatViolationReason =
   | 'copy_paste_attempt'
   | 'fullscreen_exit'
   | 'devtools_detected'
+  | 'viewport_too_small'
+  | 'orientation_change'
+  | 'iframe_detected'
+  | 'webview_detected'
 
 export interface AntiCheatViolationEvent {
   count: number
@@ -82,6 +86,9 @@ export class AntiCheatShield {
   private options: AntiCheatOptions
   private isListening: boolean = false
   private devtoolsInterval: ReturnType<typeof setInterval> | null = null
+  private iframeInterval: ReturnType<typeof setInterval> | null = null
+  private initialWidth: number = 0
+  private initialHeight: number = 0
 
   private handleVisibilityChange = () => {
     if (document.hidden) {
@@ -137,6 +144,48 @@ export class AntiCheatShield {
     }
   }
 
+  // ── Mobile split-screen / resize detection ──
+  private handleResize = () => {
+    if (!this.options.enabled) return
+    const now = Date.now()
+    // Debounce: don't fire more than once per 3 seconds
+    if (now - this.lastViolationTime < 3000) return
+    // Mobile split-screen typically halves viewport height or width
+    const minThreshold = 400
+    if (window.innerHeight < minThreshold || window.innerWidth < minThreshold) {
+      this.recordViolation('viewport_too_small')
+    }
+  }
+
+  // ── Orientation change detection ──
+  private handleOrientationChange = () => {
+    if (!this.options.enabled) return
+    const now = Date.now()
+    if (now - this.lastViolationTime < 3000) return
+    this.recordViolation('orientation_change')
+  }
+
+  // ── Iframe detection (periodic check) ──
+  private checkIframe = () => {
+    try {
+      if (window.self !== window.top) {
+        this.recordViolation('iframe_detected')
+      }
+    } catch {
+      // Cross-origin iframe detected
+      this.recordViolation('iframe_detected')
+    }
+  }
+
+  // ── WebView detection (check once) ──
+  private checkWebView = () => {
+    const ua = navigator.userAgent || ''
+    const isWebView = /Instagram|FBAN|FBAV|TikTok|Snapchat|Line|WeChat|MicroMessenger|Electron|Cordova|PhoneGap/i.test(ua)
+    if (isWebView) {
+      this.recordViolation('webview_detected')
+    }
+  }
+
   constructor(options: AntiCheatOptions = {}) {
     this.options = {
       blockCopyPaste: true,
@@ -183,6 +232,23 @@ export class AntiCheatShield {
       document.addEventListener('webkitfullscreenchange', this.handleFullscreenChange)
     }
 
+    // ── Mobile split-screen detection ──
+    window.addEventListener('resize', this.handleResize)
+    this.initialWidth = window.innerWidth
+    this.initialHeight = window.innerHeight
+
+    // ── Orientation change detection ──
+    if (screen.orientation) {
+      screen.orientation.addEventListener('change', this.handleOrientationChange)
+    }
+
+    // ── Iframe detection (every 3s) ──
+    this.checkIframe()
+    this.iframeInterval = setInterval(this.checkIframe, 3000)
+
+    // ── WebView detection (once on start) ──
+    this.checkWebView()
+
     // Devtools size heuristic: check every 2s
     this.devtoolsInterval = setInterval(() => {
       const threshold = 160
@@ -212,6 +278,16 @@ export class AntiCheatShield {
     document.removeEventListener('contextmenu', this.handleContextMenu)
     document.removeEventListener('fullscreenchange', this.handleFullscreenChange)
     document.removeEventListener('webkitfullscreenchange', this.handleFullscreenChange)
+
+    // Mobile split-screen detection cleanup
+    window.removeEventListener('resize', this.handleResize)
+    if (screen.orientation) {
+      screen.orientation.removeEventListener('change', this.handleOrientationChange)
+    }
+    if (this.iframeInterval) {
+      clearInterval(this.iframeInterval)
+      this.iframeInterval = null
+    }
 
     if (this.devtoolsInterval) {
       clearInterval(this.devtoolsInterval)

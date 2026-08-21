@@ -83,6 +83,16 @@ function StudentPlayScreen() {
   // Coin shop state
   const [showCoinShop, setShowCoinShop] = useState(false)
   const [shopTarget, setShopTarget]     = useState<string | null>(null)
+  const [showFreezeModal, setShowFreezeModal] = useState(false)
+  const [freezeModalCallback, setFreezeModalCallback] = useState<((targetId: string) => void) | null>(null)
+
+  // Reveal countdown timer (3-second break between questions)
+  const [revealTimeLeft, setRevealTimeLeft] = useState(3)
+  const revealStartRef = useRef<number | null>(null)
+
+  // Server clock sync: offset = server_time - client_time
+  const [clockOffset, setClockOffset] = useState(0)
+  const clockOffsetSamples = useRef<number[]>([])
 
   // Boss frenzy timer
   const [frenzyTimeLeft, setFrenzyTimeLeft] = useState(60)
@@ -144,6 +154,43 @@ function StudentPlayScreen() {
     }
   }, [])
 
+  // ── Server clock sync: compute offset for accurate timers across devices ──
+  useEffect(() => {
+    if (!pin) return
+    let cancelled = false
+    const syncClock = async () => {
+      try {
+        const clientBefore = Date.now()
+        const res = await fetch(`/api/quiz/game/state?_t=${Date.now()}`, {
+          cache: 'no-store',
+          headers: { 'Cache-Control': 'no-cache' }
+        })
+        if (!res.ok) return
+        const data = await res.json()
+        const clientAfter = Date.now()
+        if (!data?.server_time || cancelled) return
+        const serverTime = new Date(data.server_time).getTime()
+        const roundTrip = clientAfter - clientBefore
+        const estimatedServerNow = serverTime + roundTrip / 2
+        const offset = estimatedServerNow - clientAfter
+        // Add sample and keep last 5
+        clockOffsetSamples.current.push(offset)
+        if (clockOffsetSamples.current.length > 5) clockOffsetSamples.current.shift()
+        // Use median for stability
+        const sorted = [...clockOffsetSamples.current].sort((a, b) => a - b)
+        const median = sorted[Math.floor(sorted.length / 2)]
+        // Reject wild jumps (> 5s)
+        if (Math.abs(median) < 5000) {
+          setClockOffset(median)
+        }
+      } catch {}
+    }
+    // Sync immediately and every 10 seconds
+    syncClock()
+    const t = setInterval(syncClock, 10000)
+    return () => { cancelled = true; clearInterval(t) }
+  }, [pin])
+
   // Subscribe to session
   useEffect(() => {
     const unsub = subscribeToSession(pin, (state) => {
@@ -160,7 +207,7 @@ function StudentPlayScreen() {
           if (remote) setGameState(remote)
         })
         if (gameState?.status === 'question_active' && gameState.questionEndsAt) {
-          const remaining = Math.max(0, gameState.questionEndsAt - Date.now())
+          const remaining = Math.max(0, gameState.questionEndsAt - (Date.now() + clockOffset))
           setTimeMs(remaining)
         }
       }
@@ -310,9 +357,10 @@ function StudentPlayScreen() {
     const currentQ = gameState.quiz.questions[gameState.currentQuestionIndex]
     const totalDuration = currentQ?.time_limit_ms ?? 20000
 
-    let lastSec = Math.ceil((gameState.questionEndsAt - Date.now()) / 1000)
+    let lastSec = Math.ceil((gameState.questionEndsAt - (Date.now() + clockOffset)) / 1000)
     const tick = () => {
-      const remaining = gameState.questionEndsAt - Date.now()
+      const adjustedNow = Date.now() + clockOffset
+      const remaining = gameState.questionEndsAt - adjustedNow
       const currentSec = Math.ceil(remaining / 1000)
       setTimeMs(Math.max(0, remaining))
       if (currentSec !== lastSec && currentSec > 0) {
@@ -352,6 +400,27 @@ function StudentPlayScreen() {
   useEffect(() => {
     setFrenzyAnswered(false)
   }, [gameState?.bossFrenzy?.currentFrenzyIndex])
+
+  // ── Reveal countdown timer (3-second break between questions) ──
+  useEffect(() => {
+    if (gameState?.status !== 'question_reveal') {
+      revealStartRef.current = null
+      setRevealTimeLeft(3)
+      return
+    }
+    // Record when reveal phase started
+    if (revealStartRef.current === null) {
+      revealStartRef.current = Date.now()
+    }
+    const tick = () => {
+      const elapsed = Math.floor((Date.now() - (revealStartRef.current || Date.now())) / 1000)
+      const remaining = Math.max(0, 3 - elapsed)
+      setRevealTimeLeft(remaining)
+    }
+    tick()
+    const t = setInterval(tick, 200)
+    return () => { clearInterval(t) }
+  }, [gameState?.status])
 
   // ── ELIMINATED STATE ──
   const isEliminated = gameState?.eliminatedPlayers?.includes(playerId)
@@ -892,32 +961,22 @@ function StudentPlayScreen() {
                             <span>🪙</span>
                             <span>{item.cost}</span>
                           </div>
-                          {item.requiresTarget && canAfford && (
-                            <select
-                              style={{
-                                fontSize: 11, border: '1.5px solid var(--ink)', borderRadius: 6,
-                                padding: '3px 6px', maxWidth: 96, fontFamily: 'Space Grotesk', fontWeight: 700,
-                                background: '#fff', color: 'var(--ink)'
-                              }}
-                              onChange={e => setShopTarget(e.target.value)}
-                              defaultValue=""
-                            >
-                              <option value="" disabled>Pick Target</option>
-                              {Object.values(gameState?.players || {})
-                                .filter(p => p.id !== playerId)
-                                .map(p => <option key={p.id} value={p.id}>{p.nickname}</option>)
-                              }
-                            </select>
-                          )}
                           <button
                             disabled={!canAfford || !!isItemActive}
                             onClick={() => {
-                              const target = item.requiresTarget ? shopTarget ?? undefined : undefined
-                              if (item.requiresTarget && !target) {
-                                alert('Please select a player to freeze first!')
+                              if (item.requiresTarget) {
+                                // Open modal picker for freeze target
+                                setShowFreezeModal(true)
+                                setFreezeModalCallback(() => (targetId: string) => {
+                                  const ok = buyPowerUp(pin, playerId, item.type as CoinPowerUpType, targetId)
+                                  if (ok) {
+                                    playPowerUpSound('double')
+                                    setShowCoinShop(false)
+                                  }
+                                })
                                 return
                               }
-                              const ok = buyPowerUp(pin, playerId, item.type as CoinPowerUpType, target)
+                              const ok = buyPowerUp(pin, playerId, item.type as CoinPowerUpType, undefined)
                               if (ok) {
                                 playPowerUpSound('double')
                                 setShowCoinShop(false)
@@ -942,6 +1001,91 @@ function StudentPlayScreen() {
                 </div>
               </>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* FREEZE TARGET MODAL — pick which player to freeze */}
+      {showFreezeModal && (
+        <div
+          style={{
+            position: 'fixed', inset: 0, zIndex: 130,
+            background: 'rgba(16, 16, 15, 0.75)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            backdropFilter: 'blur(6px)'
+          }}
+          onClick={() => { setShowFreezeModal(false); setFreezeModalCallback(null) }}
+        >
+          <div
+            className="anim-scale-in"
+            style={{
+              width: '100%', maxWidth: 420, background: 'var(--paper)',
+              borderRadius: 20, padding: '24px 20px',
+              border: '3px solid var(--ink)',
+              boxShadow: '6px 6px 0 var(--ink)',
+              maxHeight: '80vh', overflowY: 'auto'
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div style={{ textAlign: 'center', marginBottom: 16 }}>
+              <div style={{ fontSize: 36, marginBottom: 4 }}>❄️</div>
+              <div style={{ fontFamily: 'Space Grotesk', fontSize: 20, fontWeight: 900, color: 'var(--ink)' }}>
+                CHOOSE WHO TO FREEZE
+              </div>
+              <div style={{ fontFamily: 'Inter', fontSize: 12, color: '#888', marginTop: 4 }}>
+                Tap a player to freeze them for 6 seconds
+              </div>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {Object.values(gameState?.players || {})
+                .filter(p => p.id !== playerId)
+                .sort((a, b) => b.score - a.score)
+                .map(p => (
+                  <button
+                    key={p.id}
+                    onClick={() => {
+                      if (freezeModalCallback) {
+                        freezeModalCallback(p.id)
+                      }
+                      setShowFreezeModal(false)
+                      setFreezeModalCallback(null)
+                    }}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 12,
+                      padding: '12px 14px',
+                      background: '#E0F5FF',
+                      border: '2px solid var(--ink)', borderRadius: 12,
+                      cursor: 'pointer', textAlign: 'left',
+                      boxShadow: '3px 3px 0 var(--ink)',
+                      transition: 'transform 0.1s'
+                    }}
+                  >
+                    <div className="avatar-ring" style={{ width: 40, height: 40, flexShrink: 0 }}>
+                      <img src={buildAvatarUrl(p.avatarSeed, p.avatarStyle as any, 40)} alt="" width={40} height={40} />
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontFamily: 'Space Grotesk', fontSize: 14, fontWeight: 800, color: 'var(--ink)' }}>
+                        {p.nickname}
+                      </div>
+                      <div style={{ fontFamily: 'Inter', fontSize: 11, color: '#666' }}>
+                        Rank #{Object.values(gameState?.players || {}).sort((a, b) => b.score - a.score).findIndex(x => x.id === p.id) + 1} · {p.score.toLocaleString()} pts
+                      </div>
+                    </div>
+                    <div style={{ fontFamily: 'Space Grotesk', fontSize: 20 }}>🧊</div>
+                  </button>
+                ))}
+            </div>
+            <button
+              onClick={() => { setShowFreezeModal(false); setFreezeModalCallback(null) }}
+              style={{
+                width: '100%', marginTop: 14, padding: '10px 16px',
+                background: 'var(--paper-2)', border: '2px solid var(--ink)',
+                borderRadius: 'var(--radius-btn)', fontFamily: 'Space Grotesk',
+                fontWeight: 800, fontSize: 13, color: 'var(--ink)', cursor: 'pointer'
+              }}
+            >
+              Cancel
+            </button>
           </div>
         </div>
       )}
@@ -990,6 +1134,14 @@ function StudentPlayScreen() {
             <p style={{ fontFamily: 'Inter', fontSize: 14, color: 'var(--ink)', opacity: 0.8, marginBottom: 16, lineHeight: 1.45 }}>
               {lastReason === 'copy_paste_attempt'
                 ? 'Copying and pasting is disabled during live quiz sessions to maintain academic integrity.'
+                : lastReason === 'viewport_too_small'
+                ? 'Split-screen or resized window detected! Please use full-screen mode on a single screen.'
+                : lastReason === 'orientation_change'
+                ? 'Screen rotation detected during an active question! Please keep your device steady.'
+                : lastReason === 'iframe_detected'
+                ? 'Embedding detected! This quiz cannot be played inside another website or app.'
+                : lastReason === 'webview_detected'
+                ? 'In-app browser detected! Please open this quiz in your main browser (Chrome/Safari).' 
                 : 'Tab switch or window focus loss detected! Please keep your screen active and stay focused on the quiz.'}
             </p>
             <div style={{
@@ -1201,6 +1353,31 @@ function StudentPlayScreen() {
           }} />
         </div>
       </div>
+
+      {/* Reveal Break Countdown — shown during 3s answer reveal phase */}
+      {isRevealed && gameState.status === 'question_reveal' && (
+        <div style={{
+          padding: '10px 20px',
+          background: 'linear-gradient(135deg, var(--sky) 0%, var(--violet) 100%)',
+          borderBottom: '2px solid var(--ink)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10
+        }}>
+          <div style={{ fontSize: 22 }}>💡</div>
+          <div style={{ fontFamily: 'Space Grotesk', fontSize: 15, fontWeight: 900, color: '#fff' }}>
+            Next question in {revealTimeLeft}s…
+          </div>
+          <div style={{
+            flex: 1, maxWidth: 200, height: 6, background: 'rgba(255,255,255,0.3)',
+            borderRadius: 999, overflow: 'hidden'
+          }}>
+            <div style={{
+              height: '100%', background: '#fff', borderRadius: 999,
+              width: `${(revealTimeLeft / 3) * 100}%`,
+              transition: 'width 0.2s linear'
+            }} />
+          </div>
+        </div>
+      )}
 
       <div className="play-content-area" style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 14 }}>
         {/* Question Card with Mobile Anti-Selection Shield & Hero Typography */}

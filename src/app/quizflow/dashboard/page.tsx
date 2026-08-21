@@ -238,11 +238,12 @@ export default function AdminDashboard() {
   const [isFullscreenLeaderboard, setIsFullscreenLeaderboard] = useState(false)
   const [unhideHostKey, setUnhideHostKey] = useState(false)
   const [showGameSetup, setShowGameSetup] = useState(false)
-  const [autoTimer, setAutoTimer] = useState(false)
   const [hostElapsedSec, setHostElapsedSec] = useState(0)
-  const [revealCountdown, setRevealCountdown] = useState(5)
+  const [revealCountdown, setRevealCountdown] = useState(3)
   const autoActionFiredRef = useRef<string>('')
   const revealStartedAtRef = useRef<number | null>(null)
+  const [clockOffset, setClockOffset] = useState(0)
+  const clockOffsetSamples = useRef<number[]>([])
   const [printPassesModal, setPrintPassesModal] = useState(false)
   const [teamFilterStatus, setTeamFilterStatus] = useState<'all' | 'arena' | 'lobby' | 'offline'>('all')
   const [busy, setBusy] = useState('')
@@ -331,7 +332,39 @@ export default function AdminDashboard() {
     }
   }, [activeTab, loadTeams, loadEventConfig])
 
-  /* Live leaderboard poll */
+  /* ── Server clock sync for accurate host timer ── */
+  useEffect(() => {
+    let cancelled = false
+    const syncClock = async () => {
+      try {
+        const clientBefore = Date.now()
+        const res = await fetch(`/api/quiz/game?game_id=${encodeURIComponent(gameId.trim().toUpperCase())}&_t=${Date.now()}`, {
+          cache: 'no-store',
+          headers: { 'Cache-Control': 'no-cache' }
+        })
+        if (!res.ok) return
+        const data = await res.json()
+        const clientAfter = Date.now()
+        // Use server_time from game state if available, otherwise use current time
+        const serverTime = data?.game?.created_at ? new Date(data.game.created_at).getTime() : clientAfter
+        const roundTrip = clientAfter - clientBefore
+        const estimatedServerNow = serverTime + roundTrip / 2
+        const offset = estimatedServerNow - clientAfter
+        clockOffsetSamples.current.push(offset)
+        if (clockOffsetSamples.current.length > 5) clockOffsetSamples.current.shift()
+        const sorted = [...clockOffsetSamples.current].sort((a, b) => a - b)
+        const median = sorted[Math.floor(sorted.length / 2)]
+        if (Math.abs(median) < 5000 && !cancelled) {
+          setClockOffset(median)
+        }
+      } catch {}
+    }
+    syncClock()
+    const t = setInterval(syncClock, 10000)
+    return () => { cancelled = true; clearInterval(t) }
+  }, [gameId])
+
+  /* Live leaderboard poll + Supabase Realtime push */
   useEffect(() => {
     if (activeTab !== 'leaderboard') return
     const id = lbGameId.trim().toUpperCase()
@@ -345,11 +378,39 @@ export default function AdminDashboard() {
       }
     }
     tick()
-    const t = setInterval(tick, 2000)
-    return () => { cancelled = true; clearInterval(t) }
+    // Reduced poll interval: Realtime handles fast path, poll is fallback
+    const t = setInterval(tick, 3000)
+
+    // Subscribe to Supabase Realtime for instant push updates
+    let sbSub: any = null
+    try {
+      const sb = getSupabase()
+      if (sb) {
+        const channel = sb.channel(`qf_room_${id}`, {
+          config: { broadcast: { self: false } }
+        })
+        sbSub = channel
+        channel
+          .on('broadcast', { event: 'state_sync' }, () => {
+            if (!cancelled) tick()
+          })
+          .on('broadcast', { event: 'game_advanced' }, () => {
+            if (!cancelled) tick()
+          })
+          .subscribe()
+      }
+    } catch { /* graceful fallback to poll only */ }
+
+    return () => {
+      cancelled = true
+      clearInterval(t)
+      if (sbSub && getSupabase()) {
+        try { getSupabase()!.removeChannel(sbSub) } catch {}
+      }
+    }
   }, [activeTab, lbGameId])
 
-  /* Active game poll (via authenticated admin API) */
+  /* Active game poll (via authenticated admin API) + Supabase Realtime push */
   useEffect(() => {
     if (activeTab !== 'game' && activeTab !== 'teams') return
     const id = gameId.trim().toUpperCase()
@@ -369,11 +430,42 @@ export default function AdminDashboard() {
       }
     }
     tick()
-    const t = setInterval(tick, 1500)
-    return () => { cancelled = true; clearInterval(t) }
+    // Reduced poll interval: Realtime handles fast path, poll is fallback
+    const t = setInterval(tick, 2000)
+
+    // Subscribe to Supabase Realtime for instant push updates
+    let sbSub: any = null
+    try {
+      const sb = getSupabase()
+      if (sb) {
+        const channel = sb.channel(`qf_room_${id}`, {
+          config: { broadcast: { self: false } }
+        })
+        sbSub = channel
+        channel
+          .on('broadcast', { event: 'state_sync' }, () => {
+            if (!cancelled) tick()
+          })
+          .on('broadcast', { event: 'game_advanced' }, () => {
+            if (!cancelled) tick()
+          })
+          .on('broadcast', { event: 'powerup_effect' }, () => {
+            if (!cancelled) tick()
+          })
+          .subscribe()
+      }
+    } catch { /* graceful fallback to poll only */ }
+
+    return () => {
+      cancelled = true
+      clearInterval(t)
+      if (sbSub && getSupabase()) {
+        try { getSupabase()!.removeChannel(sbSub) } catch {}
+      }
+    }
   }, [activeTab, gameId])
 
-  /* Host 30s Countdown and Reliable Auto-Pacing Engine */
+  /* Host 30s Countdown + 3s Break — Always-On Auto-Pacing Engine */
   useEffect(() => {
     if (!liveGame || liveGame.is_paused) return
 
@@ -382,11 +474,11 @@ export default function AdminDashboard() {
       revealStartedAtRef.current = null
       const tickActive = () => {
         const started = new Date(liveGame.question_started_at).getTime()
-        const sec = Math.max(0, Math.floor((Date.now() - started) / 1000))
+        const sec = Math.max(0, Math.floor(((Date.now() + clockOffset) - started) / 1000))
         setHostElapsedSec(sec)
         
-        // Auto-advance to reveal after 30s
-        if (autoTimer && sec >= 30) {
+        // Auto-advance to reveal after 30s (ALWAYS — no toggle needed)
+        if (sec >= 30) {
           const actionKey = `reveal_${liveGame.current_question_index}`
           if (autoActionFiredRef.current !== actionKey) {
             autoActionFiredRef.current = actionKey
@@ -399,7 +491,7 @@ export default function AdminDashboard() {
       return () => clearInterval(t)
     }
 
-    // 2. Question Reveal Phase (3s Power-Up Shopping Break)
+    // 2. Question Reveal Phase (3s Break — answer reveal + countdown)
     if (liveGame.status === 'question_reveal') {
       if (revealStartedAtRef.current === null) {
         revealStartedAtRef.current = Date.now()
@@ -409,8 +501,8 @@ export default function AdminDashboard() {
         const remaining = Math.max(0, 3 - elapsedSinceReveal)
         setRevealCountdown(remaining)
 
-        // Auto-advance to next question after 3s
-        if (autoTimer && remaining <= 0) {
+        // Auto-advance to next question after 3s (ALWAYS — no toggle needed)
+        if (remaining <= 0) {
           const actionKey = `next_${liveGame.current_question_index}`
           if (autoActionFiredRef.current !== actionKey) {
             autoActionFiredRef.current = actionKey
@@ -427,7 +519,7 @@ export default function AdminDashboard() {
     // Other statuses
     setHostElapsedSec(0)
     revealStartedAtRef.current = null
-  }, [liveGame?.status, liveGame?.is_paused, liveGame?.question_started_at, liveGame?.current_question_index, autoTimer])
+  }, [liveGame?.status, liveGame?.is_paused, liveGame?.question_started_at, liveGame?.current_question_index, clockOffset])
 
   /* Host keyboard shortcuts ([Space] -> Next Action, [P] -> Pause/Resume, [N] -> Next Question, [M] -> Projector Mode, [F] -> Fullscreen Leaderboard) */
   useEffect(() => {
@@ -2018,20 +2110,20 @@ export default function AdminDashboard() {
 
                 {/* Host Quick Toolbar */}
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                  <button
-                    onClick={() => setAutoTimer(v => !v)}
+                  <div
                     className="btn btn-sm"
                     style={{
-                      background: autoTimer ? 'var(--mint)' : '#fff',
+                      background: 'var(--mint)',
                       color: 'var(--ink)',
                       border: '2px solid var(--ink)',
                       fontWeight: 800,
-                      boxShadow: autoTimer ? '2px 2px 0 var(--ink)' : 'none'
+                      boxShadow: '2px 2px 0 var(--ink)',
+                      cursor: 'default'
                     }}
-                    title="Automatically time 30s per question and give 5s shopping breaks"
+                    title="Questions auto-advance: 30s question + 3s reveal break"
                   >
-                    ⚡ Auto-Pacing: {autoTimer ? 'ON (30s + 5s Gap)' : 'OFF (Manual Spacebar)'}
-                  </button>
+                    ⚡ Auto-Pacing: ON (30s + 3s)
+                  </div>
                   <button
                     onClick={() => setIsProjectorMode(true)}
                     className="btn btn-sm btn-violet"
@@ -2193,7 +2285,7 @@ export default function AdminDashboard() {
                         )}
                         {liveGame.status === 'question_reveal' && (
                           <span className="badge badge-mint animate-pulse" style={{ fontSize: 11 }}>
-                            🛒 Shopping Break {autoTimer ? `(${revealCountdown}s auto-next)` : '(3s)'}
+                            🛒 Shopping Break ({revealCountdown}s auto-next)
                           </span>
                         )}
                         <button
