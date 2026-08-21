@@ -235,3 +235,11 @@ export function deleteSavedQuiz(id: string): boolean {
   }
   return true
 }
+
+export function purgeAllSavedQuizzes(): boolean {
+  if (typeof window !== 'undefined') {
+    const key = getStorageKey()
+    localStorage.setItem(key, JSON.stringify([]))
+  }
+  return true
+}

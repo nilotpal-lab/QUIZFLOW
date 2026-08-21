@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { getHostUser, logoutHostAsync, updateHostProfile, initAuthSync, type HostUser } from '@/quizflow/authStore'
-import { getSavedQuizzes, deleteSavedQuiz, saveQuizDraft, type SavedQuizItem } from '@/quizflow/quizStore'
+import { getSavedQuizzes, deleteSavedQuiz, purgeAllSavedQuizzes, saveQuizDraft, type SavedQuizItem } from '@/quizflow/quizStore'
 import { getSessionHistory, type SessionHistoryRecord } from '@/quizflow/historyStore'
 import { createSession } from '@/quizflow/sessionStore'
 import { publishQuizToCommunity } from '@/quizflow/communityStore'
@@ -997,6 +997,22 @@ export default function AdminDashboard() {
                     }}
                   />
                 </label>
+                {allQuizzes.length > 0 && (
+                  <button
+                    onClick={() => {
+                      if (confirm(`Are you sure you want to DELETE ALL ${allQuizzes.length} saved quizzes from this dashboard?`)) {
+                        purgeAllSavedQuizzes()
+                        setAllQuizzes([])
+                        showToast('🗑️ All saved quizzes deleted.')
+                      }
+                    }}
+                    className="btn btn-md"
+                    style={{ background: '#FFE4E7', color: 'var(--cherry)', border: '2px solid var(--cherry)', fontWeight: 800 }}
+                    title="Delete all saved quizzes"
+                  >
+                    🗑️ Purge All Quizzes
+                  </button>
+                )}
                 <Link href="/quizflow/practice"><button className="btn btn-violet btn-md">🌐 Community</button></Link>
                 <Link href="/quizflow/studio"><button className="btn btn-sun btn-md">✨ AI Studio →</button></Link>
               </div>

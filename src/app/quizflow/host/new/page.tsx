@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { createSession } from '@/quizflow/sessionStore'
-import { getSavedQuizzes, type SavedQuizItem } from '@/quizflow/quizStore'
+import { getSavedQuizzes, deleteSavedQuiz, purgeAllSavedQuizzes, type SavedQuizItem } from '@/quizflow/quizStore'
 import type { AIGeneratedQuiz } from '@/quizflow/types'
 import { useRouter } from 'next/navigation'
 import QuizFlowLogo from '@/quizflow/QuizFlowLogo'
@@ -174,13 +174,29 @@ export default function HostNewPage() {
         {/* SECTION 1: YOUR SAVED & CREATED QUIZZES */}
         {savedQuizzes.length > 0 && (
           <div style={{ marginBottom: 36 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, flexWrap: 'wrap', gap: 8 }}>
               <h2 style={{ fontFamily: 'Space Grotesk', fontSize: 20, fontWeight: 800, color: 'var(--ink)' }}>
                 📂 Your Saved Quizzes ({savedQuizzes.length})
               </h2>
-              <Link href="/quizflow/studio">
-                <button className="btn btn-sm btn-violet" style={{ fontSize: 12 }}>✨ + Create in Studio</button>
-              </Link>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <button
+                  onClick={() => {
+                    if (confirm(`Are you sure you want to DELETE ALL ${savedQuizzes.length} saved quizzes from this device?`)) {
+                      purgeAllSavedQuizzes()
+                      setSavedQuizzes([])
+                      setSelectedQuiz(null)
+                    }
+                  }}
+                  className="btn btn-sm"
+                  style={{ background: '#FFE4E7', color: 'var(--cherry)', border: '1.5px solid var(--cherry)', fontSize: 12, fontWeight: 800 }}
+                  title="Clear all saved quizzes"
+                >
+                  🗑️ Purge All Quizzes
+                </button>
+                <Link href="/quizflow/studio">
+                  <button className="btn btn-sm btn-violet" style={{ fontSize: 12 }}>✨ + Create in Studio</button>
+                </Link>
+              </div>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
@@ -222,21 +238,43 @@ export default function HostNewPage() {
                       </div>
                     </div>
 
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1.5px solid var(--ink)', paddingTop: 12 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1.5px solid var(--ink)', paddingTop: 12, gap: 6 }}>
                       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                         <span className="badge badge-ink" style={{ fontSize: 10 }}>{item.language || 'English'}</span>
                         <span className="badge badge-sky" style={{ fontSize: 10 }}>{item.bloomLevel || 'Recall'}</span>
                       </div>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          launchQuiz(item.quiz)
-                        }}
-                        className="btn btn-sm btn-primary"
-                        style={{ padding: '4px 12px', fontSize: 12 }}
-                      >
-                        🚀 Host Now
-                      </button>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            if (confirm(`Delete quiz "${item.title}"?`)) {
+                              deleteSavedQuiz(item.id)
+                              const remaining = getSavedQuizzes()
+                              setSavedQuizzes(remaining)
+                              if (selectedKey === `saved_${item.id}`) {
+                                setSelectedQuiz(remaining[0]?.quiz || null)
+                                setSelectedKey(remaining[0] ? `saved_${remaining[0].id}` : '')
+                              }
+                            }
+                          }}
+                          className="btn btn-sm"
+                          style={{ padding: '4px 8px', fontSize: 12, background: '#FFE4E7', color: 'var(--cherry)', border: '1.5px solid var(--cherry)' }}
+                          title="Delete this quiz"
+                        >
+                          🗑️
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            launchQuiz(item.quiz)
+                          }}
+                          className="btn btn-sm btn-primary"
+                          style={{ padding: '4px 12px', fontSize: 12 }}
+                        >
+                          🚀 Host Now
+                        </button>
+                      </div>
                     </div>
                   </div>
                 )
