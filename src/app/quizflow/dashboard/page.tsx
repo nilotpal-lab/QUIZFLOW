@@ -399,17 +399,17 @@ export default function AdminDashboard() {
       return () => clearInterval(t)
     }
 
-    // 2. Question Reveal Phase (5s Power-Up Shopping Break)
+    // 2. Question Reveal Phase (3s Power-Up Shopping Break)
     if (liveGame.status === 'question_reveal') {
       if (revealStartedAtRef.current === null) {
         revealStartedAtRef.current = Date.now()
       }
       const tickReveal = () => {
         const elapsedSinceReveal = Math.floor((Date.now() - (revealStartedAtRef.current || Date.now())) / 1000)
-        const remaining = Math.max(0, 5 - elapsedSinceReveal)
+        const remaining = Math.max(0, 3 - elapsedSinceReveal)
         setRevealCountdown(remaining)
 
-        // Auto-advance to next question after 5s
+        // Auto-advance to next question after 3s
         if (autoTimer && remaining <= 0) {
           const actionKey = `next_${liveGame.current_question_index}`
           if (autoActionFiredRef.current !== actionKey) {
@@ -420,7 +420,7 @@ export default function AdminDashboard() {
         }
       }
       tickReveal()
-      const t = setInterval(tickReveal, 400)
+      const t = setInterval(tickReveal, 300)
       return () => clearInterval(t)
     }
 
@@ -2114,6 +2114,67 @@ export default function AdminDashboard() {
                         </div>
                       )}
                     </div>
+
+                    {/* Full Real-Time Standings Table */}
+                    <div style={{ marginTop: 16, borderTop: '2px solid var(--ink)', paddingTop: 14, overflowX: 'auto' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: 640 }}>
+                        <thead>
+                          <tr style={{ borderBottom: '2px solid var(--ink)', fontFamily: 'Space Grotesk', fontSize: 12, textTransform: 'uppercase' }}>
+                            <th style={{ padding: '8px 10px' }}>Rank</th>
+                            <th style={{ padding: '8px 10px' }}>Team</th>
+                            <th style={{ padding: '8px 10px' }}>Points</th>
+                            <th style={{ padding: '8px 10px' }}>Coins</th>
+                            <th style={{ padding: '8px 10px' }}>Streak</th>
+                            <th style={{ padding: '8px 10px' }}>Accuracy</th>
+                            <th style={{ padding: '8px 10px' }}>Frenzy</th>
+                            <th style={{ padding: '8px 10px' }}>Status</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {teamsStatus.map((team, idx) => (
+                            <tr
+                              key={team.team_id || idx}
+                              style={{
+                                borderBottom: '1px solid #eee',
+                                fontSize: 13,
+                                fontFamily: 'Inter',
+                                background: idx === 0 ? '#FFFDE7' : idx === 1 ? '#F5F5F5' : idx === 2 ? '#FFF8E1' : undefined
+                              }}
+                            >
+                              <td style={{ padding: '8px 10px', fontWeight: 900, fontFamily: 'Space Grotesk' }}>
+                                {idx === 0 ? '👑 1st' : idx === 1 ? '🥈 2nd' : idx === 2 ? '🥉 3rd' : `#${idx + 1}`}
+                              </td>
+                              <td style={{ padding: '8px 10px', fontWeight: 800, fontFamily: 'Space Grotesk' }}>
+                                <div>{team.name}</div>
+                                {team.code && <span className="badge badge-sun" style={{ fontSize: 10, padding: '1px 5px' }}>{team.code}</span>}
+                              </td>
+                              <td style={{ padding: '8px 10px', fontWeight: 900, color: 'var(--violet)', fontSize: 14 }}>
+                                ⚡ {team.points.toLocaleString()}
+                              </td>
+                              <td style={{ padding: '8px 10px', fontWeight: 700 }}>
+                                🪙 {team.coins}
+                              </td>
+                              <td style={{ padding: '8px 10px' }}>
+                                {team.streak > 1 ? `🔥 ${team.streak}` : `${team.streak}`}
+                              </td>
+                              <td style={{ padding: '8px 10px' }}>
+                                {team.total_correct}/{team.total_answered} {team.total_answered > 0 ? `(${Math.round((team.total_correct / team.total_answered) * 100)}%)` : ''}
+                              </td>
+                              <td style={{ padding: '8px 10px' }}>
+                                {team.frenzy_correct_count || 0}
+                              </td>
+                              <td style={{ padding: '8px 10px' }}>
+                                {team.violation_count > 0 ? (
+                                  <span className="badge badge-cherry" style={{ fontSize: 10 }}>⚑ {team.violation_count}</span>
+                                ) : (
+                                  <span className="badge badge-mint" style={{ fontSize: 10 }}>Clean ✓</span>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 )}
 
@@ -2132,7 +2193,7 @@ export default function AdminDashboard() {
                         )}
                         {liveGame.status === 'question_reveal' && (
                           <span className="badge badge-mint animate-pulse" style={{ fontSize: 11 }}>
-                            🛒 Shopping Break {autoTimer ? `(${revealCountdown}s auto-next)` : '(5s)'}
+                            🛒 Shopping Break {autoTimer ? `(${revealCountdown}s auto-next)` : '(3s)'}
                           </span>
                         )}
                         <button

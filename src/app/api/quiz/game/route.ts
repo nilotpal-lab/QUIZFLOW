@@ -104,22 +104,26 @@ export async function GET(req: Request) {
   const totalRegistered = allTeams?.length || 0
   const claimedCount = (allTeams || []).filter(t => t.device_id !== null || t.status === 'claimed').length
 
-  // 4. Fetch live student sessions with submission radar status
+  // 4. Fetch live student sessions with unified rank ordering
   const { data: sessionRows } = await supabase
     .from('quiz_sessions')
-    .select('team_id, points, coins, streak, max_streak, total_correct, total_answered, last_answered_question_index, total_response_time_ms, violation_count, teams(name, code, status, device_id, roster, claimed_by)')
+    .select('team_id, points, coins, streak, max_streak, total_correct, total_answered, last_answered_question_index, total_response_time_ms, frenzy_correct_count, violation_count, teams(name, code, status, device_id, roster, claimed_by)')
     .eq('game_id', gameId)
     .order('points', { ascending: false })
+    .order('max_streak', { ascending: false })
+    .order('total_response_time_ms', { ascending: true })
 
   const currentQIdx = game.current_question_index ?? -1
   
   // Build team map from allTeams for guaranteed O(1) metadata
   const teamMap = new Map((allTeams || []).map(t => [t.id, t]))
 
-  // Only teams that are actually claimed / bound to a device are considered active participants
+  // Include all participating teams with active device binding or recorded session activity
   const liveSessionRows = (sessionRows || []).filter((s: any) => {
     const t = teamMap.get(s.team_id)
-    return Boolean(t?.device_id || t?.claimed_by || t?.status === 'claimed')
+    const hasDevice = Boolean(t?.device_id || t?.claimed_by || t?.status === 'claimed')
+    const hasActivity = (s.points > 0 || s.total_answered > 0 || s.coins > 0)
+    return Boolean(t && (hasDevice || hasActivity))
   })
 
   const teamsStatus = liveSessionRows.map((s: any, idx: number) => {
@@ -137,6 +141,7 @@ export async function GET(req: Request) {
       total_correct: s.total_correct || 0,
       total_answered: s.total_answered || 0,
       total_response_time_ms: s.total_response_time_ms || 0,
+      frenzy_correct_count: s.frenzy_correct_count || 0,
       violation_count: s.violation_count || 0,
       device_id: t?.device_id || null,
       status: t?.status || 'active',

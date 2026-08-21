@@ -169,6 +169,7 @@ export async function GET(req: Request) {
       active_question: activeQuestion,
       is_paused: Boolean(game.config?.is_paused)
     },
+    server_time: new Date().toISOString(),
     me: {
       team_id: claims.team_id,
       points: session.points,

@@ -78,6 +78,8 @@ export default function StudentLobby() {
   const [result, setResult] = useState<{ correct: boolean; points: number; coins: number; reason: string } | null>(null)
   const [showBoard, setShowBoard] = useState(false)
   const [showShop, setShowShop] = useState(false)
+  const [showFreezePicker, setShowFreezePicker] = useState(false)
+  const [isWindowBlurred, setIsWindowBlurred] = useState(false)
   const [buyingItem, setBuyingItem] = useState<string | null>(null)
   const [shopMsg, setShopMsg] = useState<string | null>(null)
   const [board, setBoard] = useState<LbRow[]>([])
@@ -88,6 +90,7 @@ export default function StudentLobby() {
   const [strikes, setStrikes] = useState(0)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const wasInGameRef = useRef(false)
+  const serverOffsetRef = useRef<number>(0)
 
   const lastQuestionIdxRef = useRef<number | null>(null)
 
@@ -146,6 +149,7 @@ export default function StudentLobby() {
     router.push('/quizflow/student/dashboard')
   }
 
+  /* ── Anti-Cheat: Fullscreen, Tab Switch, Window Blur & Split Screen Guard ── */
   useEffect(() => {
     const handleFsChange = () => {
       const inFs = Boolean(document.fullscreenElement)
@@ -156,14 +160,41 @@ export default function StudentLobby() {
     }
     const handleVisibilityChange = () => {
       if (document.hidden && loadState === 'ready' && status !== 'ended' && status !== 'lobby') {
+        setIsWindowBlurred(true)
         reportViolation('tab_switched')
+      } else {
+        setIsWindowBlurred(false)
+      }
+    }
+    const handleWindowBlur = () => {
+      if (loadState === 'ready' && status === 'question_active') {
+        setIsWindowBlurred(true)
+        reportViolation('window_blurred_or_split_screen')
+      }
+    }
+    const handleWindowFocus = () => {
+      setIsWindowBlurred(false)
+    }
+    const handleResize = () => {
+      // Split screen detection on mobile (available screen height vs window innerHeight drop)
+      if (typeof window !== 'undefined' && window.screen?.availHeight) {
+        if (window.innerHeight < window.screen.availHeight * 0.65 && loadState === 'ready' && status === 'question_active') {
+          setIsWindowBlurred(true)
+          reportViolation('split_screen_detected')
+        }
       }
     }
     document.addEventListener('fullscreenchange', handleFsChange)
     document.addEventListener('visibilitychange', handleVisibilityChange)
+    window.addEventListener('blur', handleWindowBlur)
+    window.addEventListener('focus', handleWindowFocus)
+    window.addEventListener('resize', handleResize)
     return () => {
       document.removeEventListener('fullscreenchange', handleFsChange)
       document.removeEventListener('visibilitychange', handleVisibilityChange)
+      window.removeEventListener('blur', handleWindowBlur)
+      window.removeEventListener('focus', handleWindowFocus)
+      window.removeEventListener('resize', handleResize)
     }
   }, [loadState, status, reportViolation])
 
@@ -178,7 +209,7 @@ export default function StudentLobby() {
     }
   }, [])
 
-  /* ── Poll game state ─────────────────────────────────────────── */
+  /* ── Poll game state (with Server Clock Offset Calibration) ───── */
   const poll = useCallback(async () => {
     try {
       const res = await fetch('/api/quiz/game/state')
@@ -191,8 +222,12 @@ export default function StudentLobby() {
         router.push('/quizflow/student/login')
         return
       }
-      const data: GameStateResponse = await res.json()
+      const data: GameStateResponse & { server_time?: string } = await res.json()
       if (data?.success && data?.game) {
+        if (data.server_time) {
+          const srvMs = new Date(data.server_time).getTime()
+          serverOffsetRef.current = srvMs - Date.now()
+        }
         setState(data)
         setLoadState('ready')
         wasInGameRef.current = true
@@ -274,15 +309,16 @@ export default function StudentLobby() {
     }
   }, [poll])
 
-  /* ── Server-side elapsed tick (cosmetic; server recomputes) ──── */
+  /* ── Server-synchronized elapsed tick (eliminates device clock drift) ──── */
   useEffect(() => {
     if (!state?.game?.question_started_at || (status !== 'question_active' && status !== 'boss_frenzy')) return
     const tick = () => {
-      const ms = Date.now() - new Date(state.game!.question_started_at!).getTime()
+      const nowSynced = Date.now() + (serverOffsetRef.current || 0)
+      const ms = nowSynced - new Date(state.game!.question_started_at!).getTime()
       setElapsed(Math.max(0, ms))
     }
     tick()
-    const t = setInterval(tick, 250)
+    const t = setInterval(tick, 100)
     return () => clearInterval(t)
   }, [state?.game?.question_started_at, status])
 
@@ -290,7 +326,8 @@ export default function StudentLobby() {
   useEffect(() => {
     if (!isBoss || !state?.game?.boss_window_ends_at) return
     const tick = () => {
-      const secs = Math.max(0, Math.ceil((new Date(state.game!.boss_window_ends_at!).getTime() - Date.now()) / 1000))
+      const nowSynced = Date.now() + (serverOffsetRef.current || 0)
+      const secs = Math.max(0, Math.ceil((new Date(state.game!.boss_window_ends_at!).getTime() - nowSynced) / 1000))
       setBossCountdown(secs)
     }
     tick()
@@ -310,34 +347,33 @@ export default function StudentLobby() {
   }, [state?.game?.id])
 
   useEffect(() => {
-    if (!showBoard && !showShop) return
+    if (!showBoard && !showShop && !showFreezePicker) return
     loadBoard()
     const t = setInterval(loadBoard, 2000)
     return () => clearInterval(t)
-  }, [showBoard, showShop, loadBoard])
+  }, [showBoard, showShop, showFreezePicker, loadBoard])
 
   /* ── Buy Shop Item ────────────────────────────────────────────── */
   const handleBuyShopItem = async (itemType: string, targetTeamId?: string) => {
+    // If buying freeze_player without a target, open the rival selection modal!
+    if (itemType === 'freeze_player' && !targetTeamId) {
+      loadBoard()
+      setShowFreezePicker(true)
+      return
+    }
+
     setBuyingItem(itemType)
     setShopMsg(null)
     try {
-      let finalTarget = targetTeamId
-      const myTeamId = state?.me?.team_id
-      if (itemType === 'freeze_player' && !finalTarget && board.length > 0) {
-        const opponents = board.filter(b => b.team_id && b.team_id !== myTeamId)
-        if (opponents.length > 0) {
-          finalTarget = opponents[Math.floor(Math.random() * opponents.length)].team_id
-        }
-      }
-
       const res = await fetch('/api/quiz/shop/buy', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ item: itemType, target_team_id: finalTarget })
+        body: JSON.stringify({ item: itemType, target_team_id: targetTeamId })
       })
       const data = await res.json()
       if (data?.success) {
         setShopMsg(`✅ Power-up activated!`)
+        setShowFreezePicker(false)
         poll()
         setTimeout(() => {
           setShopMsg(null)
@@ -371,6 +407,16 @@ export default function StudentLobby() {
         setAnsweredIndex(q?.index ?? null)
         // Refresh live score immediately
         poll()
+
+        // Realtime notification to host
+        try {
+          const supabase = getSupabaseClient()
+          const gid = state?.game?.id
+          if (supabase && gid) {
+            const hostChannel = supabase.channel(`qf_host_${gid}`)
+            hostChannel.send({ type: 'broadcast', event: 'score_updated', payload: { ts: Date.now() } })
+          }
+        } catch {}
       }
     } catch {
       setResult({ correct: false, points: 0, coins: 0, reason: 'network_error' })
@@ -831,7 +877,7 @@ export default function StudentLobby() {
                   { type: 'bid_3x', label: '3× Point Multiplier', emoji: '🔥', cost: 35, desc: 'Triple your points on your next question.' },
                   { type: 'bid_4x', label: '4× Point Multiplier', emoji: '💥', cost: 50, desc: 'Quadruple your points on your next question.' },
                   { type: 'freeze_all', label: 'Blizzard', emoji: '❄️', cost: 30, desc: 'Freeze ALL opposing teams for 4 seconds.' },
-                  { type: 'freeze_player', label: 'Freeze Opponent', emoji: '🧊', cost: 15, desc: 'Freeze a random active rival team for 6 seconds.' }
+                  { type: 'freeze_player', label: 'Freeze Opponent', emoji: '🧊', cost: 15, desc: 'Pick a rival team to freeze for 6 seconds.' }
                 ].map(item => {
                   const canAfford = (me?.coins ?? 0) >= item.cost
                   const isPointArmed = Boolean(item.type.startsWith('bid_') && me?.bid_multiplier && me.bid_multiplier > 1)
@@ -857,12 +903,89 @@ export default function StudentLobby() {
                               : 'bg-gray-100 text-gray-400 cursor-not-allowed'
                         }`}
                       >
-                        {isArmed ? 'ARMED ✓' : buyingItem === item.type ? '⏳...' : `🪙 ${item.cost}`}
+                        {isArmed ? 'ARMED ✓' : buyingItem === item.type ? '⏳...' : item.type === 'freeze_player' ? `🎯 🪙 ${item.cost}` : `🪙 ${item.cost}`}
                       </button>
                     </div>
                   )
                 })}
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* ═══ TARGET PICKER MODAL (Freeze Opponent) ═══ */}
+        {showFreezePicker && (
+          <div className="fixed inset-0 z-50 bg-[rgba(16,16,15,0.75)] backdrop-blur-xs flex items-center justify-center p-4" onClick={() => setShowFreezePicker(false)}>
+            <div className="hard bg-[var(--paper)] border-[3px] border-[var(--ink)] rounded-[var(--radius-card)] p-5 w-full max-w-[500px] max-h-[80vh] overflow-y-auto shadow-[8px_8px_0px_#10100F] animate-scale-in" onClick={e => e.stopPropagation()}>
+              <div className="flex justify-between items-center mb-3 border-b-[2.5px] border-[var(--ink)] pb-3">
+                <div>
+                  <h2 className="font-display font-[900] text-[18px] uppercase tracking-tight flex items-center gap-2">
+                    <span>🧊</span> Select Rival Team to Freeze
+                  </h2>
+                  <div className="text-[12px] text-[#555] font-semibold">
+                    Target will be frozen for 6 seconds and unable to score.
+                  </div>
+                </div>
+                <button onClick={() => setShowFreezePicker(false)} className="w-8 h-8 rounded-full border-[2px] border-[var(--ink)] bg-white font-bold hover:bg-[var(--cherry)] hover:text-white">✕</button>
+              </div>
+
+              {/* Opponent list */}
+              {board.filter(b => b.team_id && b.team_id !== me?.team_id).length === 0 ? (
+                <div className="text-center py-6 text-[13px] font-bold text-[#666]">
+                  No other active rival teams in arena right now.
+                </div>
+              ) : (
+                <div className="flex flex-col gap-2.5">
+                  {board.filter(b => b.team_id && b.team_id !== me?.team_id).map((opp) => (
+                    <div
+                      key={opp.team_id}
+                      className="hard bg-white border-[2px] border-[var(--ink)] rounded-[10px] p-3 flex items-center justify-between gap-3 shadow-[2px_2px_0px_#10100F]"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <span className="font-display font-[900] text-[14px] shrink-0">
+                          {opp.rank === 1 ? '🥇' : opp.rank === 2 ? '🥈' : opp.rank === 3 ? '🥉' : `#${opp.rank}`}
+                        </span>
+                        <div className="min-w-0">
+                          <div className="font-display font-[800] text-[14px] text-[var(--ink)] truncate">{opp.name || opp.code}</div>
+                          <div className="text-[11px] font-bold text-[var(--violet)]">⚡ {opp.points.toLocaleString()} pts</div>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => handleBuyShopItem('freeze_player', opp.team_id)}
+                        disabled={Boolean(buyingItem)}
+                        className="hard bg-blue-500 hover:bg-blue-600 text-white px-3.5 py-1.5 rounded-[8px] font-display font-extrabold text-[12px] border-[2px] border-[var(--ink)] shadow-[2px_2px_0px_#10100F] btn-press shrink-0 flex items-center gap-1.5"
+                      >
+                        <span>🧊</span>
+                        <span>{buyingItem === 'freeze_player' ? 'Freezing...' : 'Freeze (6s)'}</span>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ═══ ANTI-CHEAT SPLIT SCREEN / FOCUS BLUR OVERLAY ═══ */}
+        {isWindowBlurred && status === 'question_active' && (
+          <div
+            onClick={() => setIsWindowBlurred(false)}
+            className="fixed inset-0 z-[99999] bg-black/90 backdrop-blur-md flex items-center justify-center p-4 text-center cursor-pointer anim-fade-in"
+          >
+            <div className="card bg-white border-[4px] border-[var(--cherry)] p-6 sm:p-8 max-w-[460px] shadow-[8px_8px_0px_#10100F] anim-scale-in">
+              <div className="text-[52px] mb-3 animate-bounce">⚠️</div>
+              <h2 className="font-display font-[900] text-[22px] uppercase text-[var(--cherry)] mb-2">
+                ARENA FOCUS LOST / MULTI-WINDOW!
+              </h2>
+              <p className="font-body text-[13px] font-bold text-[#444] mb-4">
+                Split-screen mode and leaving the arena during active questions are strictly logged as anti-cheat violations.
+              </p>
+              <button
+                onClick={(e) => { e.stopPropagation(); setIsWindowBlurred(false); }}
+                className="hard bg-[var(--sun)] text-[var(--ink)] border-[2.5px] border-[var(--ink)] font-display font-[900] text-[14px] px-6 py-3 rounded-[12px] shadow-[3px_3px_0px_#10100F] w-full cursor-pointer btn-press"
+              >
+                Tap to Return to Quiz Arena 🎯
+              </button>
             </div>
           </div>
         )}
