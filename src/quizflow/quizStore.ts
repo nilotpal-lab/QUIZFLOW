@@ -191,7 +191,7 @@ export function getQuizById(id: string): SavedQuizItem | null {
   return quizzes.find(q => q.id === id) || null
 }
 
-import { syncQuizToSupabase } from './supabaseClient'
+import { syncQuizToSupabase, deleteQuizFromSupabase, purgeQuizzesFromSupabase } from './supabaseClient'
 
 export function saveQuizDraft(quiz: AIGeneratedQuiz, isDraft = true, id?: string): SavedQuizItem {
   const quizzes = getSavedQuizzes()
@@ -232,6 +232,7 @@ export function deleteSavedQuiz(id: string): boolean {
   if (typeof window !== 'undefined') {
     const key = getStorageKey()
     localStorage.setItem(key, JSON.stringify(quizzes))
+    deleteQuizFromSupabase(id)
   }
   return true
 }
@@ -240,6 +241,7 @@ export function purgeAllSavedQuizzes(): boolean {
   if (typeof window !== 'undefined') {
     const key = getStorageKey()
     localStorage.setItem(key, JSON.stringify([]))
+    purgeQuizzesFromSupabase()
   }
   return true
 }
