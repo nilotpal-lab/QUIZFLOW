@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { getHostUser, logoutHostAsync, updateHostProfile, initAuthSync, type HostUser } from '@/quizflow/authStore'
-import { getSavedQuizzes, deleteSavedQuiz, purgeAllSavedQuizzes, saveQuizDraft, type SavedQuizItem } from '@/quizflow/quizStore'
+import { getSavedQuizzes, deleteSavedQuiz, saveQuizDraft, type SavedQuizItem } from '@/quizflow/quizStore'
 import { getSessionHistory, type SessionHistoryRecord } from '@/quizflow/historyStore'
 import { createSession } from '@/quizflow/sessionStore'
 import { publishQuizToCommunity } from '@/quizflow/communityStore'
@@ -997,22 +997,6 @@ export default function AdminDashboard() {
                     }}
                   />
                 </label>
-                {allQuizzes.length > 0 && (
-                  <button
-                    onClick={() => {
-                      if (confirm(`Are you sure you want to DELETE ALL ${allQuizzes.length} saved quizzes from this dashboard?`)) {
-                        purgeAllSavedQuizzes()
-                        setAllQuizzes([])
-                        showToast('🗑️ All saved quizzes deleted.')
-                      }
-                    }}
-                    className="btn btn-md"
-                    style={{ background: '#FFE4E7', color: 'var(--cherry)', border: '2px solid var(--cherry)', fontWeight: 800 }}
-                    title="Delete all saved quizzes"
-                  >
-                    🗑️ Purge All Quizzes
-                  </button>
-                )}
                 <Link href="/quizflow/practice"><button className="btn btn-violet btn-md">🌐 Community</button></Link>
                 <Link href="/quizflow/studio"><button className="btn btn-sun btn-md">✨ AI Studio →</button></Link>
               </div>
@@ -2012,10 +1996,10 @@ export default function AdminDashboard() {
                       className="btn btn-lg"
                       style={{
                         background: liveGame.status === 'lobby' ? 'var(--mint)' :
-                                    liveGame.status === 'question_active' ? '#FF4444' :
+                                    liveGame.status === 'question_active' ? 'var(--sun)' :
                                     liveGame.status === 'question_reveal' ? 'var(--sky)' :
                                     liveGame.status === 'leaderboard' ? 'var(--violet)' : '#E0E0E0',
-                        color: (liveGame.status === 'leaderboard' || liveGame.status === 'question_active') ? '#fff' : 'var(--ink)',
+                        color: liveGame.status === 'leaderboard' ? '#fff' : 'var(--ink)',
                         border: '3px solid var(--ink)',
                         boxShadow: '4px 4px 0 var(--ink)',
                         fontWeight: 900,
@@ -2025,50 +2009,10 @@ export default function AdminDashboard() {
                       }}
                     >
                       {liveGame.status === 'lobby' ? '▶ START MATCH [Space]' :
-                       liveGame.status === 'question_active' ? '⏹️ END QUESTION (LOCK NOW) [Space]' :
+                       liveGame.status === 'question_active' ? '👁️ REVEAL ANSWER [Space]' :
                        liveGame.status === 'question_reveal' ? '🏆 SHOW STANDINGS [Space]' :
-                       liveGame.status === 'leaderboard' ? '⏭️ NEXT QUESTION [Space]' : '📥 EXPORT STANDINGS'}
+                       liveGame.status === 'leaderboard' ? '⏭️ ADVANCE [Space]' : '📥 EXPORT STANDINGS'}
                     </button>
-                    {(liveGame.status === 'question_active' || liveGame.status === 'question_reveal') && (
-                      <button
-                        onClick={() => handleAdvance('next')}
-                        className="btn btn-lg btn-sun"
-                        style={{
-                          border: '3px solid var(--ink)',
-                          boxShadow: '4px 4px 0 var(--ink)',
-                          fontWeight: 900,
-                          fontSize: 15,
-                          padding: '14px 20px',
-                          cursor: 'pointer'
-                        }}
-                        title="Skip remaining time and advance directly to the next question [Shortcut: N]"
-                      >
-                        ⏭️ Next Question [N]
-                      </button>
-                    )}
-                    {liveGame.status !== 'lobby' && liveGame.status !== 'ended' && (
-                      <button
-                        onClick={() => {
-                          if (confirm('Are you sure you want to END THE QUIZ NOW and show the final championship podium & winners to all students?')) {
-                            handleAdvance('end')
-                          }
-                        }}
-                        className="btn btn-lg"
-                        style={{
-                          background: '#FFE4E7',
-                          color: 'var(--cherry)',
-                          border: '3px solid var(--cherry)',
-                          boxShadow: '4px 4px 0 var(--cherry)',
-                          fontWeight: 900,
-                          fontSize: 15,
-                          padding: '14px 20px',
-                          cursor: 'pointer'
-                        }}
-                        title="Immediately end the match and display final championship podium"
-                      >
-                        🛑 End Quiz &amp; Winners
-                      </button>
-                    )}
                   </div>
                 </div>
 
@@ -2103,20 +2047,6 @@ export default function AdminDashboard() {
                   >
                     📥 Export Standings CSV
                   </button>
-                  {liveGame.status !== 'ended' && liveGame.status !== 'lobby' && (
-                    <button
-                      onClick={() => {
-                        if (confirm('End this quiz now and show final championship podium & winners?')) {
-                          handleAdvance('end')
-                        }
-                      }}
-                      className="btn btn-sm"
-                      style={{ background: '#FFE4E7', color: 'var(--cherry)', border: '2px solid var(--cherry)', fontWeight: 800 }}
-                      title="End match and display final winners"
-                    >
-                      🛑 End Quiz
-                    </button>
-                  )}
                   <button
                     onClick={handleClearGame}
                     className="btn btn-sm"

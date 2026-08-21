@@ -31,13 +31,10 @@ export interface GameRecord {
 }
 
 /**
- * Strips option markers and cleans corrupted binary / control characters
+ * Strips option markers (e.g. "A) ", "B. ", "(C) ", "1: ", "+", "*", "✓")
  */
 export function cleanOptionText(text: string): string {
   return String(text ?? '')
-    .replace(/[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F-\x9F\uFFFD]/g, ' ')
-    .replace(/PK[\x01-\x08][^\s]*/g, '')
-    .replace(/xl\/worksheets\/[^\s]*/g, '')
     .replace(/^[\(\[]?[A-Da-d1-4][\.\)\:\-\]]\s*/, '')
     .replace(/^\+\s*/, '')
     .replace(/\s*\+$/, '')
@@ -48,7 +45,6 @@ export function cleanOptionText(text: string): string {
     .replace(/\s*\[correct\]/i, '')
     .replace(/\s*\(correct\)/i, '')
     .replace(/^[✓✔]\s*/, '')
-    .replace(/\s+/g, ' ')
     .trim()
 }
 
@@ -136,44 +132,17 @@ export function resolveQuestionCorrectIndex(q: { choices: string[]; correct_inde
 export function repairQuizQuestions(quiz: AIGeneratedQuiz): AIGeneratedQuiz {
   if (!quiz || !Array.isArray(quiz.questions)) return quiz
 
-  const sanitizeStr = (s: any) => {
-    return String(s ?? '')
-      .replace(/[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F-\x9F\uFFFD]/g, ' ')
-      .replace(/PK[\x01-\x08][^\s]*/g, '')
-      .replace(/xl\/worksheets\/[^\s]*/g, '')
-      .replace(/\s+/g, ' ')
-      .trim()
-  }
-
-  const questions = quiz.questions.map((q: any, idx: number) => {
-    if (!q) return q
-    const cleanedChoices = Array.isArray(q.choices)
-      ? q.choices.map((c: any) => cleanOptionText(c)).filter(Boolean)
-      : []
-
-    const safeChoices = cleanedChoices.length >= 2
-      ? cleanedChoices
-      : ['Option A', 'Option B', 'Option C', 'Option D']
-
-    const rawPrompt = sanitizeStr(q.prompt)
-    const prompt = rawPrompt.length >= 3 && !rawPrompt.includes('')
-      ? rawPrompt
-      : `Question ${idx + 1}`
-
-    const resolvedIndex = resolveQuestionCorrectIndex({ ...q, choices: safeChoices })
+  const questions = quiz.questions.map((q: any) => {
+    if (!Array.isArray(q.choices) || q.choices.length === 0) return q
+    const resolvedIndex = resolveQuestionCorrectIndex(q)
     return {
       ...q,
-      prompt,
-      choices: safeChoices,
-      correct_index: resolvedIndex,
-      explanation: sanitizeStr(q.explanation) || `The correct answer is "${safeChoices[resolvedIndex]}".`
+      correct_index: resolvedIndex
     }
   })
 
   return {
     ...quiz,
-    title: sanitizeStr(quiz.title) || 'Quiz',
-    description: sanitizeStr(quiz.description) || '',
     questions
   }
 }

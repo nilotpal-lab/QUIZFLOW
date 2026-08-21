@@ -728,67 +728,19 @@ function TeacherHostDashboard() {
           )}
 
           {gameState.status === 'question_active' && (
-            <>
-              <button className="btn btn-cherry" style={{ padding: '8px 18px', fontWeight: 800 }} onClick={() => revealAnswer(pin)} title="Immediately lock submissions and reveal correct answer [Shortcut: Space]">
-                ⏹️ End Question &amp; Reveal [Space]
-              </button>
-              <button className="btn btn-sun" style={{ padding: '8px 14px', fontWeight: 800 }} onClick={() => nextQuestion(pin)} title="Skip to next question [Shortcut: N]">
-                ⏭️ Next [N]
-              </button>
-              <button
-                className="btn"
-                style={{ padding: '8px 14px', fontWeight: 800, background: '#FFE4E7', color: 'var(--cherry)', border: '2px solid var(--cherry)' }}
-                onClick={() => {
-                  if (confirm('Are you sure you want to END THE QUIZ NOW and reveal the final championship winners?')) {
-                    endGame(pin)
-                  }
-                }}
-                title="End game immediately and show final podium results"
-              >
-                🛑 End Quiz
-              </button>
-            </>
+            <button className="btn btn-cherry" style={{ padding: '8px 18px', fontWeight: 700 }} onClick={() => revealAnswer(pin)} title="Reveal correct answer to students [Shortcut: Space]">
+              👁 Reveal Answer [Space]
+            </button>
           )}
           {gameState.status === 'question_reveal' && (
-            <>
-              <button className="btn btn-violet" style={{ padding: '8px 18px', fontWeight: 700 }} onClick={() => showLeaderboard(pin)} title="Show Current Leaderboard [Shortcut: Space]">
-                🏆 Show Leaderboard [Space]
-              </button>
-              <button className="btn btn-sun" style={{ padding: '8px 14px', fontWeight: 800 }} onClick={() => nextQuestion(pin)} title="Skip to next question [Shortcut: N]">
-                ⏭️ Next [N]
-              </button>
-              <button
-                className="btn"
-                style={{ padding: '8px 14px', fontWeight: 800, background: '#FFE4E7', color: 'var(--cherry)', border: '2px solid var(--cherry)' }}
-                onClick={() => {
-                  if (confirm('Are you sure you want to END THE QUIZ NOW and reveal final winners?')) {
-                    endGame(pin)
-                  }
-                }}
-                title="End game and show final podium"
-              >
-                🛑 End Quiz
-              </button>
-            </>
+            <button className="btn btn-violet" style={{ padding: '8px 18px', fontWeight: 700 }} onClick={() => showLeaderboard(pin)} title="Show Current Leaderboard [Shortcut: Space]">
+              🏆 Show Leaderboard [Space]
+            </button>
           )}
           {gameState.status === 'leaderboard' && qIdx + 1 < totalQ && (
-            <>
-              <button className="btn btn-sun" style={{ padding: '8px 18px', fontWeight: 700 }} onClick={() => nextQuestion(pin)} title="Advance to Next Question [Shortcut: Space]">
-                Next Question ({qIdx + 2}/{totalQ}) → [Space]
-              </button>
-              <button
-                className="btn"
-                style={{ padding: '8px 14px', fontWeight: 800, background: '#FFE4E7', color: 'var(--cherry)', border: '2px solid var(--cherry)' }}
-                onClick={() => {
-                  if (confirm('Are you sure you want to END THE QUIZ NOW and display final podium?')) {
-                    endGame(pin)
-                  }
-                }}
-                title="End game and show final podium"
-              >
-                🛑 End Quiz
-              </button>
-            </>
+            <button className="btn btn-sun" style={{ padding: '8px 18px', fontWeight: 700 }} onClick={() => nextQuestion(pin)} title="Advance to Next Question [Shortcut: Space]">
+              Next Question ({qIdx + 2}/{totalQ}) → [Space]
+            </button>
           )}
           {gameState.status === 'leaderboard' && qIdx + 1 >= totalQ && (
             gameState.tournamentConfig && (gameState.tournamentConfig.currentRoundIndex ?? 0) + 1 < (gameState.tournamentConfig.rounds?.length ?? 0) ? (
