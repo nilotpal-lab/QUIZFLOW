@@ -1996,10 +1996,10 @@ export default function AdminDashboard() {
                       className="btn btn-lg"
                       style={{
                         background: liveGame.status === 'lobby' ? 'var(--mint)' :
-                                    liveGame.status === 'question_active' ? 'var(--sun)' :
+                                    liveGame.status === 'question_active' ? '#FF4444' :
                                     liveGame.status === 'question_reveal' ? 'var(--sky)' :
                                     liveGame.status === 'leaderboard' ? 'var(--violet)' : '#E0E0E0',
-                        color: liveGame.status === 'leaderboard' ? '#fff' : 'var(--ink)',
+                        color: (liveGame.status === 'leaderboard' || liveGame.status === 'question_active') ? '#fff' : 'var(--ink)',
                         border: '3px solid var(--ink)',
                         boxShadow: '4px 4px 0 var(--ink)',
                         fontWeight: 900,
@@ -2009,10 +2009,27 @@ export default function AdminDashboard() {
                       }}
                     >
                       {liveGame.status === 'lobby' ? '▶ START MATCH [Space]' :
-                       liveGame.status === 'question_active' ? '👁️ REVEAL ANSWER [Space]' :
+                       liveGame.status === 'question_active' ? '⏹️ END QUESTION (LOCK NOW) [Space]' :
                        liveGame.status === 'question_reveal' ? '🏆 SHOW STANDINGS [Space]' :
-                       liveGame.status === 'leaderboard' ? '⏭️ ADVANCE [Space]' : '📥 EXPORT STANDINGS'}
+                       liveGame.status === 'leaderboard' ? '⏭️ NEXT QUESTION [Space]' : '📥 EXPORT STANDINGS'}
                     </button>
+                    {(liveGame.status === 'question_active' || liveGame.status === 'question_reveal') && (
+                      <button
+                        onClick={() => handleAdvance('next')}
+                        className="btn btn-lg btn-sun"
+                        style={{
+                          border: '3px solid var(--ink)',
+                          boxShadow: '4px 4px 0 var(--ink)',
+                          fontWeight: 900,
+                          fontSize: 15,
+                          padding: '14px 20px',
+                          cursor: 'pointer'
+                        }}
+                        title="Skip remaining time and advance directly to the next question [Shortcut: N]"
+                      >
+                        ⏭️ Next Question [N]
+                      </button>
+                    )}
                   </div>
                 </div>
 

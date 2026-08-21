@@ -728,9 +728,14 @@ function TeacherHostDashboard() {
           )}
 
           {gameState.status === 'question_active' && (
-            <button className="btn btn-cherry" style={{ padding: '8px 18px', fontWeight: 700 }} onClick={() => revealAnswer(pin)} title="Reveal correct answer to students [Shortcut: Space]">
-              👁 Reveal Answer [Space]
-            </button>
+            <>
+              <button className="btn btn-cherry" style={{ padding: '8px 18px', fontWeight: 800 }} onClick={() => revealAnswer(pin)} title="Immediately lock submissions and reveal correct answer [Shortcut: Space]">
+                ⏹️ End Question &amp; Reveal [Space]
+              </button>
+              <button className="btn btn-sun" style={{ padding: '8px 14px', fontWeight: 800 }} onClick={() => nextQuestion(pin)} title="Skip to next question [Shortcut: N]">
+                ⏭️ Next [N]
+              </button>
+            </>
           )}
           {gameState.status === 'question_reveal' && (
             <button className="btn btn-violet" style={{ padding: '8px 18px', fontWeight: 700 }} onClick={() => showLeaderboard(pin)} title="Show Current Leaderboard [Shortcut: Space]">
