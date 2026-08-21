@@ -1,6 +1,6 @@
 'use client'
 export const dynamic = 'force-dynamic'
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { getHostUser, logoutHostAsync, updateHostProfile, initAuthSync, type HostUser } from '@/quizflow/authStore'
@@ -237,9 +237,12 @@ export default function AdminDashboard() {
   const [isProjectorMode, setIsProjectorMode] = useState(false)
   const [isFullscreenLeaderboard, setIsFullscreenLeaderboard] = useState(false)
   const [unhideHostKey, setUnhideHostKey] = useState(false)
+  const [showGameSetup, setShowGameSetup] = useState(false)
   const [autoTimer, setAutoTimer] = useState(false)
   const [hostElapsedSec, setHostElapsedSec] = useState(0)
-  const [showGameSetup, setShowGameSetup] = useState(false)
+  const [revealCountdown, setRevealCountdown] = useState(5)
+  const autoActionFiredRef = useRef<string>('')
+  const revealStartedAtRef = useRef<number | null>(null)
   const [printPassesModal, setPrintPassesModal] = useState(false)
   const [teamFilterStatus, setTeamFilterStatus] = useState<'all' | 'arena' | 'lobby' | 'offline'>('all')
   const [busy, setBusy] = useState('')
@@ -370,33 +373,61 @@ export default function AdminDashboard() {
     return () => { cancelled = true; clearInterval(t) }
   }, [activeTab, gameId])
 
-  /* Host 30s Countdown and Auto-Pacing Timer */
+  /* Host 30s Countdown and Reliable Auto-Pacing Engine */
   useEffect(() => {
-    if (!liveGame || liveGame.status !== 'question_active' || liveGame.is_paused || !liveGame.question_started_at) {
-      setHostElapsedSec(0)
-      return
-    }
-    const updateElapsed = () => {
-      const started = new Date(liveGame.question_started_at).getTime()
-      const sec = Math.max(0, Math.floor((Date.now() - started) / 1000))
-      setHostElapsedSec(sec)
-      if (autoTimer && sec >= 30) {
-        handleAdvance('reveal')
-      }
-    }
-    updateElapsed()
-    const timer = setInterval(updateElapsed, 500)
-    return () => clearInterval(timer)
-  }, [liveGame?.status, liveGame?.is_paused, liveGame?.question_started_at, autoTimer])
+    if (!liveGame || liveGame.is_paused) return
 
-  // In autoTimer mode: 5s shopping break in question_reveal, then auto-advance to next question
-  useEffect(() => {
-    if (!autoTimer || !liveGame || liveGame.status !== 'question_reveal') return
-    const timer = setTimeout(() => {
-      handleAdvance('next')
-    }, 5000)
-    return () => clearTimeout(timer)
-  }, [autoTimer, liveGame?.status, liveGame?.current_question_index])
+    // 1. Question Active Phase (30s Countdown)
+    if (liveGame.status === 'question_active' && liveGame.question_started_at) {
+      revealStartedAtRef.current = null
+      const tickActive = () => {
+        const started = new Date(liveGame.question_started_at).getTime()
+        const sec = Math.max(0, Math.floor((Date.now() - started) / 1000))
+        setHostElapsedSec(sec)
+        
+        // Auto-advance to reveal after 30s
+        if (autoTimer && sec >= 30) {
+          const actionKey = `reveal_${liveGame.current_question_index}`
+          if (autoActionFiredRef.current !== actionKey) {
+            autoActionFiredRef.current = actionKey
+            handleAdvance('reveal')
+          }
+        }
+      }
+      tickActive()
+      const t = setInterval(tickActive, 400)
+      return () => clearInterval(t)
+    }
+
+    // 2. Question Reveal Phase (5s Power-Up Shopping Break)
+    if (liveGame.status === 'question_reveal') {
+      if (revealStartedAtRef.current === null) {
+        revealStartedAtRef.current = Date.now()
+      }
+      const tickReveal = () => {
+        const elapsedSinceReveal = Math.floor((Date.now() - (revealStartedAtRef.current || Date.now())) / 1000)
+        const remaining = Math.max(0, 5 - elapsedSinceReveal)
+        setRevealCountdown(remaining)
+
+        // Auto-advance to next question after 5s
+        if (autoTimer && remaining <= 0) {
+          const actionKey = `next_${liveGame.current_question_index}`
+          if (autoActionFiredRef.current !== actionKey) {
+            autoActionFiredRef.current = actionKey
+            revealStartedAtRef.current = null
+            handleAdvance('next')
+          }
+        }
+      }
+      tickReveal()
+      const t = setInterval(tickReveal, 400)
+      return () => clearInterval(t)
+    }
+
+    // Other statuses
+    setHostElapsedSec(0)
+    revealStartedAtRef.current = null
+  }, [liveGame?.status, liveGame?.is_paused, liveGame?.question_started_at, liveGame?.current_question_index, autoTimer])
 
   /* Host keyboard shortcuts ([Space] -> Next Action, [P] -> Pause/Resume, [N] -> Next Question, [M] -> Projector Mode, [F] -> Fullscreen Leaderboard) */
   useEffect(() => {
@@ -2086,7 +2117,7 @@ export default function AdminDashboard() {
                         )}
                         {liveGame.status === 'question_reveal' && (
                           <span className="badge badge-mint animate-pulse" style={{ fontSize: 11 }}>
-                            🛒 5s Shopping Break
+                            🛒 Shopping Break {autoTimer ? `(${revealCountdown}s auto-next)` : '(5s)'}
                           </span>
                         )}
                         <button
