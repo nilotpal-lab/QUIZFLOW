@@ -162,21 +162,21 @@ function StudentDashboardContent() {
         </div>
 
         {/* THE one feature: Join Game */}
-        {gameState === 'none' || gameState === 'ended' || gate?.gate_state !== 'open' ? (
+        {gameState === 'ended' ? (
           <div
             className="w-full hard bg-gray-100 text-[#666] rounded-[var(--radius-card)] p-6 md:p-10 flex items-center justify-between gap-4 border-[3px] border-[var(--ink)] shadow-[4px_4px_0px_#10100F] cursor-not-allowed opacity-90"
             style={{ minHeight: 120 }}
           >
             <div className="flex flex-col items-start gap-2 min-w-0">
               <span className="font-display font-[900] text-[clamp(22px,6vw,32px)] uppercase tracking-tight leading-none text-[#555]">
-                {gameState === 'ended' ? 'Match Finished' : 'Arena Closed'}
+                Match Finished
               </span>
               <span className="text-[12px] md:text-[13px] font-display font-[700] uppercase tracking-wider text-[#777]">
-                {gameState === 'ended' ? 'Competition has ended. Check final standings on projector.' : 'Waiting for host to host quiz & open the arena...'}
+                Competition has ended. Check final standings on projector.
               </span>
             </div>
             <div className="w-12 h-12 md:w-14 md:h-14 rounded-full bg-white text-[#777] flex items-center justify-center font-display font-black text-[22px] md:text-[24px] hard border-[2px] border-[#999] shrink-0">
-              🔒
+              🏆
             </div>
           </div>
         ) : (
@@ -187,8 +187,12 @@ function StudentDashboardContent() {
             style={{ minHeight: 120 }}
           >
             <div className="flex flex-col items-start gap-2 min-w-0">
-              <span className="font-display font-[900] text-[clamp(24px,7vw,36px)] uppercase tracking-tight leading-none">Join Game</span>
-              <span className="text-[12px] md:text-[13px] font-display font-[700] uppercase tracking-wider opacity-85">Enter the arena &amp; compete with your team</span>
+              <span className="font-display font-[900] text-[clamp(24px,7vw,36px)] uppercase tracking-tight leading-none">
+                {gameState === 'live' ? 'Enter Live Arena ⚡' : 'Join Game Lobby 🚀'}
+              </span>
+              <span className="text-[12px] md:text-[13px] font-display font-[700] uppercase tracking-wider opacity-85">
+                {gameState === 'live' ? 'Question is in progress — jump in now!' : 'Enter the arena & compete with your team'}
+              </span>
             </div>
             <div className="w-12 h-12 md:w-14 md:h-14 rounded-full bg-white text-[var(--ink)] flex items-center justify-center font-display font-black text-[22px] md:text-[24px] hard border-[2px] border-[var(--ink)] shrink-0 group-hover:translate-x-1 transition-transform">
               →

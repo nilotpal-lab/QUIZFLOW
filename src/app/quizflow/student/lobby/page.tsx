@@ -530,6 +530,26 @@ export default function StudentLobby() {
       </nav>
 
       <main className="flex-1 w-full max-w-[820px] mx-auto px-3 md:px-6 py-5 md:py-10 flex flex-col gap-6 pb-[max(20px,env(safe-area-inset-bottom))]">
+        {/* ═══ LOADING ═══ */}
+        {loadState === 'loading' && (
+          <div className="flex-1 flex flex-col items-center justify-center text-center py-16">
+            <div className="card anim-scale-in w-full max-w-[480px] p-8 bg-white border-[3px] border-[var(--ink)] shadow-[6px_6px_0px_#10100F]">
+              <div className="text-[48px] animate-bounce mb-3">🚀</div>
+              <h2 className="font-display font-[900] text-[22px] uppercase tracking-tight mb-2 text-[var(--ink)]">
+                Connecting to Arena…
+              </h2>
+              <p className="font-body text-[13px] font-bold text-[#666] mb-6">
+                Syncing match state with host server. Please wait…
+              </p>
+              <div className="flex justify-center gap-2">
+                {[0, 1, 2].map(i => (
+                  <span key={i} className="w-3.5 h-3.5 rounded-full bg-[var(--sun)] border-[2px] border-[var(--ink)]" style={{ animation: `pulse-dot 1.2s ease-in-out ${i * 0.2}s infinite` }} />
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* ═══ WAITING (no game) ═══ */}
         {loadState === 'no_game' && (
           <div className="flex-1 flex flex-col items-center justify-center text-center py-16">
