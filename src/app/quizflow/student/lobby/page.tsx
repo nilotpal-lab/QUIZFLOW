@@ -233,13 +233,22 @@ export default function StudentLobby() {
         wasInGameRef.current = true
 
         if (data.game.status === 'ended') {
-          // If match ended, exit fullscreen so standings are viewed comfortably in normal screen
+          // Exit fullscreen so standings are viewed comfortably
           try {
             if (typeof document !== 'undefined' && document.fullscreenElement) {
               exitFullscreen()
               setIsFullscreen(false)
             }
           } catch {}
+          // Stop the polling loop — match is over, no more state changes
+          if (pollRef.current) {
+            clearInterval(pollRef.current)
+            pollRef.current = null
+          }
+          // Auto-redirect to dashboard after 10s so students see the final podium
+          setTimeout(() => {
+            router.replace('/quizflow/student/dashboard?notice=match_ended')
+          }, 10000)
         }
 
         const newQIdx = data.game?.active_question?.index ?? null
@@ -822,7 +831,16 @@ export default function StudentLobby() {
 
         {/* ═══ ENDED — final standings ═══ */}
         {loadState === 'ready' && status === 'ended' && (
-          <BoardPanel gameId={state?.game?.id || ''} final showMe={me} onReturn={handleReturnToDashboard} />
+          <div className="flex flex-col gap-4">
+            <div className="flex items-center justify-center gap-3 p-3.5 bg-[var(--sun)] border-[3px] border-[var(--ink)] rounded-[14px] shadow-[4px_4px_0px_#10100F] text-center">
+              <span className="text-[22px]">🏁</span>
+              <div>
+                <div className="font-display font-[900] text-[15px] uppercase tracking-wide text-[var(--ink)]">Match Over! Great game 🎉</div>
+                <div className="text-[12px] font-bold text-[#444]">Returning to dashboard in 10 seconds…</div>
+              </div>
+            </div>
+            <BoardPanel gameId={state?.game?.id || ''} final showMe={me} onReturn={handleReturnToDashboard} />
+          </div>
         )}
 
         {/* ═══ Overlay leaderboard (while answering) ═══ */}

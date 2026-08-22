@@ -57,15 +57,20 @@ export async function GET(req: Request) {
     )
   }
 
-  // 1. Resolve active game ID directly from games table
+  // 1. Resolve active game ID — only live (non-ended) games
   const { data: activeGames } = await supabase
     .from('games')
-    .select('id')
+    .select('id, status')
     .neq('status', 'ended')
     .order('created_at', { ascending: false })
     .limit(1)
 
-  const activeGameId = activeGames?.[0]?.id || 'EVENT'
+  // No active game at all → return 404 so student is redirected out of lobby
+  if (!activeGames || activeGames.length === 0) {
+    return NextResponse.json({ success: false, error: 'No active game.' }, { status: 404, headers: noCacheHeaders })
+  }
+
+  const activeGameId = activeGames[0].id
 
   // 2. Fetch student's session row for this team in the active game
   let { data: session } = await supabase
@@ -75,7 +80,7 @@ export async function GET(req: Request) {
     .eq('game_id', activeGameId)
     .maybeSingle()
 
-  // 3. If session is missing for active game, link / auto-upsert gracefully
+  // 3. If session is missing for active game, create one gracefully (carry coins/points from prev session)
   if (!session) {
     const { data: prevSession } = await supabase
       .from('quiz_sessions')
@@ -131,6 +136,11 @@ export async function GET(req: Request) {
 
   if (gameError || !game) {
     return NextResponse.json({ success: false, error: 'Game not found.' }, { status: 404, headers: noCacheHeaders })
+  }
+
+  // Safety: if this specific game is ended, return 404 so student is redirected to dashboard
+  if (game.status === 'ended') {
+    return NextResponse.json({ success: false, error: 'Game has ended.' }, { status: 404, headers: noCacheHeaders })
   }
 
   const status = game.status as LiveGameStatus
