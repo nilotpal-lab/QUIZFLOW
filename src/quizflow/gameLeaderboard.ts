@@ -34,7 +34,7 @@ export async function fetchGameLeaderboard(
 ): Promise<{ error: { message: string } } | { leaderboard: LeaderboardRow[]; count: number }> {
   const { data: teams, error } = await supabase
     .from('quiz_sessions')
-    .select('team_id, points, coins, streak, max_streak, total_correct, total_answered, total_response_time_ms, frenzy_correct_count, violation_count, teams(name, code, roster)')
+    .select('team_id, points, coins, streak, max_streak, total_correct, total_answered, total_response_time_ms, frenzy_correct_count, violation_count, teams(name, code, roster, status, device_id, claimed_by)')
     .eq('game_id', gameId)
     .order('points', { ascending: false })
     .order('max_streak', { ascending: false })
@@ -43,13 +43,18 @@ export async function fetchGameLeaderboard(
 
   if (error) return { error }
 
-  // Filter out phantom sessions (teams with zero activity from unclaimed teams)
+  // Include active claimed teams or teams with recorded session activity
   const activeSessions = (teams || []).filter((t: any) => {
+    const hasDevice = Boolean(t.teams?.device_id || t.teams?.claimed_by || t.teams?.status === 'claimed')
     const hasActivity = (t.points > 0 || t.total_answered > 0 || t.coins > 0)
-    return hasActivity
+    return Boolean(t.teams && (hasDevice || hasActivity))
   })
 
-  const ranked: LeaderboardRow[] = activeSessions.map((t: any, i: number) => ({
+  const listToRank = activeSessions.length > 0
+    ? activeSessions
+    : (teams || []).filter((t: any) => Boolean(t.teams?.name || t.teams?.code))
+
+  const ranked: LeaderboardRow[] = listToRank.map((t: any, i: number) => ({
     rank: i + 1,
     team_id: t.team_id,
     name: t.teams?.name || null,

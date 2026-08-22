@@ -364,12 +364,14 @@ export default function AdminDashboard() {
     return () => { cancelled = true; clearInterval(t) }
   }, [gameId])
 
-  /* Live leaderboard poll + Supabase Realtime push */
+  /* Live leaderboard poll + Supabase Realtime push (instant <30ms sync) */
   useEffect(() => {
     if (activeTab !== 'leaderboard') return
-    const id = lbGameId.trim().toUpperCase()
+    const id = (liveGame?.id || lbGameId || 'EVENT').trim().toUpperCase()
     if (!id) return
     let cancelled = false
+    let debounceTimer: any = null
+
     const tick = async () => {
       const res = await adminFetch(`/api/admin/leaderboard?game_id=${encodeURIComponent(id)}`)
       if (!cancelled) {
@@ -377,11 +379,19 @@ export default function AdminDashboard() {
         else setLbData([])
       }
     }
-    tick()
-    // Reduced poll interval: Realtime handles fast path, poll is fallback
-    const t = setInterval(tick, 3000)
 
-    // Subscribe to Supabase Realtime for instant push updates
+    const debouncedTick = () => {
+      if (debounceTimer) clearTimeout(debounceTimer)
+      debounceTimer = setTimeout(() => {
+        if (!cancelled) tick()
+      }, 100)
+    }
+
+    tick()
+    // High-speed fallback poll
+    const t = setInterval(tick, 1000)
+
+    // Subscribe to Supabase Realtime (both Broadcast & Postgres Changes for zero delay)
     let sbSub: any = null
     try {
       const sb = getSupabase()
@@ -391,12 +401,11 @@ export default function AdminDashboard() {
         })
         sbSub = channel
         channel
-          .on('broadcast', { event: 'state_sync' }, () => {
-            if (!cancelled) tick()
-          })
-          .on('broadcast', { event: 'game_advanced' }, () => {
-            if (!cancelled) tick()
-          })
+          .on('broadcast', { event: 'state_sync' }, debouncedTick)
+          .on('broadcast', { event: 'game_advanced' }, debouncedTick)
+          .on('broadcast', { event: 'score_updated' }, debouncedTick)
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'quiz_sessions' }, debouncedTick)
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'games' }, debouncedTick)
           .subscribe()
       }
     } catch { /* graceful fallback to poll only */ }
@@ -404,18 +413,21 @@ export default function AdminDashboard() {
     return () => {
       cancelled = true
       clearInterval(t)
+      if (debounceTimer) clearTimeout(debounceTimer)
       if (sbSub && getSupabase()) {
         try { getSupabase()!.removeChannel(sbSub) } catch {}
       }
     }
-  }, [activeTab, lbGameId])
+  }, [activeTab, lbGameId, liveGame?.id])
 
   /* Active game poll (via authenticated admin API) + Supabase Realtime push */
   useEffect(() => {
     if (activeTab !== 'game' && activeTab !== 'teams') return
-    const id = gameId.trim().toUpperCase()
+    const id = (liveGame?.id || gameId || 'EVENT').trim().toUpperCase()
     if (!id) return
     let cancelled = false
+    let debounceTimer: any = null
+
     const tick = async () => {
       const res = await adminFetch(`/api/quiz/game?game_id=${encodeURIComponent(id)}`)
       if (!cancelled && res.ok && res.body?.success) {
@@ -429,11 +441,19 @@ export default function AdminDashboard() {
         setTeamsStatus(res.body.teams_status || [])
       }
     }
-    tick()
-    // Reduced poll interval: Realtime handles fast path, poll is fallback
-    const t = setInterval(tick, 2000)
 
-    // Subscribe to Supabase Realtime for instant push updates
+    const debouncedTick = () => {
+      if (debounceTimer) clearTimeout(debounceTimer)
+      debounceTimer = setTimeout(() => {
+        if (!cancelled) tick()
+      }, 100)
+    }
+
+    tick()
+    // High-speed fallback poll
+    const t = setInterval(tick, 1000)
+
+    // Subscribe to Supabase Realtime (both Broadcast & Postgres Changes for zero delay)
     let sbSub: any = null
     try {
       const sb = getSupabase()
@@ -443,15 +463,12 @@ export default function AdminDashboard() {
         })
         sbSub = channel
         channel
-          .on('broadcast', { event: 'state_sync' }, () => {
-            if (!cancelled) tick()
-          })
-          .on('broadcast', { event: 'game_advanced' }, () => {
-            if (!cancelled) tick()
-          })
-          .on('broadcast', { event: 'powerup_effect' }, () => {
-            if (!cancelled) tick()
-          })
+          .on('broadcast', { event: 'state_sync' }, debouncedTick)
+          .on('broadcast', { event: 'game_advanced' }, debouncedTick)
+          .on('broadcast', { event: 'powerup_effect' }, debouncedTick)
+          .on('broadcast', { event: 'score_updated' }, debouncedTick)
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'quiz_sessions' }, debouncedTick)
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'games' }, debouncedTick)
           .subscribe()
       }
     } catch { /* graceful fallback to poll only */ }
@@ -459,11 +476,12 @@ export default function AdminDashboard() {
     return () => {
       cancelled = true
       clearInterval(t)
+      if (debounceTimer) clearTimeout(debounceTimer)
       if (sbSub && getSupabase()) {
         try { getSupabase()!.removeChannel(sbSub) } catch {}
       }
     }
-  }, [activeTab, gameId])
+  }, [activeTab, gameId, liveGame?.id])
 
   /* Host 30s Countdown + 3s Break — Always-On Auto-Pacing Engine */
   useEffect(() => {

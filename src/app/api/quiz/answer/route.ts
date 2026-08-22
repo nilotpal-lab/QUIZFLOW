@@ -215,6 +215,30 @@ export async function POST(req: Request) {
     }
   }
 
+  // Broadcast instant realtime answer submission event to the room and host
+  if (session.game_id) {
+    try {
+      const roomChannel = supabase.channel(`qf_room_${session.game_id}`, {
+        config: { broadcast: { self: true } }
+      })
+      void roomChannel.send({
+        type: 'broadcast',
+        event: 'state_sync',
+        payload: {
+          type: 'answer_submitted',
+          team_id: claims.team_id,
+          question_index: questionIndex,
+          points_delta: row.points_delta,
+          ts: Date.now()
+        }
+      }).then(() => {
+        try { supabase.removeChannel(roomChannel) } catch {}
+      })
+    } catch {
+      // Non-blocking presentation broadcast
+    }
+  }
+
   // NEVER echo the correct answer id — even during reveal.
   // client_elapsed_ms was accepted but ignored for scoring (the RPC
   // recomputed elapsed from the server-stamped question start).
