@@ -365,8 +365,9 @@ export default function AdminDashboard() {
   }, [gameId])
 
   /* Live leaderboard poll + Supabase Realtime push (instant <30ms sync) */
+  /* Runs when: leaderboard tab is active OR fullscreen overlay is open (F key from any tab) */
   useEffect(() => {
-    if (activeTab !== 'leaderboard') return
+    if (activeTab !== 'leaderboard' && !isFullscreenLeaderboard) return
     const id = (liveGame?.id || lbGameId || 'EVENT').trim().toUpperCase()
     if (!id) return
     let cancelled = false
@@ -387,16 +388,17 @@ export default function AdminDashboard() {
       }, 100)
     }
 
+    // Fetch immediately on open so the fullscreen view shows live data right away
     tick()
-    // High-speed fallback poll
+    // High-speed fallback poll every 1s
     const t = setInterval(tick, 1000)
 
-    // Subscribe to Supabase Realtime (both Broadcast & Postgres Changes for zero delay)
+    // Subscribe to Supabase Realtime (Broadcast + Postgres for sub-100ms push)
     let sbSub: any = null
     try {
       const sb = getSupabase()
       if (sb) {
-        const channel = sb.channel(`qf_room_${id}`, {
+        const channel = sb.channel(`qf_lb_${id}`, {
           config: { broadcast: { self: false } }
         })
         sbSub = channel
@@ -418,7 +420,7 @@ export default function AdminDashboard() {
         try { getSupabase()!.removeChannel(sbSub) } catch {}
       }
     }
-  }, [activeTab, lbGameId, liveGame?.id])
+  }, [activeTab, isFullscreenLeaderboard, lbGameId, liveGame?.id])
 
   /* Active game poll (via authenticated admin API) + Supabase Realtime push */
   useEffect(() => {
