@@ -85,6 +85,8 @@ export default function AIQuizStudio() {
 
   const [viewMode, setViewMode] = useState<'generate' | 'editor'>('generate')
   const [rightTab, setRightTab] = useState<'adapt' | 'translate' | 'settings'>('adapt')
+  const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
+  const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -147,6 +149,23 @@ export default function AIQuizStudio() {
       titleInputRef.current?.focus()
     }
   }, [editingTitle])
+
+  /* ── Autosave: save quiz 1.5s after any edit when editing an existing quiz ── */
+  useEffect(() => {
+    // Only autosave when editing an existing saved quiz (not a fresh generation)
+    if (!editingQuizId || !quiz.questions || quiz.questions.length === 0) return
+    setAutoSaveStatus('saving')
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current)
+    autoSaveTimerRef.current = setTimeout(() => {
+      saveQuizDraft(quiz, true, editingQuizId)
+      setAutoSaveStatus('saved')
+      // Reset indicator after 2.5s
+      setTimeout(() => setAutoSaveStatus('idle'), 2500)
+    }, 1500)
+    return () => {
+      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current)
+    }
+  }, [quiz, editingQuizId])
 
   // Ingestion File Upload Handler
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -467,6 +486,18 @@ export default function AIQuizStudio() {
               >
                 🌐 Publish Global
               </button>
+              {/* Autosave status pill — only shows when editing an existing quiz */}
+              {editingQuizId && (
+                <div className={`hidden sm:flex h-10 px-3 rounded-[12px] items-center gap-1.5 text-[11px] font-bold border-[2px] transition-all ${
+                  autoSaveStatus === 'saved'
+                    ? 'bg-[#00E676] border-[#00C853] text-[#10100F]'
+                    : autoSaveStatus === 'saving'
+                    ? 'bg-white/10 border-white/20 text-white/70 animate-pulse'
+                    : 'bg-white/5 border-white/10 text-white/40'
+                }`}>
+                  {autoSaveStatus === 'saved' ? '✅ Saved' : autoSaveStatus === 'saving' ? '⏳ Saving…' : '💾 Auto-save on'}
+                </div>
+              )}
               <button
                 onClick={() => {
                   if (!quiz.questions || quiz.questions.length === 0) {
@@ -474,9 +505,12 @@ export default function AIQuizStudio() {
                     setTimeout(() => setToastMsg(null), 3000)
                     return
                   }
-                  saveQuizDraft(quiz, true, editingQuizId || undefined)
+                  const savedItem = saveQuizDraft(quiz, true, editingQuizId || undefined)
+                  // Ensure editingQuizId is always set after first manual save
+                  if (!editingQuizId) setEditingQuizId(savedItem.id)
+                  setAutoSaveStatus('saved')
                   setToastMsg('✅ Quiz saved to Teacher Dashboard!')
-                  setTimeout(() => setToastMsg(null), 3000)
+                  setTimeout(() => { setToastMsg(null); setAutoSaveStatus('idle') }, 3000)
                 }}
                 className="h-10 px-3.5 bg-[#FF5252] border-[3px] border-white/20 rounded-[12px] text-[12px] font-bold hard-white btn-press-white text-[#10100F] animate-scale-in"
               >
