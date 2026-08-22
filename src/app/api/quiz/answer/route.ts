@@ -186,30 +186,28 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: false, error: 'No scoring result.' }, { status: 500, headers: noCacheHeaders })
   }
 
-  // Handle Multiplier Power-Up Bonus (Consumed on next question, whether right or wrong)
+  // Handle Coin Boost Power-Up (Consumed on next answer, whether right or wrong)
   let finalCoinsEarned = row.coin_delta || 0
-  const mult = (session as any).bid_multiplier || 1
-  if (mult > 1) {
-    if (row.correct) {
-      const extraCoins = finalCoinsEarned * (mult - 1)
-      if (extraCoins > 0) {
-        finalCoinsEarned += extraCoins
-      }
+  const coinMult = (session as any).coin_multiplier || 1
+  if (coinMult > 1) {
+    if (row.correct && finalCoinsEarned > 0) {
+      const extraCoins = finalCoinsEarned * (coinMult - 1)
+      finalCoinsEarned += extraCoins
       await supabase
         .from('quiz_sessions')
         .update({
           coins: (session.coins || 0) + finalCoinsEarned,
-          bid_multiplier: 1,
-          bid_question_index: -1
+          coin_multiplier: 1,
+          coin_question_index: -1
         })
         .eq('id', session.id)
     } else {
-      // Wrong answer: consume the bid multiplier so it doesn't persist
+      // Wrong answer: consume the coin boost so it doesn't persist
       await supabase
         .from('quiz_sessions')
         .update({
-          bid_multiplier: 1,
-          bid_question_index: -1
+          coin_multiplier: 1,
+          coin_question_index: -1
         })
         .eq('id', session.id)
     }

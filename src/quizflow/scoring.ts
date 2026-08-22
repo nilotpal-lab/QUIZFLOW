@@ -77,7 +77,7 @@ export const BOSS_RANK_BONUS = [500, 300, 200, 100]
 
 /**
  * Compute the points for a correct answer in a NORMAL round.
- * Flat difficulty base + fast-answer bonus (hard only) + streak + bid.
+ * Continuous fair speed bonus (up to +50% base points) + streak + point multiplier.
  * Returns 0 for anything that shouldn't score.
  */
 export function computePoints(
@@ -85,22 +85,22 @@ export function computePoints(
   elapsedMs: number,
   streak: number,
   bidMultiplier: number,
+  timeLimitMs = DEFAULT_QUESTION_TIME_LIMIT_MS,
   suspiciousBot = false
 ): number {
-  if (suspiciousBot) return 0
+  if (suspiciousBot || (elapsedMs > 0 && elapsedMs < MIN_RESPONSE_MS)) return 0
 
-  let base = DIFFICULTY_POINTS[difficulty] ?? DIFFICULTY_POINTS.medium
-  if (
-    difficulty === 'hard' &&
-    elapsedMs >= 0 &&
-    elapsedMs < FAST_ANSWER_THRESHOLD_MS
-  ) {
-    base *= FAST_ANSWER_BONUS_MULTIPLIER
-  }
+  const base = DIFFICULTY_POINTS[difficulty] ?? DIFFICULTY_POINTS.medium
+  const timeLimit = Math.max(5000, timeLimitMs)
+  const remaining = Math.max(0, timeLimit - elapsedMs)
+  const speedRatio = Math.min(1, Math.max(0, remaining / timeLimit))
+  
+  // Fair continuous speed bonus: up to +50% of base points for fast answers
+  const speedBonus = Math.round(base * 0.5 * speedRatio)
 
   const streakMultiplier = 1 + Math.min(streak * STREAK_MULTIPLIER_PER_STEP, STREAK_MULTIPLIER_CAP)
   const multiplier = Math.max(1, bidMultiplier)
-  return Math.round(base * streakMultiplier * multiplier)
+  return Math.round((base + speedBonus) * streakMultiplier * multiplier)
 }
 
 /** Coins earned for a correct answer (difficulty-scaled, correct-only). */

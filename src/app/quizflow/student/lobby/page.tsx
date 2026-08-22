@@ -882,7 +882,7 @@ export default function StudentLobby() {
                   const canAfford = (me?.coins ?? 0) >= item.cost
                   const isPointArmed = Boolean(item.type.startsWith('bid_') && me?.bid_multiplier && me.bid_multiplier > 1)
                   const isCoinArmed = Boolean(item.type.startsWith('coin_boost_') && (me?.coin_multiplier || 1) > 1)
-                  const isArmed = isPointArmed || isCoinArmed
+                  const isArmed = item.type.startsWith('bid_') ? isPointArmed : item.type.startsWith('coin_boost_') ? isCoinArmed : false
                   return (
                     <div key={item.type} className="hard bg-white border-[2px] border-[var(--ink)] rounded-[12px] p-3.5 flex items-center justify-between gap-3 shadow-[2px_2px_0px_#10100F]">
                       <div className="flex items-center gap-3 min-w-0">

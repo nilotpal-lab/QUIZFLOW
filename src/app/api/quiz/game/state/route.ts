@@ -73,7 +73,7 @@ export async function GET(req: Request) {
   const sessToken = 'sess_' + claims.team_id
   let { data: session } = await supabase
     .from('quiz_sessions')
-    .select('id, game_id, points, coins, streak, max_streak, total_correct, total_answered, last_answered_question_index, frozen_until, bid_multiplier, frenzy_correct_count, violation_count')
+    .select('id, game_id, points, coins, streak, max_streak, total_correct, total_answered, last_answered_question_index, frozen_until, bid_multiplier, coin_multiplier, frenzy_correct_count, violation_count')
     .eq('token', sessToken)
     .maybeSingle()
 
@@ -94,7 +94,7 @@ export async function GET(req: Request) {
         total_response_time_ms: 0,
         last_answered_question_index: -1
       }, { onConflict: 'token' })
-      .select('id, game_id, points, coins, streak, max_streak, total_correct, total_answered, last_answered_question_index, frozen_until, bid_multiplier, frenzy_correct_count, violation_count')
+      .select('id, game_id, points, coins, streak, max_streak, total_correct, total_answered, last_answered_question_index, frozen_until, bid_multiplier, coin_multiplier, frenzy_correct_count, violation_count')
       .maybeSingle()
 
     if (newSession) session = newSession
@@ -136,26 +136,17 @@ export async function GET(req: Request) {
       p_game_id: game.id,
       p_question_index: keyIdx
     })
-    const keyRow = Array.isArray(keyData) ? keyData[0] : keyData
-    const dbKey = typeof keyRow?.correct_index === 'number' ? keyRow.correct_index : undefined
-    const resolvedKey = resolveQuestionCorrectIndex(question)
-    correctIndex = question.explanation ? resolvedKey : (typeof dbKey === 'number' ? dbKey : resolvedKey)
+    if (typeof keyData === 'number') correctIndex = keyData
   }
-  const activeQuestion = question
-    ? {
-        index: questionIndex,
-        prompt: question.prompt,
-        choices: question.choices,
-        time_limit_ms: question.time_limit_ms,
-        difficulty: question.difficulty,
-        bloom_level: question.bloom_level,
-        explanation: question.explanation,
-        // correct_index ONLY at reveal/ended — never before.
-        ...(canReveal && typeof correctIndex === 'number'
-          ? { correct_index: correctIndex }
-          : {})
-      }
-    : null
+  const activeQuestion = question ? {
+    index: questionIndex,
+    prompt: question.prompt,
+    choices: question.choices,
+    time_limit_ms: question.time_limit_ms,
+    difficulty: question.difficulty,
+    explanation: canReveal ? question.explanation : undefined,
+    correct_index: correctIndex
+  } : null
 
   return NextResponse.json({
     success: true,
@@ -180,8 +171,8 @@ export async function GET(req: Request) {
       total_answered: session.total_answered,
       last_answered_question_index: session.last_answered_question_index ?? -1,
       frozen_until: session.frozen_until,
-      bid_multiplier: session.bid_multiplier,
-      coin_multiplier: session.bid_multiplier || 1,
+      bid_multiplier: (session as any).bid_multiplier || 1,
+      coin_multiplier: (session as any).coin_multiplier || 1,
       frenzy_correct_count: session.frenzy_correct_count,
       violation_count: session.violation_count
     }

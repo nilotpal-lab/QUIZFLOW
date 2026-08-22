@@ -154,7 +154,7 @@ export async function POST(req: Request) {
     targetSessionId = target.id
   }
 
-  // Handle coin boost power-ups
+  // Handle coin boost power-ups (strictly multiplies coins on next answer, NEVER touches points)
   if (item === 'coin_boost_2x' || item === 'coin_boost_3x') {
     const cost = POWERUP_COSTS[item as PowerUpItem]
     const multiplier = item === 'coin_boost_2x' ? 2 : 3
@@ -166,7 +166,8 @@ export async function POST(req: Request) {
       .from('quiz_sessions')
       .update({
         coins: curSess.coins - cost,
-        bid_multiplier: multiplier
+        coin_multiplier: multiplier,
+        coin_question_index: -1
       })
       .eq('id', session.id)
       .gte('coins', cost)
