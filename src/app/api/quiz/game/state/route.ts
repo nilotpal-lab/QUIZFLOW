@@ -1,4 +1,4 @@
-﻿import { NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { getServerSupabase } from '@/quizflow/serverSupabase'
 import {
   getSessionTokenFromRequest,
@@ -67,45 +67,66 @@ export async function GET(req: Request) {
 
   const activeGameId = activeGames?.[0]?.id || 'EVENT'
 
-  // 2. Fetch student's session row via unique token index
-  const sessToken = 'sess_' + claims.team_id
+  // 2. Fetch student's session row for this team in the active game
   let { data: session } = await supabase
     .from('quiz_sessions')
     .select('id, game_id, points, coins, streak, max_streak, total_correct, total_answered, last_answered_question_index, frozen_until, bid_multiplier, frenzy_correct_count, violation_count')
-    .eq('token', sessToken)
+    .eq('team_id', claims.team_id)
+    .eq('game_id', activeGameId)
     .maybeSingle()
 
-  // 3. If session is missing or linked to outdated game, auto-upsert
-  if (!session || session.game_id !== activeGameId) {
+  // 3. If session is missing for active game, link / auto-upsert gracefully
+  if (!session) {
+    const { data: prevSession } = await supabase
+      .from('quiz_sessions')
+      .select('id, game_id, points, coins, streak, max_streak, total_correct, total_answered, last_answered_question_index, frozen_until, bid_multiplier, frenzy_correct_count, violation_count')
+      .eq('team_id', claims.team_id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    const sessToken = 'sess_' + claims.team_id
     const { data: newSession } = await supabase
       .from('quiz_sessions')
       .upsert({
         team_id: claims.team_id,
         game_id: activeGameId,
         token: sessToken,
-        points: session?.points || 0,
-        coins: session?.coins || 0,
-        streak: session?.streak || 0,
-        max_streak: session?.max_streak || 0,
-        total_correct: session?.total_correct || 0,
-        total_answered: session?.total_answered || 0,
+        points: prevSession?.points || 0,
+        coins: prevSession?.coins || 0,
+        streak: prevSession?.streak || 0,
+        max_streak: prevSession?.max_streak || 0,
+        total_correct: prevSession?.total_correct || 0,
+        total_answered: prevSession?.total_answered || 0,
         total_response_time_ms: 0,
         last_answered_question_index: -1
       }, { onConflict: 'token' })
       .select('id, game_id, points, coins, streak, max_streak, total_correct, total_answered, last_answered_question_index, frozen_until, bid_multiplier, frenzy_correct_count, violation_count')
       .maybeSingle()
 
-    if (newSession) session = newSession
+    session = newSession || prevSession
   }
 
-  if (!session || !session.game_id) {
-    return NextResponse.json({ success: false, error: 'No live game for this team.' }, { status: 404, headers: noCacheHeaders })
+  const effectiveSession = session || {
+    id: 'temp_' + claims.team_id,
+    game_id: activeGameId,
+    points: 0,
+    coins: 0,
+    streak: 0,
+    max_streak: 0,
+    total_correct: 0,
+    total_answered: 0,
+    last_answered_question_index: -1,
+    frozen_until: null,
+    bid_multiplier: 1,
+    frenzy_correct_count: 0,
+    violation_count: 0
   }
 
   const { data: game, error: gameError } = await supabase
     .from('games')
     .select('id, mode, status, quiz, config, current_question_index, question_started_at, boss_question_index, boss_window_ends_at')
-    .eq('id', session.game_id)
+    .eq('id', effectiveSession.game_id)
     .maybeSingle()
 
   if (gameError || !game) {
@@ -163,18 +184,18 @@ export async function GET(req: Request) {
     server_time: new Date().toISOString(),
     me: {
       team_id: claims.team_id,
-      points: session.points || 0,
-      coins: session.coins || 0,
-      streak: session.streak || 0,
-      max_streak: session.max_streak || 0,
-      total_correct: session.total_correct || 0,
-      total_answered: session.total_answered || 0,
-      last_answered_question_index: session.last_answered_question_index ?? -1,
-      frozen_until: session.frozen_until,
-      bid_multiplier: (session as any).bid_multiplier || 1,
-      coin_multiplier: (session as any).coin_multiplier || 1,
-      frenzy_correct_count: session.frenzy_correct_count || 0,
-      violation_count: session.violation_count || 0
+      points: effectiveSession.points || 0,
+      coins: effectiveSession.coins || 0,
+      streak: effectiveSession.streak || 0,
+      max_streak: effectiveSession.max_streak || 0,
+      total_correct: effectiveSession.total_correct || 0,
+      total_answered: effectiveSession.total_answered || 0,
+      last_answered_question_index: effectiveSession.last_answered_question_index ?? -1,
+      frozen_until: effectiveSession.frozen_until,
+      bid_multiplier: (effectiveSession as any).bid_multiplier || 1,
+      coin_multiplier: (effectiveSession as any).coin_multiplier || 1,
+      frenzy_correct_count: effectiveSession.frenzy_correct_count || 0,
+      violation_count: effectiveSession.violation_count || 0
     }
   }, { headers: noCacheHeaders })
 }

@@ -432,8 +432,8 @@ export default function StudentLobby() {
   /* ═══ Shared shell ═══ */
   return (
     <div className="min-h-screen w-full bg-[var(--paper)] selection:bg-[var(--sun)] flex flex-col text-[var(--ink)] overflow-x-hidden select-none">
-      {/* 🚨 STRICT PROCTORING FULLSCREEN LOCK OVERLAY (Active during live competition) */}
-      {!isFullscreen && loadState === 'ready' && status !== 'ended' && (
+      {/* 🚨 STRICT PROCTORING FULLSCREEN LOCK OVERLAY (Active during live question answering) */}
+      {!isFullscreen && loadState === 'ready' && (status === 'question_active' || status === 'boss_frenzy') && (
         <div className="fixed inset-0 z-[999] bg-[#10100F]/95 backdrop-blur-lg flex flex-col items-center justify-center p-4 text-center animate-scale-in">
           <div className="max-w-[480px] w-full bg-[var(--paper)] border-[4px] border-[var(--cherry)] rounded-[24px] p-6 sm:p-8 shadow-[10px_10px_0_#10100F] text-[var(--ink)]">
             <div className="text-[58px] mb-2 animate-bounce">🚨</div>
@@ -463,14 +463,12 @@ export default function StudentLobby() {
             >
               ⛶ RE-ENTER FULLSCREEN ARENA NOW
             </button>
-            {status === 'lobby' && (
-              <button
-                onClick={handleReturnToDashboard}
-                className="text-[12px] font-display font-bold text-[#666] hover:text-[var(--ink)] underline cursor-pointer"
-              >
-                ← Back to Dashboard
-              </button>
-            )}
+            <button
+              onClick={handleReturnToDashboard}
+              className="text-[12px] font-display font-bold text-[#666] hover:text-[var(--ink)] underline cursor-pointer"
+            >
+              ← Back to Dashboard
+            </button>
           </div>
         </div>
       )}
